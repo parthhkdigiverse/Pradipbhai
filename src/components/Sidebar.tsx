@@ -10,7 +10,8 @@ import {
   Shield,
   ChevronDown,
   Search,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -59,10 +60,11 @@ export function Sidebar() {
     { name: 'Clients', group: 'Sales' },
     { name: 'Leads', group: 'Sales' },
     { name: 'Calendar', group: 'Social Media' },
-    { name: 'Scheduler', group: 'Social Media' },
+    { name: 'Credentials', group: 'Social Media' },
     { name: 'Chat', group: 'Main' },
     { name: 'Reports', group: 'Main' },
     { name: 'Security', group: 'Main' },
+    { name: 'Settings', group: 'Main' },
   ];
 
   const suggestions = searchQuery 
@@ -237,7 +239,7 @@ export function Sidebar() {
               </a>
               <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Scheduler
+                Credentials
               </a>
             </div>
           </div>
@@ -256,6 +258,11 @@ export function Sidebar() {
           <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">
             <Shield className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Security</span>
+          </a>
+
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">
+            <Settings className="w-5 h-5 flex-shrink-0" />
+            <span className="truncate">Settings</span>
           </a>
 
         </div>

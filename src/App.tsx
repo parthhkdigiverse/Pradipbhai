@@ -55,11 +55,11 @@ function MetricCard({ title, value, change, isPositive, data, color }: any) {
         <div>
           <div className="text-2xl font-bold text-gray-800 mb-4">{value}</div>
           <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold ${isPositive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold ${isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
               {change}%
             </div>
-            <span className="text-xs text-gray-500">in Last 7 Days</span>
+            <span className="text-xs text-gray-500 whitespace-nowrap">in Last 7 Days</span>
           </div>
         </div>
         <div className="w-24 h-12">
