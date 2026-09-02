@@ -19,6 +19,7 @@ export function JobsPage() {
     title: '',
     description: '',
     clientId: '',
+    projectId: '',
     productId: '',
     printerId: '',
     teamId: '',
@@ -50,6 +51,7 @@ export function JobsPage() {
           title: job.title,
           description: job.description,
           clientId: job.clientId || '',
+          projectId: job.projectId || '',
           productId: job.productId || '',
           printerId: job.printerId || '',
           teamId: job.teamId || '',
@@ -67,6 +69,7 @@ export function JobsPage() {
         title: '',
         description: '',
         clientId: '',
+        projectId: '',
         productId: '',
         printerId: '',
         teamId: '',
@@ -116,6 +119,16 @@ export function JobsPage() {
   };
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
+  const getProjectName = (clientId: string, projectId: string) => {
+    if (!clientId || !projectId) return null;
+    const client = clients.find(c => c.id === clientId);
+    if (!client || !client.projects) return null;
+    // Projects in data might just be an array of objects. We need to match by index or name.
+    // If the jobs data stores projectId as a string (e.g. index), let's parse it or match it. 
+    // Wait, the projects in mock data don't have IDs, they are just in an array. Let's use the project name as the ID/value.
+    const project = client.projects.find((p: any) => p.name === projectId);
+    return project ? project.name : projectId; // Fallback to raw string if it's already the name
+  };
   const getStaffName = (id: string) => staff.find(s => s.id === id)?.name || 'Unassigned';
 
   const resetFilters = () => {
@@ -213,7 +226,7 @@ export function JobsPage() {
                 <th className="py-4 px-6 min-w-[200px]">Title</th>
                 <th className="py-4 px-6 text-center">Type</th>
                 <th className="py-4 px-6 min-w-[250px]">Description</th>
-                <th className="py-4 px-6">Client</th>
+                <th className="py-4 px-6">Client & Project</th>
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6">Team</th>
                 <th className="py-4 px-6">Due Date</th>
@@ -246,7 +259,15 @@ export function JobsPage() {
                       {job.description}
                     </td>
                     <td className="py-4 px-6">
-                      <span className="font-semibold text-gray-700">{getClientName(job.clientId)}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-gray-700">{getClientName(job.clientId)}</span>
+                        {job.projectId && (
+                          <span className="text-[10px] text-gray-500 flex items-center mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-1.5"></span>
+                            {getProjectName(job.clientId, job.projectId)}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -327,11 +348,29 @@ export function JobsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
-                  <select required value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select required value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value, projectId: ''})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
                     <option value="" disabled>Select client by name</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
                   </select>
                 </div>
+                <div className="col-span-1">
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Project</label>
+                  <select 
+                    value={formData.projectId} 
+                    onChange={e => setFormData({...formData, projectId: e.target.value})} 
+                    disabled={!formData.clientId}
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">No specific project</option>
+                    {formData.clientId && clients.find(c => c.id === formData.clientId)?.projects?.map((p: any, idx: number) => (
+                      <option key={idx} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Title & Product */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Assign Team</label>
                   <select value={formData.teamId} onChange={e => setFormData({...formData, teamId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
@@ -339,10 +378,6 @@ export function JobsPage() {
                     {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                   </select>
                 </div>
-              </div>
-
-              {/* Title & Product */}
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Job Title <span className="text-rose-500">*</span></label>
                   <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />

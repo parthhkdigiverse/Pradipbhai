@@ -13,6 +13,8 @@ import { AttendancePage } from './components/AttendancePage';
 import { PayrollPage } from './components/PayrollPage';
 import { VendorsPage } from './components/VendorsPage';
 import { JobsPage } from './components/JobsPage';
+import { InvoicesPage } from './components/InvoicesPage';
+import { ReportsPage } from './components/ReportsPage';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
@@ -41,6 +43,8 @@ function App() {
           {currentPage === 'payroll' && <PayrollPage />}
           {currentPage === 'vendors' && <VendorsPage />}
           {currentPage === 'jobs' && <JobsPage />}
+          {currentPage === 'invoices' && <InvoicesPage />}
+          {currentPage === 'reports' && <ReportsPage />}
           {currentPage === 'settings' && <SettingsPage />}
         </DashboardLayout>
       </DataProvider>

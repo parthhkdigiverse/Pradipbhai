@@ -218,6 +218,33 @@ const initialJobs = [
   }
 ];
 
+const initialInvoices = [
+  {
+    id: '1',
+    invoiceNumber: 'INV-001',
+    clientId: '1',
+    jobIds: ['1'],
+    issueDate: '2026-08-25',
+    dueDate: '2026-09-10',
+    subtotal: 500,
+    tax: 90,
+    total: 590,
+    status: 'Sent'
+  },
+  {
+    id: '2',
+    invoiceNumber: 'INV-002',
+    clientId: '3',
+    jobIds: ['3'],
+    issueDate: '2026-08-28',
+    dueDate: '2026-09-15',
+    subtotal: 3000,
+    tax: 540,
+    total: 3540,
+    status: 'Paid'
+  }
+];
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
@@ -235,6 +262,8 @@ interface DataContextType {
   setVendors: React.Dispatch<React.SetStateAction<any[]>>;
   jobs: any[];
   setJobs: React.Dispatch<React.SetStateAction<any[]>>;
+  invoices: any[];
+  setInvoices: React.Dispatch<React.SetStateAction<any[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
 }
@@ -338,6 +367,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return initialJobs;
   });
 
+  const [invoices, setInvoices] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_invoices');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialInvoices;
+      }
+    }
+    return initialInvoices;
+  });
+
   const { autoConvertLeads } = useSettings();
 
   const convertLeadToClient = (lead: any) => {
@@ -406,6 +447,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_jobs', JSON.stringify(jobs));
   }, [jobs]);
 
+  useEffect(() => {
+    localStorage.setItem('app_invoices', JSON.stringify(invoices));
+  }, [invoices]);
+
   return (
     <DataContext.Provider value={{ 
       leads, setLeads, 
@@ -416,6 +461,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       payroll, setPayroll,
       vendors, setVendors,
       jobs, setJobs,
+      invoices, setInvoices,
       convertLeadToClient, 
       updateProject 
     }}>
