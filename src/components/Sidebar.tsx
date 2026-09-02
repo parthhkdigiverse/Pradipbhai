@@ -58,8 +58,6 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
     { name: 'Payroll', group: 'HR' },
     { name: 'Clients', group: 'Sales' },
     { name: 'Leads', group: 'Sales' },
-    { name: 'Calendar', group: 'Social Media' },
-    { name: 'Credentials', group: 'Social Media' },
     { name: 'Chat', group: 'Main' },
     { name: 'Reports', group: 'Main' },
     { name: 'Security', group: 'Main' },
@@ -208,10 +206,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.sales ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Clients
-              </a>
+              </button>
               <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Leads
@@ -220,28 +218,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           </div>
 
           {/* Social Media Management */}
-          <div>
-            <button 
-              onClick={() => toggleMenu('social')}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
-            >
-              <div className="flex items-center gap-3 overflow-hidden">
-                <Megaphone className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">Social Media</span>
-              </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.social ? 'rotate-180' : ''}`} />
-            </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.social ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Calendar
-              </a>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Credentials
-              </a>
-            </div>
-          </div>
+          <button onClick={() => setCurrentPage('social')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+            <Megaphone className="w-5 h-5 flex-shrink-0" />
+            <span className="truncate">Social Media</span>
+          </button>
 
           {/* Independent Items */}
           <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">

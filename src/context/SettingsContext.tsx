@@ -6,15 +6,18 @@ export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'MMM DD, Y
 interface SettingsContextType {
   dateFormat: DateFormat;
   setDateFormat: (format: DateFormat) => void;
+  autoConvertLeads: boolean;
+  setAutoConvertLeads: (autoConvert: boolean) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [dateFormat, setDateFormat] = useState<DateFormat>('DD/MM/YYYY');
+  const [autoConvertLeads, setAutoConvertLeads] = useState<boolean>(true);
 
   return (
-    <SettingsContext.Provider value={{ dateFormat, setDateFormat }}>
+    <SettingsContext.Provider value={{ dateFormat, setDateFormat, autoConvertLeads, setAutoConvertLeads }}>
       {children}
     </SettingsContext.Provider>
   );

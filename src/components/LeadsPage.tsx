@@ -5,83 +5,12 @@ import {
   ChevronDown, ChevronUp, Clock, History
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
-
-// Initial Mock Data
-const initialLeads = [
-  {
-    id: '1',
-    company: 'Tech Solutions Inc',
-    contact: 'John Doe',
-    email: 'john@techsolutions.com',
-    phone: '+1 234-567-8900',
-    source: 'Website',
-    category: 'Hot Lead',
-    status: 'Lead',
-    priority: 'High',
-    isHot: true,
-    createdByUserName: 'Admin',
-    date: '2026-09-01',
-    expectedIncome: '10000',
-    followUps: [
-      { date: '2026-09-10', note: 'Call to discuss pricing proposal' }
-    ]
-  },
-  {
-    id: '2',
-    company: 'Digital Marketing Co',
-    contact: 'Jane Smith',
-    email: 'jane@digitalmarketing.com',
-    phone: '+1 987-654-3210',
-    source: 'Referral',
-    category: 'Warm Lead',
-    status: 'Contacted',
-    priority: 'Medium',
-    isHot: false,
-    createdByUserName: 'Sales Rep 1',
-    date: '2026-08-28',
-    expectedIncome: '5000',
-    followUps: [
-      { date: '2026-09-05', note: 'Check if they received the email' }
-    ]
-  },
-  {
-    id: '3',
-    company: 'Global Enterprises',
-    contact: 'Mike Johnson',
-    email: 'mike@global.com',
-    phone: '+1 555-123-4567',
-    source: 'Cold Call',
-    category: 'Cold Lead',
-    status: 'Proposal Sent',
-    priority: 'Low',
-    isHot: false,
-    createdByUserName: 'Sales Rep 2',
-    date: '2026-08-15',
-    expectedIncome: '2000',
-    followUps: []
-  },
-  {
-    id: '4',
-    company: 'Alpha Innovations',
-    contact: 'Sarah Connor',
-    email: 'sarah@alpha.com',
-    phone: '+1 111-222-3333',
-    source: 'Event',
-    category: 'Hot Lead',
-    status: 'Client Won',
-    priority: 'High',
-    isHot: false,
-    createdByUserName: 'Admin',
-    date: '2026-07-20',
-    expectedIncome: '25000',
-    followUps: []
-  }
-];
 
 export function LeadsPage() {
   const { dateFormat } = useSettings();
-  const [leads, setLeads] = useState(initialLeads);
+  const { leads, setLeads, convertLeadToClient } = useData();
   const [activeTab, setActiveTab] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -120,7 +49,10 @@ export function LeadsPage() {
 
   const handleSaveInlineEdit = () => {
     if (editingRowId && editRowData) {
-      setLeads(leads.map(l => {
+      // Find the original lead to see if status changed
+      const originalLead = leads.find(l => l.id === editingRowId);
+      
+      setLeads((prevLeads) => prevLeads.map(l => {
         if (l.id === editingRowId) {
           const updatedLead: any = { ...l, ...editRowData };
           if (editRowData.followUpDate || editRowData.followUpNote) {
@@ -128,7 +60,6 @@ export function LeadsPage() {
               { date: editRowData.followUpDate, note: editRowData.followUpNote },
               ...(l.followUps || [])
             ];
-            // Clear temporary fields so they don't persist
             delete updatedLead.followUpDate;
             delete updatedLead.followUpNote;
           }
@@ -136,6 +67,11 @@ export function LeadsPage() {
         }
         return l;
       }));
+
+      // Call convertLeadToClient if the status changed to 'Client Won'
+      if (originalLead && originalLead.status !== editRowData.status && editRowData.status === 'Client Won') {
+        convertLeadToClient({ ...originalLead, ...editRowData });
+      }
     }
     setEditingRowId(null);
     setEditRowData(null);
@@ -229,7 +165,9 @@ export function LeadsPage() {
   const handleSaveLead = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingLeadId) {
-      setLeads(leads.map(l => {
+      const originalLead = leads.find(l => l.id === editingLeadId);
+      
+      setLeads((prevLeads) => prevLeads.map(l => {
         if (l.id === editingLeadId) {
           const updatedLead: any = { ...l, ...formData };
           if (formData.followUpDate || formData.followUpNote) {
@@ -244,6 +182,10 @@ export function LeadsPage() {
         }
         return l;
       }));
+      
+      if (originalLead && originalLead.status !== formData.status && formData.status === 'Client Won') {
+        convertLeadToClient({ ...originalLead, ...formData });
+      }
     } else {
       const newLead = {
         ...formData,
