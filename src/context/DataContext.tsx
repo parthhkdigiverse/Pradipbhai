@@ -138,6 +138,86 @@ const initialProducts = [
   { id: '8', name: 'UV Printing', description: '-', type: 'Printing' }
 ];
 
+const initialStaff = [
+  { id: '1', name: 'Alice Smith', role: 'Senior Designer', email: 'alice@example.com', phone: '+91 98765 11111', status: 'Active', joinDate: '2023-01-15', baseSalary: 60000 },
+  { id: '2', name: 'Bob Johnson', role: 'Marketing Manager', email: 'bob@example.com', phone: '+91 98765 22222', status: 'Active', joinDate: '2023-03-20', baseSalary: 75000 },
+  { id: '3', name: 'Charlie Brown', role: 'Print Specialist', email: 'charlie@example.com', phone: '+91 98765 33333', status: 'On Leave', joinDate: '2024-05-10', baseSalary: 45000 }
+];
+
+const initialAttendance = [
+  { id: '1', staffId: '1', date: '2026-09-01', status: 'Present', checkIn: '09:00', checkOut: '18:00' },
+  { id: '2', staffId: '2', date: '2026-09-01', status: 'Present', checkIn: '09:15', checkOut: '18:30' },
+  { id: '3', staffId: '3', date: '2026-09-01', status: 'Leave', checkIn: '', checkOut: '' },
+];
+
+const initialPayroll = [
+  { id: '1', staffId: '1', month: '2026-08', basic: 60000, deductions: 0, netPay: 60000, status: 'Paid' },
+  { id: '2', staffId: '2', month: '2026-08', basic: 75000, deductions: 2500, netPay: 72500, status: 'Paid' },
+  { id: '3', staffId: '3', month: '2026-08', basic: 45000, deductions: 0, netPay: 45000, status: 'Paid' }
+];
+
+const initialVendors = [
+  { id: '1', name: 'Laxmi Bag Manufacturer', description: '-', category: 'Printer' },
+  { id: '2', name: 'STAR RIBBON - MUMBAI', description: '-', category: 'Printer' },
+  { id: '3', name: 'Tapi Digital', description: '-', category: 'Printer' },
+  { id: '4', name: 'PROGRESSIVE OFFSET', description: '-', category: 'Printer' },
+  { id: '5', name: 'Siddheshwar Trading', description: 'cloth print, Flag, khes, etc', category: 'Printer' }
+];
+
+const initialJobs = [
+  {
+    id: '1',
+    createdBy: 'Sweety Patel',
+    createdAt: '2026-08-24',
+    title: 'CROSSWORD - POST DESIGN',
+    type: 'Designing',
+    description: 'April month sudhi ni krvani che',
+    clientId: '1',
+    status: 'Pending',
+    teamId: '1',
+    dueDate: '2026-08-27',
+    paymentStatus: 'Unpaid',
+    totalAmount: 500,
+    paidAmount: 0,
+    printerId: null,
+    productId: '1'
+  },
+  {
+    id: '2',
+    createdBy: 'Gopi Hirapara',
+    createdAt: '2026-08-24',
+    title: 'Note Post',
+    type: 'Designing',
+    description: 'Janmashtami Note Post - English, Gujrati and...',
+    clientId: '2',
+    status: 'Pending',
+    teamId: '2',
+    dueDate: '2026-08-24',
+    paymentStatus: 'Unpaid',
+    totalAmount: 1500,
+    paidAmount: 0,
+    printerId: null,
+    productId: '2'
+  },
+  {
+    id: '3',
+    createdBy: 'Jeet',
+    createdAt: '2026-08-22',
+    title: '1537 - heat therm - A4 Letterhead',
+    type: 'Printing',
+    description: '100 gsm SS = 1000 copy',
+    clientId: '3',
+    status: 'Progress',
+    teamId: null,
+    dueDate: '2026-08-26',
+    paymentStatus: 'Unpaid',
+    totalAmount: 3000,
+    paidAmount: 1000,
+    printerId: '3',
+    productId: '5'
+  }
+];
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
@@ -145,6 +225,16 @@ interface DataContextType {
   setClients: React.Dispatch<React.SetStateAction<any[]>>;
   products: any[];
   setProducts: React.Dispatch<React.SetStateAction<any[]>>;
+  staff: any[];
+  setStaff: React.Dispatch<React.SetStateAction<any[]>>;
+  attendance: any[];
+  setAttendance: React.Dispatch<React.SetStateAction<any[]>>;
+  payroll: any[];
+  setPayroll: React.Dispatch<React.SetStateAction<any[]>>;
+  vendors: any[];
+  setVendors: React.Dispatch<React.SetStateAction<any[]>>;
+  jobs: any[];
+  setJobs: React.Dispatch<React.SetStateAction<any[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
 }
@@ -186,6 +276,66 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     return initialProducts;
+  });
+
+  const [staff, setStaff] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_staff');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialStaff;
+      }
+    }
+    return initialStaff;
+  });
+
+  const [attendance, setAttendance] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_attendance');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialAttendance;
+      }
+    }
+    return initialAttendance;
+  });
+
+  const [payroll, setPayroll] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_payroll');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialPayroll;
+      }
+    }
+    return initialPayroll;
+  });
+
+  const [vendors, setVendors] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_vendors');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialVendors;
+      }
+    }
+    return initialVendors;
+  });
+
+  const [jobs, setJobs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_jobs');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialJobs;
+      }
+    }
+    return initialJobs;
   });
 
   const { autoConvertLeads } = useSettings();
@@ -236,8 +386,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_products', JSON.stringify(products));
   }, [products]);
 
+  useEffect(() => {
+    localStorage.setItem('app_staff', JSON.stringify(staff));
+  }, [staff]);
+
+  useEffect(() => {
+    localStorage.setItem('app_attendance', JSON.stringify(attendance));
+  }, [attendance]);
+
+  useEffect(() => {
+    localStorage.setItem('app_payroll', JSON.stringify(payroll));
+  }, [payroll]);
+
+  useEffect(() => {
+    localStorage.setItem('app_vendors', JSON.stringify(vendors));
+  }, [vendors]);
+
+  useEffect(() => {
+    localStorage.setItem('app_jobs', JSON.stringify(jobs));
+  }, [jobs]);
+
   return (
-    <DataContext.Provider value={{ leads, setLeads, clients, setClients, products, setProducts, convertLeadToClient, updateProject }}>
+    <DataContext.Provider value={{ 
+      leads, setLeads, 
+      clients, setClients, 
+      products, setProducts, 
+      staff, setStaff, 
+      attendance, setAttendance, 
+      payroll, setPayroll,
+      vendors, setVendors,
+      jobs, setJobs,
+      convertLeadToClient, 
+      updateProject 
+    }}>
       {children}
     </DataContext.Provider>
   );

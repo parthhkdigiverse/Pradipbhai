@@ -8,6 +8,11 @@ import { ProjectsPage } from './components/ProjectsPage';
 import { SocialMediaPage } from './components/SocialMediaPage';
 import { ChatPage } from './components/ChatPage';
 import { CatalogPage } from './components/CatalogPage';
+import { StaffPage } from './components/StaffPage';
+import { AttendancePage } from './components/AttendancePage';
+import { PayrollPage } from './components/PayrollPage';
+import { VendorsPage } from './components/VendorsPage';
+import { JobsPage } from './components/JobsPage';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
@@ -31,6 +36,11 @@ function App() {
           {currentPage === 'social' && <SocialMediaPage />}
           {currentPage === 'chat' && <ChatPage />}
           {currentPage === 'catalog' && <CatalogPage />}
+          {currentPage === 'staff' && <StaffPage />}
+          {currentPage === 'attendance' && <AttendancePage />}
+          {currentPage === 'payroll' && <PayrollPage />}
+          {currentPage === 'vendors' && <VendorsPage />}
+          {currentPage === 'jobs' && <JobsPage />}
           {currentPage === 'settings' && <SettingsPage />}
         </DashboardLayout>
       </DataProvider>

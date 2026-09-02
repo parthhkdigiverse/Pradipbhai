@@ -154,46 +154,46 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Projects
               </button>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Jobs
-              </a>
+              </button>
               <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Catalog
               </button>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Vendors
-              </a>
+              </button>
             </div>
           </div>
 
-          {/* Employees */}
+          {/* HR Management */}
           <div>
             <button 
-              onClick={() => toggleMenu('employees')}
+              onClick={() => toggleMenu('hr')}
               className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <Users className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">Employees</span>
+                <span className="truncate">HR</span>
               </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.employees ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.hr ? 'rotate-180' : ''}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.employees ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.hr ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Staff
-              </a>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              </button>
+              <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Attendance
-              </a>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              </button>
+              <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Payroll
-              </a>
+              </button>
             </div>
           </div>
 
