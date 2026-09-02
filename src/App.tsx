@@ -4,6 +4,9 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LeadsPage } from './components/LeadsPage';
 import { ClientsPage } from './components/ClientsPage';
 import { SettingsPage } from './components/SettingsPage';
+import { ProjectsPage } from './components/ProjectsPage';
+import { SocialMediaPage } from './components/SocialMediaPage';
+import { ChatPage } from './components/ChatPage';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
@@ -23,6 +26,9 @@ function App() {
           {currentPage === 'dashboard' && <AdminDashboard />}
           {currentPage === 'leads' && <LeadsPage />}
           {currentPage === 'clients' && <ClientsPage />}
+          {currentPage === 'projects' && <ProjectsPage />}
+          {currentPage === 'social' && <SocialMediaPage />}
+          {currentPage === 'chat' && <ChatPage />}
           {currentPage === 'settings' && <SettingsPage />}
         </DashboardLayout>
       </DataProvider>

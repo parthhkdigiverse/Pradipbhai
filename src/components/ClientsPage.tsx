@@ -242,13 +242,32 @@ export function ClientsPage() {
     ];
   }, [clients]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (client: any) => {
+    const status = client.status;
+    let colorClass = "";
     switch (status) {
-      case "Active": return <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-200 uppercase tracking-wide">Active</span>;
-      case "Onboarding": return <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-200 uppercase tracking-wide">Onboarding</span>;
-      case "Inactive": return <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md text-xs font-bold border border-gray-200 uppercase tracking-wide">Inactive</span>;
-      default: return <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-xs font-bold border border-slate-200">{status}</span>;
+      case "Active": colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200"; break;
+      case "Onboarding": colorClass = "bg-blue-100 text-blue-700 border-blue-200"; break;
+      case "Inactive": colorClass = "bg-gray-100 text-gray-700 border-gray-200"; break;
+      default: colorClass = "bg-slate-100 text-slate-700 border-slate-200"; break;
     }
+
+    return (
+      <select 
+        value={status} 
+        onChange={(e) => {
+          const newStatus = e.target.value;
+          setClients((prev) => prev.map(c => c.id === client.id ? { ...c, status: newStatus } : c));
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className={`${colorClass} px-2.5 py-1 rounded-md text-xs font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none pr-5 relative`}
+        style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.65rem auto' }}
+      >
+        <option value="Active">Active</option>
+        <option value="Onboarding">Onboarding</option>
+        <option value="Inactive">Inactive</option>
+      </select>
+    );
   };
 
   const getProjectStatusBadge = (status: string) => {

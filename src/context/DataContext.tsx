@@ -133,6 +133,7 @@ interface DataContextType {
   clients: any[];
   setClients: React.Dispatch<React.SetStateAction<any[]>>;
   convertLeadToClient: (lead: any) => void;
+  updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -185,6 +186,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setClients((prevClients) => [newClient, ...prevClients]);
   };
 
+  const updateProject = (clientId: string, projectIndex: number, projectData: any) => {
+    setClients((prevClients) => prevClients.map(c => {
+      if (c.id === clientId) {
+        const newProjects = [...(c.projects || [])];
+        if (projectIndex >= 0 && projectIndex < newProjects.length) {
+          newProjects[projectIndex] = { ...projectData };
+        }
+        return { ...c, projects: newProjects };
+      }
+      return c;
+    }));
+  };
+
   useEffect(() => {
     localStorage.setItem('app_leads', JSON.stringify(leads));
   }, [leads]);
@@ -194,7 +208,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [clients]);
 
   return (
-    <DataContext.Provider value={{ leads, setLeads, clients, setClients, convertLeadToClient }}>
+    <DataContext.Provider value={{ leads, setLeads, clients, setClients, convertLeadToClient, updateProject }}>
       {children}
     </DataContext.Provider>
   );

@@ -285,15 +285,39 @@ export function LeadsPage() {
     ];
   }, [leads]);
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (lead: any) => {
+    const status = lead.status;
+    let colorClass = "";
     switch (status) {
-      case "Client Won": return <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-semibold border border-emerald-200">Client Won</span>;
-      case "Client Lost": return <span className="bg-rose-100 text-rose-700 px-2 py-1 rounded text-xs font-semibold border border-rose-200">Client Lost</span>;
-      case "Proposal Sent": return <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-semibold border border-amber-200">Proposal Sent</span>;
-      case "Contacted": return <span className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-semibold border border-indigo-200">Contacted</span>;
-      case "On Hold": return <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-semibold border border-blue-200">On Hold</span>;
-      default: return <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs font-semibold border border-slate-200">{status}</span>;
+      case "Client Won": colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200"; break;
+      case "Client Lost": colorClass = "bg-rose-100 text-rose-700 border-rose-200"; break;
+      case "Proposal Sent": colorClass = "bg-amber-100 text-amber-700 border-amber-200"; break;
+      case "Contacted": colorClass = "bg-indigo-100 text-indigo-700 border-indigo-200"; break;
+      case "On Hold": colorClass = "bg-blue-100 text-blue-700 border-blue-200"; break;
+      default: colorClass = "bg-slate-100 text-slate-700 border-slate-200"; break;
     }
+
+    return (
+      <select 
+        value={status} 
+        onChange={(e) => {
+          const newStatus = e.target.value;
+          if (newStatus === 'Client Won') {
+             convertLeadToClient({ ...lead, status: newStatus });
+          }
+          setLeads((prev) => prev.map(l => l.id === lead.id ? { ...l, status: newStatus } : l));
+        }}
+        className={`${colorClass} px-2 py-1 rounded text-xs font-semibold border focus:outline-none cursor-pointer appearance-none pr-5 relative`}
+        style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.65rem auto' }}
+      >
+        <option value="New">New</option>
+        <option value="Contacted">Contacted</option>
+        <option value="Proposal Sent">Proposal Sent</option>
+        <option value="On Hold">On Hold</option>
+        <option value="Client Won">Client Won</option>
+        <option value="Client Lost">Client Lost</option>
+      </select>
+    );
   };
 
   return (
@@ -506,7 +530,7 @@ export function LeadsPage() {
                                     </div>
                                   </td>
                                   <td className="px-5 py-3">
-                                    {getStatusBadge(lead.status)}
+                                    {getStatusBadge(lead)}
                                   </td>
                                   <td className="px-5 py-3">
                                     <div className="flex flex-col max-w-[200px]">

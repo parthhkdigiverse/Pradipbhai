@@ -150,6 +150,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.jobs ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                Projects
+              </button>
               <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Jobs
@@ -224,10 +228,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           </button>
 
           {/* Independent Items */}
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">
+          <button onClick={() => setCurrentPage('chat')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <MessageSquare className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Chat</span>
-          </a>
+          </button>
 
           <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">
             <LineChart className="w-5 h-5 flex-shrink-0" />
