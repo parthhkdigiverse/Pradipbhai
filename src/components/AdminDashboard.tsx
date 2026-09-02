@@ -77,9 +77,6 @@ export function AdminDashboard() {
     <>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm">Admin Dashboard</h1>
-        <div className="text-sm text-gray-500 bg-white/40 px-3 py-1.5 rounded-full border border-white/60 backdrop-blur-md">
-          Home &gt; <span className="text-gray-800 font-medium">Admin Dashboard</span>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">

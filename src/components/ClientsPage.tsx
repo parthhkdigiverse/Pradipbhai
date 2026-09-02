@@ -308,9 +308,6 @@ export function ClientsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Client Management</h1>
-          <div className="text-sm text-gray-500 bg-white/40 px-3 py-1.5 rounded-full border border-white/60 backdrop-blur-md inline-block">
-            Home &gt; Sales &gt; <span className="text-gray-800 font-medium">Clients</span>
-          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 
