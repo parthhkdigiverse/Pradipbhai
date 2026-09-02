@@ -1,12 +1,24 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle } from 'lucide-react';
+import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function InvoicesPage() {
   const { invoices, setInvoices, clients, jobs } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  
+  const [filterClient, setFilterClient] = useState('All');
+
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+    setFilterClient('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
@@ -31,9 +43,14 @@ export function InvoicesPage() {
     return invoices.filter(inv => {
       const matchSearch = inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'All' || inv.status === filterStatus;
-      return matchSearch && matchStatus;
+      const matchClient = filterClient === 'All' || inv.clientId === filterClient;
+      
+      const matchDateFrom = !filterDateFrom || (inv.issueDate && new Date(inv.issueDate) >= new Date(filterDateFrom));
+      const matchDateTo = !filterDateTo || (inv.issueDate && new Date(inv.issueDate) <= new Date(filterDateTo));
+      
+      return matchSearch && matchStatus && matchClient && matchDateFrom && matchDateTo;
     });
-  }, [invoices, searchTerm, filterStatus]);
+  }, [invoices, searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo]);
 
   // Derived calculations for the modal
   const availableJobs = useMemo(() => {
@@ -170,9 +187,52 @@ export function InvoicesPage() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="p-4 flex items-center justify-between gap-3 mb-4 bg-white/40 border border-white/60 rounded-[1.5rem] backdrop-blur-md shadow-sm">
-        <div className="relative flex-1 max-w-sm">
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Invoices
+          </h3>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Status</option>
+              <option value="Draft">Draft</option>
+              <option value="Sent">Sent</option>
+              <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
+            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Clients</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Issue Date From</label>
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Issue Date To</label>
+            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input 
             type="text" 
@@ -181,20 +241,6 @@ export function InvoicesPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <select 
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none text-gray-700 w-32"
-          >
-            <option value="All">All Status</option>
-            <option value="Draft">Draft</option>
-            <option value="Sent">Sent</option>
-            <option value="Paid">Paid</option>
-            <option value="Overdue">Overdue</option>
-          </select>
         </div>
       </div>
 
@@ -353,7 +399,7 @@ export function InvoicesPage() {
                 {/* Dates & Tax */}
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Issue Date</label>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Issue Date <span className="text-rose-500">*</span></label>
                     <input type="date" required value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
                   </div>
                   <div>

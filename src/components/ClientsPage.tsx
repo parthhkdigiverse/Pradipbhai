@@ -2,7 +2,6 @@ import { useState, useMemo, Fragment, useEffect } from 'react';
 import { 
   Users, 
   Search, 
-  Filter,
   MoreHorizontal,
   ChevronDown,
   ChevronUp,
@@ -17,7 +16,8 @@ import {
   TrendingUp,
   Activity,
   Calendar,
-  Building
+  Building,
+  FilterX
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
@@ -25,17 +25,19 @@ import { formatDate } from '../utils/dateFormatter';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
-  const { clients, setClients } = useData();
-  const [activeTab, setActiveTab] = useState('all');
+  const { clients, setClients, setJobs } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
   
-  // Filter Modal
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    status: [] as string[]
-  });
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   
-  const activeFilterCount = filters.status.length;
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
 
   // Modals & Inline Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,13 +135,12 @@ export function ClientsPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isModalOpen) handleCloseModal();
-        if (isFilterModalOpen) setIsFilterModalOpen(false);
         if (isProjectModalOpen) handleCloseProjectModal();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, isFilterModalOpen, isProjectModalOpen]);
+  }, [isModalOpen, isProjectModalOpen]);
 
   const handleSaveProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +152,28 @@ export function ClientsPage() {
             newProjects[editingProjectIndex] = { ...projectFormData };
             return { ...c, projects: newProjects };
           } else {
+            const newJob = {
+              id: Math.random().toString(36).substr(2, 9),
+              createdBy: 'System',
+              createdAt: new Date().toISOString().split('T')[0],
+              title: projectFormData.name,
+              type: projectFormData.category,
+              description: 'Automatically created job for new project.',
+              clientId: c.id,
+              projectId: projectFormData.name,
+              status: 'Pending',
+              teamId: '',
+              dueDate: projectFormData.deadline || new Date().toISOString().split('T')[0],
+              paymentStatus: 'Unpaid',
+              totalAmount: projectFormData.budget ? parseFloat(projectFormData.budget) : 0,
+              paidAmount: 0,
+              printerId: null,
+              productId: ''
+            };
+            
+            // Note: We need to use a function updater or just call setJobs if we have the latest state, but we don't have jobs inside setClients directly without depending on closure. It's safe since handleSaveProject has the latest closure of `jobs` when called.
+            setJobs(prevJobs => [...prevJobs, newJob]);
+
             return {
               ...c,
               projects: [...(c.projects || []), { ...projectFormData }]
@@ -212,14 +235,14 @@ export function ClientsPage() {
         client.email.toLowerCase().includes(searchLower);
 
       if (!matchesSearch) return false;
-      if (filters.status.length > 0 && !filters.status.includes(client.status)) return false;
+      if (filterStatus !== 'All' && client.status !== filterStatus) return false;
+      
+      const matchDateFrom = !filterDateFrom || (client.clientSince && new Date(client.clientSince) >= new Date(filterDateFrom));
+      const matchDateTo = !filterDateTo || (client.clientSince && new Date(client.clientSince) <= new Date(filterDateTo));
 
-      if (activeTab === 'active') return client.status === 'Active';
-      if (activeTab === 'onboarding') return client.status === 'Onboarding';
-      if (activeTab === 'inactive') return client.status === 'Inactive';
-      return true;
+      return matchDateFrom && matchDateTo;
     });
-  }, [clients, activeTab, searchTerm, filters]);
+  }, [clients, searchTerm, filterStatus, filterDateFrom, filterDateTo]);
 
   const stats = useMemo(() => {
     const activeClients = clients.filter(c => c.status === 'Active' || c.status === 'Onboarding');
@@ -319,46 +342,53 @@ export function ClientsPage() {
       </div>
 
       <div className="glass-panel rounded-2xl overflow-hidden flex flex-col min-h-[500px]">
-        {/* Tabs */}
-        <div className="px-5 pt-5 pb-0 border-b border-white/40 bg-white/20">
-          <div className="flex items-center gap-6">
-            {['all', 'active', 'onboarding', 'inactive'].map(tab => (
+        {/* Advanced Filters Panel */}
+        <div className="border-b border-white/40 bg-white/20 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+              <FilterX className="w-4 h-4 text-gray-500" />
+              Filter Clients
+            </h3>
+            <div className="flex items-center gap-4">
               <button 
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pb-3 px-1 text-sm font-semibold capitalize border-b-2 transition-all ${
-                  activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
-                }`}
+                onClick={resetFilters}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
               >
-                {tab} Clients
+                Reset Filters
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-        
-        {/* Toolbar */}
-        <div className="p-5 flex items-center justify-between gap-4 bg-white/10">
-          <div className="relative flex-1 max-w-md">
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Onboarding">Onboarding</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since To</label>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            </div>
+          </div>
+          
+          <div className="mt-3 relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input 
               type="text" 
-              placeholder="Search clients..." 
+              placeholder="Search by company, contact, or email..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
             />
           </div>
-          <button 
-            onClick={() => setIsFilterModalOpen(true)}
-            className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-sm font-medium transition-all ${activeFilterCount > 0 ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' : 'bg-white/50 border-white/60 text-gray-700 hover:bg-white/80'}`}
-          >
-            <Filter className="w-4 h-4" /> Filters
-            {activeFilterCount > 0 && (
-              <span className="bg-blue-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* Table */}
@@ -565,7 +595,7 @@ export function ClientsPage() {
             <form onSubmit={handleSaveClient} className="p-5 space-y-4">
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Company Name *</label>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Company Name <span className="text-rose-500">*</span></label>
                   <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -621,7 +651,7 @@ export function ClientsPage() {
             <form onSubmit={handleSaveProject} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name *</label>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>
                   <input required type="text" value={projectFormData.name} onChange={e => setProjectFormData({...projectFormData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" placeholder="e.g. Website Redesign" />
                 </div>
                 <div>
@@ -645,12 +675,12 @@ export function ClientsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Budget (₹) *</label>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Budget (₹) <span className="text-rose-500">*</span></label>
                   <input required type="number" value={projectFormData.budget} onChange={e => setProjectFormData({...projectFormData, budget: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" placeholder="500000" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline *</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline <span className="text-rose-500">*</span></label>
                 <input required type="date" value={projectFormData.deadline} onChange={e => setProjectFormData({...projectFormData, deadline: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
               </div>
               
@@ -663,41 +693,6 @@ export function ClientsPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Filter Modal */}
-      {isFilterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-5">
-            <h3 className="font-bold text-gray-800 mb-4">Filter Clients</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 block">Status</label>
-                <div className="flex flex-wrap gap-2">
-                  {['Onboarding', 'Active', 'Inactive'].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setFilters(prev => ({
-                        ...prev, 
-                        status: prev.status.includes(s) ? prev.status.filter(x => x !== s) : [...prev.status, s]
-                      }))}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${filters.status.includes(s) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/50 text-gray-600 border-gray-300 hover:bg-white'}`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-5 border-t border-white/40 mt-5">
-              <button onClick={() => setFilters({status: []})} className="text-sm font-semibold text-gray-500 hover:text-gray-800">Clear</button>
-              <button onClick={() => setIsFilterModalOpen(false)} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl">Apply</button>
-            </div>
           </div>
         </div>
       )}

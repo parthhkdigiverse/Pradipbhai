@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, X, Printer, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, X, Printer, Trash2, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function VendorsPage() {
   const { vendors, setVendors } = useData();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('All');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterCategory('All');
+  };
+    const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -15,11 +21,13 @@ export function VendorsPage() {
   });
 
   const filteredVendors = useMemo(() => {
-    return vendors.filter(v => 
-      v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [vendors, searchTerm]);
+    return vendors.filter(v => {
+      const matchSearch = v.name.toLowerCase().includes(searchTerm.toLowerCase()) || v.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const category = v.category || 'Printer';
+      const matchCategory = filterCategory === 'All' || category === filterCategory;
+      return matchSearch && matchCategory;
+    });
+  }, [vendors, searchTerm, filterCategory]);
 
   const handleOpenModal = (vendorId: string | null = null) => {
     if (vendorId) {
@@ -88,15 +96,44 @@ export function VendorsPage() {
         </div>
       </div>
 
-      <div className="p-5 flex items-center justify-between gap-4 mb-4">
-        <div className="relative flex-1 max-w-md">
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Vendors
+          </h3>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Categories</option>
+              <option value="Printer">Printer</option>
+              <option value="Designer">Designer</option>
+              <option value="Supplier">Supplier</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input 
             type="text" 
             placeholder="Search vendors by name or description..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500 shadow-sm"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>

@@ -1,13 +1,19 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
   const { jobs, setJobs, staff, clients, vendors, products } = useData();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStaff, setFilterStaff] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
+  const [filterStaff, setFilterStaff] = useState('All');
+  const [filterProduct, setFilterProduct] = useState('All');
+  const [filterBilling, setFilterBilling] = useState('All');
   const [filterType, setFilterType] = useState('All');
+  
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -31,16 +37,26 @@ export function JobsPage() {
   });
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter(j => {
-      const matchSearch = j.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          j.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStaff = filterStaff === 'All' || j.teamId === filterStaff;
-      const matchClient = filterClient === 'All' || j.clientId === filterClient;
-      const matchType = filterType === 'All' || j.type === filterType;
+    return jobs.filter(job => {
+      const matchSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          job.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = filterStatus === 'All' || job.status === filterStatus;
+      const matchClient = filterClient === 'All' || job.clientId === filterClient;
+      const matchStaff = filterStaff === 'All' || job.teamId === filterStaff;
+      const matchProduct = filterProduct === 'All' || job.productId === filterProduct;
+      const matchBilling = filterBilling === 'All' || job.paymentStatus === filterBilling;
+      const matchType = filterType === 'All' || job.type === filterType;
       
-      return matchSearch && matchStaff && matchClient && matchType;
+      const matchDateFrom = !filterDateFrom || (job.dueDate && new Date(job.dueDate) >= new Date(filterDateFrom));
+      const matchDateTo = !filterDateTo || (job.dueDate && new Date(job.dueDate) <= new Date(filterDateTo));
+      
+      return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDateFrom && matchDateTo;
     });
-  }, [jobs, searchTerm, filterStaff, filterClient, filterType]);
+  }, [jobs, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo]);
+
+  const totalFilteredJobAmount = useMemo(() => {
+    return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
+  }, [filteredJobs]);
 
   const handleOpenModal = (jobType: 'Designing' | 'Printing', jobId: string | null = null) => {
     setNewJobType(jobType);
@@ -133,9 +149,14 @@ export function JobsPage() {
 
   const resetFilters = () => {
     setSearchTerm('');
-    setFilterStaff('All');
+    setFilterStatus('All');
     setFilterClient('All');
+    setFilterStaff('All');
+    setFilterProduct('All');
+    setFilterBilling('All');
     setFilterType('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
   };
 
   return (
@@ -165,54 +186,95 @@ export function JobsPage() {
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="p-4 flex items-center justify-between gap-3 mb-4 bg-white/40 border border-white/60 rounded-[1.5rem] backdrop-blur-md shadow-sm">
-        <div className="relative flex-1 max-w-sm">
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Jobs
+          </h3>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
+              <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
+            </div>
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Progress">Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancel">Cancel</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
+            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Clients</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
+            <select value={filterStaff} onChange={(e) => setFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Staffs</option>
+              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
+            <select value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Products</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
+            <select value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All</option>
+              <option value="Paid">Paid</option>
+              <option value="Unpaid">Unpaid</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Types</option>
+              <option value="Designing">Designing</option>
+              <option value="Printing">Printing</option>
+              <option value="Des+Print">Des+Print</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Due Date From</label>
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Due Date To</label>
+            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input 
             type="text" 
-            placeholder="Search by job title, description..." 
+            placeholder="Search by job title or description..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <select 
-            value={filterStaff}
-            onChange={(e) => setFilterStaff(e.target.value)}
-            className="px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none text-gray-700 w-32"
-          >
-            <option value="All">All Staff</option>
-            {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          
-          <select 
-            value={filterClient}
-            onChange={(e) => setFilterClient(e.target.value)}
-            className="px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none text-gray-700 w-32"
-          >
-            <option value="All">All Clients</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-          </select>
-          
-          <select 
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none text-gray-700 w-32"
-          >
-            <option value="All">All Types</option>
-            <option value="Designing">Designing</option>
-            <option value="Printing">Printing</option>
-          </select>
-
-          <button 
-            onClick={resetFilters}
-            className="px-4 py-1.5 bg-white/80 border border-gray-200 text-gray-600 hover:text-gray-900 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Reset
-          </button>
         </div>
       </div>
 

@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, Fragment } from 'react';
 import { 
-  Users, Target, Search, Filter, MoreHorizontal, Phone, Mail,
+  Users, Target, Search, MoreHorizontal, Phone, Mail,
   Calendar, Plus, Flame, IndianRupee, TrendingUp, Edit, X, Trash2, Check,
-  ChevronDown, ChevronUp, Clock, History
+  ChevronDown, ChevronUp, Clock, History, FilterX
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
@@ -11,20 +11,25 @@ import { formatDate } from '../utils/dateFormatter';
 export function LeadsPage() {
   const { dateFormat } = useSettings();
   const { leads, setLeads, convertLeadToClient } = useData();
-  const [activeTab, setActiveTab] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Master Filter State
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    status: [] as string[],
-    category: [] as string[],
-    source: [] as string[],
-    dateFrom: '',
-    dateTo: ''
-  });
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterSource, setFilterSource] = useState('All');
+  const [filterPriority, setFilterPriority] = useState('All');
   
-  const activeFilterCount = filters.status.length + filters.category.length + filters.source.length + (filters.dateFrom ? 1 : 0) + (filters.dateTo ? 1 : 0);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+    setFilterCategory('All');
+    setFilterSource('All');
+    setFilterPriority('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
 
   
   // Modal State
@@ -155,12 +160,11 @@ export function LeadsPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isModalOpen) handleCloseModal();
-        if (isFilterModalOpen) setIsFilterModalOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, isFilterModalOpen]);
+  }, [isModalOpen]);
 
   const handleSaveLead = (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,29 +227,17 @@ export function LeadsPage() {
       if (!matchesSearch) return false;
 
       // 2. Master Filters
-      if (filters.status.length > 0 && !filters.status.includes(lead.status)) return false;
-      if (filters.category.length > 0 && !filters.category.includes(lead.category)) return false;
-      if (filters.source.length > 0 && !filters.source.includes(lead.source)) return false;
-      if (filters.dateFrom && new Date(lead.date) < new Date(filters.dateFrom)) return false;
-      if (filters.dateTo && new Date(lead.date) > new Date(filters.dateTo)) return false;
+      if (filterStatus !== 'All' && lead.status !== filterStatus) return false;
+      if (filterCategory !== 'All' && lead.category !== filterCategory) return false;
+      if (filterSource !== 'All' && lead.source !== filterSource) return false;
+      if (filterPriority !== 'All' && lead.priority !== filterPriority) return false;
+      
+      if (filterDateFrom && lead.date && new Date(lead.date) < new Date(filterDateFrom)) return false;
+      if (filterDateTo && lead.date && new Date(lead.date) > new Date(filterDateTo)) return false;
 
-      // 3. Tab Filter
-      if (activeTab === 'active') {
-        return lead.status !== 'Client Won' && lead.status !== 'Client Lost';
-      }
-      if (activeTab === 'converted') {
-        return lead.status === 'Client Won';
-      }
-      if (activeTab === 'hot') {
-        return lead.isHot && lead.status !== 'Client Won' && lead.status !== 'Client Lost';
-      }
-      if (activeTab === 'overdue') {
-        // Mock logic for overdue: high priority or on hold
-        return (lead.priority === 'High' || lead.status === 'On Hold') && lead.status !== 'Client Won';
-      }
       return true;
     });
-  }, [leads, activeTab, searchTerm, filters]);
+  }, [leads, searchTerm, filterStatus, filterCategory, filterSource, filterPriority, filterDateFrom, filterDateTo]);
 
   const groupedLeads = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -358,46 +350,83 @@ export function LeadsPage() {
       </div>
 
       <div className="glass-panel rounded-2xl overflow-hidden flex flex-col min-h-[500px]">
-        <div className="px-5 pt-5 pb-0 border-b border-white/40 bg-white/20">
-          <div className="flex items-center gap-6">
-            {['active', 'converted', 'hot', 'overdue'].map(tab => (
+        {/* Advanced Filters Panel */}
+        <div className="border-b border-white/40 bg-white/20 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2">
+              <FilterX className="w-4 h-4 text-gray-500" />
+              Filter Leads
+            </h3>
+            <div className="flex items-center gap-4">
               <button 
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pb-3 px-1 text-sm font-semibold capitalize border-b-2 transition-all ${
-                  activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
-                }`}
+                onClick={resetFilters}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
               >
-                {tab} Leads
+                Reset Filters
               </button>
-            ))}
+            </div>
           </div>
-        </div>
-        
-        <div className="p-5 flex items-center justify-between gap-4 bg-white/10">
-          <div className="relative flex-1 max-w-md">
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <option value="All">All Status</option>
+                <option value="Lead">Lead</option>
+                <option value="Contacted">Contacted</option>
+                <option value="Proposal Sent">Proposal Sent</option>
+                <option value="On Hold">On Hold</option>
+                <option value="Client Won">Client Won</option>
+                <option value="Client Lost">Client Lost</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
+              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <option value="All">All Categories</option>
+                <option value="Hot Lead">Hot Lead</option>
+                <option value="Warm Lead">Warm Lead</option>
+                <option value="Cold Lead">Cold Lead</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Source</label>
+              <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <option value="All">All Sources</option>
+                <option value="Website">Website</option>
+                <option value="Referral">Referral</option>
+                <option value="Cold Call">Cold Call</option>
+                <option value="Event">Event</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
+              <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <option value="All">All Priorities</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date From</label>
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date To</label>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            </div>
+          </div>
+          
+          <div className="mt-3 relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input 
               type="text" 
-              placeholder="Search leads..." 
+              placeholder="Search by company, contact, email or phone..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
             />
-          </div>
-          <div className="flex items-center gap-3">
-             <button 
-               onClick={() => setIsFilterModalOpen(true)}
-               className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-sm font-medium transition-all ${activeFilterCount > 0 ? 'bg-blue-50 text-blue-700 border-blue-200 shadow-sm' : 'bg-white/50 border-white/60 text-gray-700 hover:bg-white/80'}`}
-             >
-               <Filter className="w-4 h-4" /> 
-               Filters
-               {activeFilterCount > 0 && (
-                 <span className="bg-blue-600 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                   {activeFilterCount}
-                 </span>
-               )}
-             </button>
           </div>
         </div>
 
@@ -726,133 +755,6 @@ export function LeadsPage() {
           </div>
         </div>
       )}
-
-      {/* Master Filter Modal */}
-      {isFilterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Filter className="w-5 h-5 text-blue-600" /> Advanced Filters
-              </h2>
-              <button onClick={() => setIsFilterModalOpen(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                
-                {/* Categories */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1">Category</h3>
-                  <div className="space-y-2">
-                    {['Hot Lead', 'Warm Lead', 'Cold Lead'].map(cat => (
-                      <label key={cat} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.category.includes(cat)}
-                          onChange={(e) => {
-                            if (e.target.checked) setFilters({...filters, category: [...filters.category, cat]});
-                            else setFilters({...filters, category: filters.category.filter(c => c !== cat)});
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        {cat}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1">Status</h3>
-                  <div className="space-y-2">
-                    {['Lead', 'Contacted', 'Proposal Sent', 'On Hold', 'Client Won', 'Client Lost'].map(status => (
-                      <label key={status} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.status.includes(status)}
-                          onChange={(e) => {
-                            if (e.target.checked) setFilters({...filters, status: [...filters.status, status]});
-                            else setFilters({...filters, status: filters.status.filter(s => s !== status)});
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        {status}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Date & Source */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1">Source</h3>
-                    <div className="space-y-2">
-                      {['Website', 'Referral', 'Cold Call', 'Event'].map(source => (
-                        <label key={source} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
-                          <input 
-                            type="checkbox" 
-                            checked={filters.source.includes(source)}
-                            onChange={(e) => {
-                              if (e.target.checked) setFilters({...filters, source: [...filters.source, source]});
-                              else setFilters({...filters, source: filters.source.filter(s => s !== source)});
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          {source}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1">Created Date</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[10px] uppercase font-semibold text-gray-500">From</label>
-                        <input 
-                          type="date" 
-                          value={filters.dateFrom} 
-                          onChange={e => setFilters({...filters, dateFrom: e.target.value})}
-                          className="w-full px-2 py-1 bg-white/50 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700" 
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-semibold text-gray-500">To</label>
-                        <input 
-                          type="date" 
-                          value={filters.dateTo} 
-                          onChange={e => setFilters({...filters, dateTo: e.target.value})}
-                          className="w-full px-2 py-1 bg-white/50 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700" 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-4 border-t border-white/40 bg-white/20">
-              <button 
-                onClick={() => setFilters({ status: [], category: [], source: [], dateFrom: '', dateTo: '' })}
-                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-              >
-                Clear All
-              </button>
-              <button 
-                onClick={() => setIsFilterModalOpen(false)} 
-                className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md"
-              >
-                Apply Filters
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-

@@ -1,11 +1,17 @@
 import { useState, useMemo } from 'react';
-import { Calendar, Search, CheckCircle, Check, X } from 'lucide-react';
+import { Calendar, Search, CheckCircle, Check, X, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function AttendancePage() {
   const { staff, attendance, setAttendance } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+  };
 
   // Merge staff with attendance for the selected date
   const dailyAttendance = useMemo(() => {
@@ -18,11 +24,12 @@ export function AttendancePage() {
         checkIn: record?.checkIn || '',
         checkOut: record?.checkOut || ''
       };
-    }).filter(emp => 
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [staff, attendance, selectedDate, searchTerm]);
+    }).filter(emp => {
+      const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = filterStatus === 'All' || emp.status === filterStatus;
+      return matchSearch && matchStatus;
+    });
+  }, [staff, attendance, selectedDate, searchTerm, filterStatus]);
 
   const updateAttendance = (staffId: string, updates: any) => {
     setAttendance(prev => {
@@ -98,15 +105,45 @@ export function AttendancePage() {
         </div>
       </div>
 
-      <div className="p-5 flex items-center justify-between gap-4 mb-4">
-        <div className="relative flex-1 max-w-md">
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Attendance
+          </h3>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Status</option>
+              <option value="Unmarked">Unmarked</option>
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
+              <option value="Half Day">Half Day</option>
+              <option value="Leave">Leave</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input 
             type="text" 
-            placeholder="Search staff..." 
+            placeholder="Search staff by name or role..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500 shadow-sm"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>

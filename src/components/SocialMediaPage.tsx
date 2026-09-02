@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Search } from 'lucide-react';
+import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Search, FilterX } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -31,13 +31,25 @@ export function SocialMediaPage() {
   }, [clients]);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterClient, setFilterClient] = useState('All');
+
+  const uniqueClients = useMemo(() => {
+    const clients = new Set(smProjects.map(p => p.clientName));
+    return Array.from(clients).sort();
+  }, [smProjects]);
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterClient('All');
+  };
   
   const filteredProjects = useMemo(() => {
-    return smProjects.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.clientName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [smProjects, searchTerm]);
+    return smProjects.filter(p => {
+      const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchClient = filterClient === 'All' || p.clientName === filterClient;
+      return matchSearch && matchClient;
+    });
+  }, [smProjects, searchTerm, filterClient]);
 
   // Calendar Modal State
   const [activeProject, setActiveProject] = useState<any>(null);
@@ -234,16 +246,45 @@ export function SocialMediaPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search projects by name..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-64 shadow-sm"
-            />
+          <button 
+            onClick={resetFilters}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+          >
+            Reset Filters
+          </button>
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Social Media
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
+            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Clients</option>
+              {uniqueClients.map(client => (
+                <option key={client} value={client}>{client}</option>
+              ))}
+            </select>
           </div>
+        </div>
+        
+        <div className="mt-3 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input 
+            type="text" 
+            placeholder="Search projects by name..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+          />
         </div>
       </div>
 
@@ -358,7 +399,7 @@ export function SocialMediaPage() {
                   </div>
                   <form onSubmit={handleSaveItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Title / Concept *</label>
+                      <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Title / Concept <span className="text-rose-500">*</span></label>
                       <input required type="text" value={newItemForm.title} onChange={e => setNewItemForm({...newItemForm, title: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" placeholder="e.g. Product Launch Reel" />
                     </div>
                     <div>

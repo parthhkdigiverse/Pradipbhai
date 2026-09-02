@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, Briefcase, IndianRupee, Edit, X } from 'lucide-react';
+import { Search, Briefcase, IndianRupee, Edit, X, FilterX } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -10,11 +10,18 @@ export function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Filter States
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    status: [] as string[],
-    category: [] as string[],
-  });
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+    setFilterCategory('All');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+  };
 
   // Modal States
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -60,12 +67,14 @@ export function ProjectsPage() {
         proj.clientContact.toLowerCase().includes(searchLower);
 
       if (!matchesSearch) return false;
-      if (filters.status.length > 0 && !filters.status.includes(proj.status)) return false;
-      if (filters.category.length > 0 && !filters.category.includes(proj.category)) return false;
+      if (filterStatus !== 'All' && proj.status !== filterStatus) return false;
+      if (filterCategory !== 'All' && proj.category !== filterCategory) return false;
+      if (filterDateFrom && proj.deadline && new Date(proj.deadline) < new Date(filterDateFrom)) return false;
+      if (filterDateTo && proj.deadline && new Date(proj.deadline) > new Date(filterDateTo)) return false;
 
       return true;
     });
-  }, [allProjects, searchTerm, filters]);
+  }, [allProjects, searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo]);
 
   const handleOpenProjectModal = (project: any) => {
     setProjectFormData({
@@ -137,32 +146,66 @@ export function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search projects..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-64 shadow-sm"
-            />
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Projects
+          </h3>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
           </div>
-          <button 
-            onClick={() => setIsFilterModalOpen(true)}
-            className={`px-4 py-2 border border-white/60 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm ${
-              Object.values(filters).some(arr => arr.length > 0)
-                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                : 'bg-white/60 text-gray-700 hover:bg-white/80'
-            }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-            {Object.values(filters).reduce((acc, arr) => acc + arr.length, 0) > 0 && (
-              <span className="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px]">
-                {Object.values(filters).reduce((acc, arr) => acc + arr.length, 0)}
-              </span>
-            )}
-          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Statuses</option>
+              <option value="Planning">Planning</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Active">Active</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
+            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Categories</option>
+              <option value="Designing">Designing</option>
+              <option value="Printing">Printing</option>
+              <option value="Des+Print">Des+Print</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Deadline From</label>
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Deadline To</label>
+            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input 
+            type="text" 
+            placeholder="Search projects..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+          />
         </div>
       </div>
 
@@ -247,7 +290,7 @@ export function ProjectsPage() {
             <form onSubmit={handleSaveProject} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name *</label>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>
                   <input required type="text" value={projectFormData.name} onChange={e => setProjectFormData({...projectFormData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
                 </div>
                 <div>
@@ -289,89 +332,6 @@ export function ProjectsPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Filter Modal */}
-      {isFilterModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-white/40 bg-white/30">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-500" />
-                Filters
-              </h2>
-              <button onClick={() => setIsFilterModalOpen(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-6 max-h-[60vh] overflow-y-auto">
-              {/* Category Filter */}
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-3">Category</h3>
-                <div className="space-y-2">
-                  {['Designing', 'Printing', 'Des+Print'].map(cat => (
-                    <label key={cat} className="flex items-center gap-3 p-2 hover:bg-white/40 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-white/60">
-                      <input 
-                        type="checkbox"
-                        checked={filters.category.includes(cat)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFilters({...filters, category: [...filters.category, cat]});
-                          } else {
-                            setFilters({...filters, category: filters.category.filter(c => c !== cat)});
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{cat}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              {/* Status Filter */}
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 mb-3">Status</h3>
-                <div className="space-y-2">
-                  {['Planning', 'In Progress', 'Active', 'On Hold', 'Completed'].map(status => (
-                    <label key={status} className="flex items-center gap-3 p-2 hover:bg-white/40 rounded-lg cursor-pointer transition-colors border border-transparent hover:border-white/60">
-                      <input 
-                        type="checkbox"
-                        checked={filters.status.includes(status)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFilters({...filters, status: [...filters.status, status]});
-                          } else {
-                            setFilters({...filters, status: filters.status.filter(s => s !== status)});
-                          }
-                        }}
-                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{status}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-white/40 bg-white/30 flex items-center justify-between">
-              <button 
-                onClick={() => setFilters({ status: [], category: [] })}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg hover:bg-white/50 transition-colors"
-              >
-                Clear All
-              </button>
-              <button 
-                onClick={() => setIsFilterModalOpen(false)}
-                className="px-5 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-bold rounded-xl transition-all shadow-md"
-              >
-                Apply Filters
-              </button>
-            </div>
           </div>
         </div>
       )}

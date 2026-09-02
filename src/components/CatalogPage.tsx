@@ -1,12 +1,18 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function CatalogPage() {
   const { products, setProducts } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterType('All');
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -17,11 +23,12 @@ export function CatalogPage() {
   });
 
   const filteredProducts = useMemo(() => {
-    return products.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [products, searchTerm]);
+    return products.filter(p => {
+      const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchType = filterType === 'All' || p.type === filterType;
+      return matchSearch && matchType;
+    });
+  }, [products, searchTerm, filterType]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -83,16 +90,6 @@ export function CatalogPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search products by name..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-64 shadow-sm"
-            />
-          </div>
           <button 
             onClick={() => handleOpenModal()}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
@@ -100,6 +97,46 @@ export function CatalogPage() {
             <Plus className="w-4 h-4" />
             Add Product
           </button>
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Catalog
+          </h3>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={resetFilters}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <option value="All">All Types</option>
+              <option value="Printing">Printing</option>
+              <option value="Designing">Designing</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input 
+            type="text" 
+            placeholder="Search products by name or description..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+          />
         </div>
       </div>
 
@@ -210,7 +247,7 @@ export function CatalogPage() {
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Name</label>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Name <span className="text-rose-500">*</span></label>
                 <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
               </div>
               <div>
