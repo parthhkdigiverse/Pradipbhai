@@ -214,7 +214,7 @@ export function SocialMediaPage() {
   const getTypeColor = (type: string) => {
     switch(type) {
       case 'Post': return 'bg-blue-100 text-blue-700';
-      case 'Reel': return 'bg-pink-100 text-pink-700';
+      case 'Reel': return 'bg-blue-100 text-blue-700';
       case 'Story': return 'bg-orange-100 text-orange-700';
       case 'Carousel': return 'bg-purple-100 text-purple-700';
       default: return 'bg-gray-100 text-gray-700';
@@ -226,7 +226,7 @@ export function SocialMediaPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-            <Megaphone className="w-6 h-6 text-pink-500" />
+            <Megaphone className="w-6 h-6 text-blue-500" />
             Social Media
           </h1>
           <p className="text-gray-500 mt-1 text-sm font-medium">
@@ -269,13 +269,13 @@ export function SocialMediaPage() {
                     <td className="py-4 px-6 text-gray-500 font-medium">{proj.clientName}</td>
                     <td className="py-4 px-6 text-center font-bold text-gray-800">{proj.contentCalendar?.length || 0}</td>
                     <td className="py-4 px-6 text-center">
-                      <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">{proj.status}</span>
+                      <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">{proj.status}</span>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center">
                         <button 
                           onClick={() => handleOpenCalendar(proj)}
-                          className="px-4 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl text-xs font-bold shadow-md shadow-pink-500/20 hover:shadow-lg hover:shadow-pink-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
                         >
                           <CalendarIcon className="w-3.5 h-3.5" />
                           Calendar
@@ -313,7 +313,7 @@ export function SocialMediaPage() {
             <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-white">
               <div>
                 <h2 className="text-xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-                  <CalendarIcon className="w-5 h-5 text-pink-500" />
+                  <CalendarIcon className="w-5 h-5 text-blue-500" />
                   Content Calendar
                 </h2>
                 <p className="text-sm font-semibold text-gray-500 mt-1">{activeProject.name} • {activeProject.clientName}</p>
@@ -359,11 +359,11 @@ export function SocialMediaPage() {
                   <form onSubmit={handleSaveItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="md:col-span-2">
                       <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Title / Concept *</label>
-                      <input required type="text" value={newItemForm.title} onChange={e => setNewItemForm({...newItemForm, title: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/50" placeholder="e.g. Product Launch Reel" />
+                      <input required type="text" value={newItemForm.title} onChange={e => setNewItemForm({...newItemForm, title: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" placeholder="e.g. Product Launch Reel" />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Type</label>
-                      <select value={newItemForm.type} onChange={e => setNewItemForm({...newItemForm, type: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/50">
+                      <select value={newItemForm.type} onChange={e => setNewItemForm({...newItemForm, type: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
                         <option value="Post">Post</option>
                         <option value="Reel">Reel</option>
                         <option value="Story">Story</option>
@@ -372,10 +372,10 @@ export function SocialMediaPage() {
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Scheduled Date</label>
-                      <input type="date" value={newItemForm.date} onChange={e => setNewItemForm({...newItemForm, date: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/50" />
+                      <input type="date" value={newItemForm.date} onChange={e => setNewItemForm({...newItemForm, date: e.target.value})} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
                     </div>
                     <div className="md:col-span-4 flex justify-end mt-2">
-                      <button type="submit" className="px-5 py-2 bg-pink-500 text-white text-sm font-bold rounded-xl hover:bg-pink-600 transition-colors">Save Content</button>
+                      <button type="submit" className="px-5 py-2 bg-blue-500 text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-colors">Save Content</button>
                     </div>
                   </form>
                 </div>
@@ -439,7 +439,7 @@ export function SocialMediaPage() {
                                 onBlur={() => saveInlineEdit(field, inlineEdit!.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') saveInlineEdit(field, inlineEdit!.value); if (e.key === 'Escape') setInlineEdit(null); }}
                                 onClick={e => e.stopPropagation()}
-                                className="w-full px-2 py-1 bg-pink-50 border border-pink-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-pink-400 text-center"
+                                className="w-full px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
                               />
                             ) : (
                               <span onClick={e => startEdit(e, field, value || '')} className="cursor-text hover:bg-gray-100 rounded px-1 py-0.5 transition-colors block text-center group/cell" title="Click to edit">
@@ -458,16 +458,16 @@ export function SocialMediaPage() {
                                 onBlur={() => saveInlineEdit(field, inlineEdit!.value)}
                                 onKeyDown={e => { if (e.key === 'Escape') setInlineEdit(null); }}
                                 onClick={e => e.stopPropagation()}
-                                className="px-2 py-1 bg-pink-50 border border-pink-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-pink-400"
+                                className="px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
                               />
                             ) : (
                               <span onClick={e => startEdit(e, field, value || '')} className="cursor-text hover:bg-gray-100 rounded px-1 py-0.5 transition-colors inline-flex items-center gap-1 group/dc flex-col" title="Click to edit date">
                                 {value ? (
                                   <>
                                     <span className="text-[11px] font-extrabold text-gray-800">{formatDate(value, dateFormat)}</span>
-                                    <span className="text-[9px] font-bold text-pink-600 bg-pink-50 px-1.5 rounded">{new Date(value).toLocaleDateString("en-US", { weekday: "short" })}</span>
+                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 rounded">{new Date(value).toLocaleDateString("en-US", { weekday: "short" })}</span>
                                   </>
-                                ) : <span className="text-gray-400 text-[10px] italic hover:text-pink-500 transition-colors">+ Date</span>}
+                                ) : <span className="text-gray-400 text-[10px] italic hover:text-blue-500 transition-colors">+ Date</span>}
                                 <span className="opacity-0 group-hover/dc:opacity-50 transition-opacity text-[9px]">✏️</span>
                               </span>
                             );
@@ -483,7 +483,7 @@ export function SocialMediaPage() {
                                 onKeyDown={e => { if (e.key === 'Enter') saveInlineEdit(field, inlineEdit!.value); if (e.key === 'Escape') setInlineEdit(null); }} 
                                 onClick={e => e.stopPropagation()} 
                                 placeholder="Paste URL..." 
-                                className="w-full max-w-[120px] px-2 py-1 bg-pink-50 border border-pink-200 rounded-lg text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-pink-400" 
+                                className="w-full max-w-[120px] px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-blue-400" 
                               />
                             ) : value ? (
                               <div className="flex items-center justify-center gap-0.5 group/lc">
@@ -491,7 +491,7 @@ export function SocialMediaPage() {
                                 <button onClick={e => startEdit(e, field, value)} className="opacity-0 group-hover/lc:opacity-60 text-[9px] hover:opacity-100 transition-opacity ml-0.5">✏️</button>
                               </div>
                             ) : (
-                              <button onClick={e => startEdit(e, field, '')} className="text-gray-400 text-[10px] italic hover:text-pink-500 transition-colors">+ {label}</button>
+                              <button onClick={e => startEdit(e, field, '')} className="text-gray-400 text-[10px] italic hover:text-blue-500 transition-colors">+ {label}</button>
                             );
 
                           const InlineStatus = ({ field, value, options }: { field: string; value?: string; options: string[] }) => (
@@ -605,7 +605,7 @@ export function SocialMediaPage() {
               <button
                 onClick={() => setBulkAddTab('range')}
                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                  bulkAddTab === 'range' ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'
+                  bulkAddTab === 'range' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 📅 Date Range & Weekdays
@@ -613,7 +613,7 @@ export function SocialMediaPage() {
               <button
                 onClick={() => setBulkAddTab('visual')}
                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                  bulkAddTab === 'visual' ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'
+                  bulkAddTab === 'visual' ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-200'
                 }`}
               >
                 ✨ Visual Calendar Sync
@@ -627,11 +627,11 @@ export function SocialMediaPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Start Date</label>
-                      <input type="date" value={bulkStartDate} onChange={e => setBulkStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-pink-500 font-bold text-gray-700" />
+                      <input type="date" value={bulkStartDate} onChange={e => setBulkStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">End Date</label>
-                      <input type="date" value={bulkEndDate} onChange={e => setBulkEndDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-pink-500 font-bold text-gray-700" />
+                      <input type="date" value={bulkEndDate} onChange={e => setBulkEndDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700" />
                     </div>
                   </div>
                   <div>
@@ -642,7 +642,7 @@ export function SocialMediaPage() {
                           key={i}
                           onClick={() => toggleBulkDay(day.index)}
                           className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black transition-all border ${
-                            bulkSelectedDays.includes(day.index) ? 'bg-pink-500 text-white border-pink-500 shadow-sm' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                            bulkSelectedDays.includes(day.index) ? 'bg-blue-500 text-white border-blue-500 shadow-sm' : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
                           }`}
                         >
                           {day.label}
@@ -652,7 +652,7 @@ export function SocialMediaPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Format Type</label>
-                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-pink-500 font-bold text-gray-700">
+                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700">
                       <option value="Post">Post</option>
                       <option value="Reel">Reel</option>
                       <option value="Story">Story</option>
@@ -660,7 +660,7 @@ export function SocialMediaPage() {
                     </select>
                   </div>
                   <div className="flex justify-end pt-2">
-                    <button onClick={handleGenerateBulkSlots} className="px-6 py-2.5 bg-pink-500 text-white text-xs font-bold rounded-xl hover:bg-pink-600 transition-colors shadow-md">
+                    <button onClick={handleGenerateBulkSlots} className="px-6 py-2.5 bg-blue-500 text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-colors shadow-md">
                       Generate Range Slots
                     </button>
                   </div>
@@ -668,7 +668,7 @@ export function SocialMediaPage() {
               ) : (
                 <div className="space-y-6">
                   <p className="text-[11px] text-gray-500 text-center font-medium px-4">
-                    Click on dates below to select them. A <span className="font-bold text-pink-600">{bulkFormatType}</span> slot will be added for each selected date.
+                    Click on dates below to select them. A <span className="font-bold text-blue-600">{bulkFormatType}</span> slot will be added for each selected date.
                   </p>
                   
                   {/* Calendar Widget */}
@@ -701,7 +701,7 @@ export function SocialMediaPage() {
                             key={dateStr}
                             onClick={() => toggleVisualDate(dateStr)}
                             className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all ${
-                              isSelected ? 'bg-pink-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                              isSelected ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                             }`}
                           >
                             {dayNum}
@@ -713,7 +713,7 @@ export function SocialMediaPage() {
 
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Format Type for Selected Dates</label>
-                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-pink-500 font-bold text-gray-700">
+                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700">
                       <option value="Post">Post</option>
                       <option value="Reel">Reel</option>
                       <option value="Story">Story</option>
@@ -723,7 +723,7 @@ export function SocialMediaPage() {
 
                   <div className="flex justify-between items-center pt-2">
                     <span className="text-xs font-bold text-gray-500">{visualSelectedDates.length} date(s) selected</span>
-                    <button onClick={handleGenerateVisualSlots} className="px-6 py-2.5 bg-pink-500 text-white text-xs font-bold rounded-xl hover:bg-pink-600 transition-colors shadow-md">
+                    <button onClick={handleGenerateVisualSlots} className="px-6 py-2.5 bg-blue-500 text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-colors shadow-md">
                       Sync {visualSelectedDates.length} Slots
                     </button>
                   </div>
