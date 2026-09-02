@@ -30,9 +30,7 @@ export function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-blue-900/5 p-6 relative overflow-hidden h-fit">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-          
+        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-blue-900/5 p-6 relative h-fit">
           <div className="flex items-center gap-3 mb-6">
             <Calendar className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-800">Date Preferences</h2>
@@ -68,10 +66,8 @@ export function SettingsPage() {
         
         {/* Automation Settings */}
         <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-blue-900/5 p-6 relative overflow-hidden h-fit">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-          
           <div className="flex items-center gap-3 mb-6">
-            <Settings className="w-6 h-6 text-emerald-600" />
+            <Settings className="w-6 h-6 text-blue-600" />
             <h2 className="text-xl font-bold text-gray-800">Automation</h2>
           </div>
 
@@ -84,14 +80,14 @@ export function SettingsPage() {
                   checked={autoConvertLeads}
                   onChange={(e) => setAutoConvertLeads(e.target.checked)}
                 />
-                <div className={`block w-14 h-8 rounded-full transition-colors ${autoConvertLeads ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                <div className={`block w-14 h-8 rounded-full transition-colors ${autoConvertLeads ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
                 <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${autoConvertLeads ? 'transform translate-x-6' : ''}`}></div>
               </div>
               <span className="text-sm font-semibold text-gray-700">
                 Auto-convert won leads to clients
               </span>
             </label>
-            <p className="mt-4 text-[11px] text-gray-500 bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
+            <p className="mt-4 text-[11px] text-gray-500 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
               When enabled, changing a lead's status to "Client Won" will automatically create a new client record with their contact information.
             </p>
           </div>
