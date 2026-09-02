@@ -166,61 +166,70 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProjects.length > 0 ? (
-          filteredProjects.map((proj, idx) => (
-            <div key={idx} className="glass-panel border border-white/60 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col relative group">
-              <div className="flex items-start justify-between mb-4">
-                <div className="pr-8">
-                  <h3 className="text-lg font-bold text-gray-800 line-clamp-1" title={proj.name}>{proj.name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    {getProjectStatusBadge(proj)}
-                    <span className="text-xs font-semibold text-gray-500 bg-gray-100/50 px-2 py-0.5 rounded">{proj.category}</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handleOpenProjectModal(proj)}
-                  className="absolute top-4 right-4 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                  title="Edit Project"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex-1 bg-white/40 rounded-xl p-4 mb-4 border border-white/50">
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Client Details</h4>
-                <p className="font-semibold text-gray-800 text-sm mb-1">{proj.clientName}</p>
-                <p className="text-gray-600 text-xs mb-0.5">{proj.clientContact}</p>
-                <div className="flex flex-col gap-0.5 text-[11px] text-gray-500 mt-2">
-                  <span>{proj.clientEmail}</span>
-                  <span>{proj.clientPhone}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mt-auto border-t border-gray-100/50 pt-4">
-                <div>
-                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Budget</span>
-                  <span className="text-sm font-bold text-emerald-700 flex items-center">
-                    <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
-                    {parseFloat(proj.budget || '0').toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Deadline</span>
-                  <span className="text-sm font-bold text-gray-700">{formatDate(proj.deadline, dateFormat)}</span>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full py-12 flex flex-col items-center justify-center text-center bg-white/30 rounded-2xl border border-white/50 border-dashed">
-            <Briefcase className="w-12 h-12 text-gray-300 mb-4" />
-            <h3 className="text-lg font-bold text-gray-800 mb-2">No projects found</h3>
-            <p className="text-gray-500 max-w-sm mx-auto text-sm">
-              There are no general projects matching your current filters. Adjust your search or check the Social Media tab.
-            </p>
-          </div>
-        )}
+      <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
+        <div className="overflow-x-auto flex-1 p-1">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
+                <th className="py-4 px-6">#</th>
+                <th className="py-4 px-6">Project Name</th>
+                <th className="py-4 px-6">Client Name</th>
+                <th className="py-4 px-6">Category</th>
+                <th className="py-4 px-6">Budget</th>
+                <th className="py-4 px-6">Deadline</th>
+                <th className="py-4 px-6 text-center">Status</th>
+                <th className="py-4 px-6 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredProjects.length > 0 ? (
+                filteredProjects.map((proj, idx) => (
+                  <tr key={idx} className="hover:bg-white/60 transition-colors group">
+                    <td className="py-4 px-6 text-gray-400 font-medium">{idx + 1}</td>
+                    <td className="py-4 px-6 text-sm font-bold text-gray-800">{proj.name}</td>
+                    <td className="py-4 px-6 text-gray-500 font-medium">
+                      {proj.clientName}
+                      <span className="block text-[10px] text-gray-400">{proj.clientContact}</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-[10px] font-semibold text-gray-500 bg-gray-100/50 px-2 py-0.5 rounded">{proj.category}</span>
+                    </td>
+                    <td className="py-4 px-6 text-sm font-bold text-emerald-700 flex items-center">
+                      <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                      {parseFloat(proj.budget || '0').toLocaleString()}
+                    </td>
+                    <td className="py-4 px-6 font-bold text-gray-700">
+                      {formatDate(proj.deadline, dateFormat)}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {getProjectStatusBadge(proj)}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <div className="flex items-center justify-center">
+                        <button 
+                          onClick={() => handleOpenProjectModal(proj)}
+                          className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 hover:text-blue-700 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Edit Project"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center">
+                      <Briefcase className="w-12 h-12 text-gray-300 mb-4" />
+                      <p>No projects found matching your criteria.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Edit Project Modal */}

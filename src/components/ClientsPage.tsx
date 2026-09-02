@@ -292,10 +292,10 @@ export function ClientsPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all shadow-sm"
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span className="font-semibold text-sm">Add Client</span>
+            Add Client
           </button>
         </div>
       </div>
@@ -366,7 +366,7 @@ export function ClientsPage() {
           <div className="glass-panel border border-white/60 rounded-xl overflow-hidden shadow-sm">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-white/30 border-b border-white/40 text-[11px] uppercase text-gray-600 font-bold tracking-wider">
+                <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50 text-xs">
                   <th className="px-5 py-4">Client Details</th>
                   <th className="px-5 py-4">Primary Contact</th>
                   <th className="px-5 py-4">Status</th>

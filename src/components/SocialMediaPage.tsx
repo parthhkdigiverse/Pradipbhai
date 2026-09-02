@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize } from 'lucide-react';
+import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Search } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -29,6 +29,15 @@ export function SocialMediaPage() {
     });
     return projects;
   }, [clients]);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  const filteredProjects = useMemo(() => {
+    return smProjects.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.clientName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [smProjects, searchTerm]);
 
   // Calendar Modal State
   const [activeProject, setActiveProject] = useState<any>(null);
@@ -224,46 +233,70 @@ export function SocialMediaPage() {
             Manage your social media projects and their content calendars.
           </p>
         </div>
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search projects by name..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 w-64 shadow-sm"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {smProjects.length > 0 ? (
-          smProjects.map((proj, idx) => (
-            <div key={idx} className="glass-panel border border-white/60 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">{proj.name}</h3>
-                  <p className="text-sm font-semibold text-gray-500 mt-1">{proj.clientName} • {proj.clientContact}</p>
-                </div>
-                <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">{proj.status}</span>
-              </div>
-
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-4">
-                  <div className="text-center">
-                    <span className="block text-xl font-black text-gray-800">{proj.contentCalendar?.length || 0}</span>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Posts Planned</span>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => handleOpenCalendar(proj)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-bold rounded-xl shadow-md shadow-pink-500/20 hover:shadow-lg hover:shadow-pink-500/30 transition-all hover:-translate-y-0.5"
-                >
-                  <CalendarIcon className="w-4 h-4" />
-                  Content Calendar
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full py-12 flex flex-col items-center justify-center text-center bg-white/30 rounded-2xl border border-white/50 border-dashed">
-            <Megaphone className="w-12 h-12 text-gray-300 mb-4" />
-            <h3 className="text-lg font-bold text-gray-800 mb-2">No Social Media Projects</h3>
-            <p className="text-gray-500 max-w-sm mx-auto text-sm">
-              Create a new project in the Clients tab and set its category to "Social Media" to manage it here.
-            </p>
-          </div>
-        )}
+      <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
+        <div className="overflow-x-auto flex-1 p-1">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
+                <th className="py-4 px-6">#</th>
+                <th className="py-4 px-6">Project Name</th>
+                <th className="py-4 px-6">Client Name</th>
+                <th className="py-4 px-6 text-center">Posts Planned</th>
+                <th className="py-4 px-6 text-center">Status</th>
+                <th className="py-4 px-6 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredProjects.length > 0 ? (
+                filteredProjects.map((proj, idx) => (
+                  <tr key={idx} className="hover:bg-white/60 transition-colors group">
+                    <td className="py-4 px-6 text-gray-400 font-medium">{idx + 1}</td>
+                    <td className="py-4 px-6 text-sm font-bold text-gray-800">{proj.name}</td>
+                    <td className="py-4 px-6 text-gray-500 font-medium">{proj.clientName}</td>
+                    <td className="py-4 px-6 text-center font-bold text-gray-800">{proj.contentCalendar?.length || 0}</td>
+                    <td className="py-4 px-6 text-center">
+                      <span className="bg-pink-100 text-pink-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">{proj.status}</span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <div className="flex items-center justify-center">
+                        <button 
+                          onClick={() => handleOpenCalendar(proj)}
+                          className="px-4 py-1.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-xl text-xs font-bold shadow-md shadow-pink-500/20 hover:shadow-lg hover:shadow-pink-500/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                        >
+                          <CalendarIcon className="w-3.5 h-3.5" />
+                          Calendar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center">
+                      <Megaphone className="w-12 h-12 text-gray-300 mb-4" />
+                      <p>No social media projects found.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Content Calendar Modal */}
