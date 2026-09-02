@@ -158,10 +158,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Jobs
               </a>
-              <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
+              <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Catalog
-              </a>
+              </button>
               <a href="#" className="block px-3 py-2 text-sm text-gray-500 hover:text-gray-900 relative truncate hover:bg-white/30 rounded-lg transition-colors">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Vendors

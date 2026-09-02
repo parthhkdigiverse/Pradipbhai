@@ -127,11 +127,24 @@ const initialClients = [
   }
 ];
 
+const initialProducts = [
+  { id: '1', name: 'Bag (Non woven)', description: '-', type: 'Printing' },
+  { id: '2', name: 'LANYARD', description: '-', type: 'Printing' },
+  { id: '3', name: 'Bank Details Corrections', description: '-', type: 'Designing' },
+  { id: '4', name: 'Folder File', description: 'Folder File', type: 'Designing' },
+  { id: '5', name: 'Channel letter Lighiting Board', description: '-', type: 'Printing' },
+  { id: '6', name: 'Carousel', description: 'Carousel', type: 'Designing' },
+  { id: '7', name: 'Amazone Listing post', description: 'Amazone Listing post', type: 'Designing' },
+  { id: '8', name: 'UV Printing', description: '-', type: 'Printing' }
+];
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
   clients: any[];
   setClients: React.Dispatch<React.SetStateAction<any[]>>;
+  products: any[];
+  setProducts: React.Dispatch<React.SetStateAction<any[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
 }
@@ -161,6 +174,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     return initialClients;
+  });
+
+  const [products, setProducts] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_products');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialProducts;
+      }
+    }
+    return initialProducts;
   });
 
   const { autoConvertLeads } = useSettings();
@@ -207,8 +232,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_clients', JSON.stringify(clients));
   }, [clients]);
 
+  useEffect(() => {
+    localStorage.setItem('app_products', JSON.stringify(products));
+  }, [products]);
+
   return (
-    <DataContext.Provider value={{ leads, setLeads, clients, setClients, convertLeadToClient, updateProject }}>
+    <DataContext.Provider value={{ leads, setLeads, clients, setClients, products, setProducts, convertLeadToClient, updateProject }}>
       {children}
     </DataContext.Provider>
   );

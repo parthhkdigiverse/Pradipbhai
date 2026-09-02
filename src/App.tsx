@@ -7,6 +7,7 @@ import { SettingsPage } from './components/SettingsPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { SocialMediaPage } from './components/SocialMediaPage';
 import { ChatPage } from './components/ChatPage';
+import { CatalogPage } from './components/CatalogPage';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
@@ -29,6 +30,7 @@ function App() {
           {currentPage === 'projects' && <ProjectsPage />}
           {currentPage === 'social' && <SocialMediaPage />}
           {currentPage === 'chat' && <ChatPage />}
+          {currentPage === 'catalog' && <CatalogPage />}
           {currentPage === 'settings' && <SettingsPage />}
         </DashboardLayout>
       </DataProvider>

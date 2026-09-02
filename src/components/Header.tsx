@@ -12,11 +12,8 @@ export function Header() {
           <input 
             type="text" 
             placeholder="Search Keyword" 
-            className="pl-10 pr-16 py-2 glass-input rounded-full text-sm w-64 text-gray-800 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all appearance-none leading-normal m-0 border-t"
+            className="pl-10 pr-4 py-2 glass-input rounded-full text-sm w-64 text-gray-800 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all appearance-none leading-normal m-0 border-t"
           />
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-white/40 rounded text-[10px] text-gray-600 font-medium border border-white/50 backdrop-blur-sm pointer-events-none">
-            ctrl + K
-          </div>
         </div>
       </div>
 
