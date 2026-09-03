@@ -21,26 +21,30 @@ export function ProfilePage() {
 
   return (
     <div className="w-full relative pb-10">
-      {/* Banner */}
-      <div className="h-48 rounded-3xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 relative overflow-hidden shadow-lg mb-20">
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-        
-        {/* Avatar */}
-        <div className="absolute -bottom-16 left-8 flex items-end gap-6">
-          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-white relative z-10">
-            <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" className="w-full h-full object-cover" />
-          </div>
-          <div className="pb-4 relative z-10 hidden md:block">
+      {/* Banner & Avatar Container */}
+      <div className="relative mb-16">
+        <div className="h-48 rounded-3xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 relative overflow-hidden shadow-lg">
+          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+          
+          {/* Desktop Title (inside banner) */}
+          <div className="absolute bottom-6 left-44 hidden md:block z-10">
             <h1 className="text-3xl font-bold text-white drop-shadow-md">{formData.name}</h1>
-            <p className="text-white/90 font-medium drop-shadow-md flex items-center gap-2">
+            <p className="text-white/90 font-medium drop-shadow-md flex items-center gap-2 mt-1">
               <Shield className="w-4 h-4" /> {formData.role}
             </p>
+          </div>
+        </div>
+        
+        {/* Avatar */}
+        <div className="absolute -bottom-12 left-8">
+          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-white relative z-10">
+            <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" className="w-full h-full object-cover" />
           </div>
         </div>
       </div>
 
       {/* Mobile Title (visible only on small screens below the banner) */}
-      <div className="md:hidden px-8 mb-8 text-center mt-16">
+      <div className="md:hidden px-8 mb-8 text-center">
         <h1 className="text-2xl font-bold text-gray-800">{formData.name}</h1>
         <p className="text-gray-500 font-medium flex items-center justify-center gap-2">
           <Shield className="w-4 h-4 text-blue-500" /> {formData.role}
