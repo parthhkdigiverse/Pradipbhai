@@ -47,6 +47,7 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
       setWorkLogs(prev => [...prev, {
         id: Math.random().toString(36).substr(2, 9),
         date: new Date().toISOString().split('T')[0],
+        userName: 'John Doe',
         jobId: finalJobId,
         jobTitle: finalJobTitle,
         startTime: punchInTime || endTime,

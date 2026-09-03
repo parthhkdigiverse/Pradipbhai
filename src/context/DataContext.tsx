@@ -492,6 +492,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: '2026-09-01',
         jobId: '1',
         jobTitle: 'Install Security Cameras',
+        userName: 'John Doe',
         startTime: new Date('2026-09-01T09:00:00').getTime(),
         endTime: new Date('2026-09-01T12:30:00').getTime(),
         duration: 3.5 * 3600
@@ -501,6 +502,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: '2026-09-02',
         jobId: '2',
         jobTitle: 'Upgrade Network Switches',
+        userName: 'Sarah Jenkins',
         startTime: new Date('2026-09-02T13:00:00').getTime(),
         endTime: new Date('2026-09-02T17:45:00').getTime(),
         duration: 4.75 * 3600
@@ -510,6 +512,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: '2026-09-03',
         jobId: '3',
         jobTitle: 'Fix Server Rack Cooling',
+        userName: 'John Doe',
         startTime: new Date('2026-09-03T10:15:00').getTime(),
         endTime: new Date('2026-09-03T11:45:00').getTime(),
         duration: 1.5 * 3600
