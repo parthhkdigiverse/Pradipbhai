@@ -231,7 +231,7 @@ export function PayrollPage() {
                           type="number"
                           value={emp.basic}
                           onChange={(e) => updatePayroll(emp.id, { basic: parseFloat(e.target.value) || 0 })}
-                          className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
                         />
                       </div>
                     </td>

@@ -23,7 +23,7 @@ export function ProfilePage() {
     <div className="w-full relative pb-10">
       {/* Banner & Avatar Container */}
       <div className="relative mb-16">
-        <div className="h-48 rounded-3xl bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 relative overflow-hidden shadow-lg">
+        <div className="h-48 rounded-3xl bg-primary relative overflow-hidden shadow-lg">
           <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
           
           {/* Desktop Title (inside banner) */}
@@ -78,7 +78,7 @@ export function ProfilePage() {
                   <User className="w-3 h-3" /> Full Name
                 </label>
                 {isEditing ? (
-                  <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" />
                 ) : (
                   <p className="text-gray-800 font-medium px-1 py-2">{formData.name}</p>
                 )}
@@ -88,7 +88,7 @@ export function ProfilePage() {
                   <Mail className="w-3 h-3" /> Email Address
                 </label>
                 {isEditing ? (
-                  <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" />
                 ) : (
                   <p className="text-gray-800 font-medium px-1 py-2">{formData.email}</p>
                 )}
@@ -98,7 +98,7 @@ export function ProfilePage() {
                   <Phone className="w-3 h-3" /> Phone Number
                 </label>
                 {isEditing ? (
-                  <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" />
                 ) : (
                   <p className="text-gray-800 font-medium px-1 py-2">{formData.phone}</p>
                 )}
@@ -108,7 +108,7 @@ export function ProfilePage() {
                   <Building className="w-3 h-3" /> Department
                 </label>
                 {isEditing ? (
-                  <input type="text" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" />
                 ) : (
                   <p className="text-gray-800 font-medium px-1 py-2">{formData.department}</p>
                 )}
@@ -118,7 +118,7 @@ export function ProfilePage() {
                   <MapPin className="w-3 h-3" /> Address
                 </label>
                 {isEditing ? (
-                  <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none" />
                 ) : (
                   <p className="text-gray-800 font-medium px-1 py-2">{formData.address}</p>
                 )}
@@ -187,8 +187,8 @@ export function ProfilePage() {
 
         {/* Right Column: Stats & Meta */}
         <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border-none">
-            <h2 className="text-lg font-bold text-blue-900 mb-4">Activity Overview</h2>
+          <div className="glass-panel p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-indigo-50 border-none">
+            <h2 className="text-lg font-bold text-primary mb-4">Activity Overview</h2>
             
             <div className="space-y-4">
               <div className="bg-white/60 p-4 rounded-xl flex items-center justify-between">

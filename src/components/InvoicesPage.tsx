@@ -388,7 +388,7 @@ export function InvoicesPage() {
                                   type="checkbox" 
                                   checked={selectedJobIds.includes(job.id)}
                                   onChange={() => toggleJobSelection(job.id)}
-                                  className="w-4 h-4 rounded text-primary focus:ring-blue-500"
+                                  className="w-4 h-4 rounded text-primary focus:ring-primary/50"
                                 />
                                 <div>
                                   <p className="text-sm font-bold text-gray-800">{job.title}</p>

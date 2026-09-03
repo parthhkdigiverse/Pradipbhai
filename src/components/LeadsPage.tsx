@@ -551,7 +551,7 @@ export function LeadsPage() {
                                   </td>
                                   <td className="px-5 py-3">
                                     <div className="flex items-center gap-1.5">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                       <span className="text-[12px] font-medium text-gray-600">{lead.source || '-'}</span>
                                     </div>
                                   </td>
@@ -624,7 +624,7 @@ export function LeadsPage() {
                                         {lead.followUps.map((fu: any, idx: number) => (
                                           <div key={idx} className="flex gap-4 relative">
                                             {idx !== lead.followUps.length - 1 && (
-                                              <div className="absolute left-1.5 top-5 bottom-[-20px] w-0.5 bg-blue-200"></div>
+                                              <div className="absolute left-1.5 top-5 bottom-[-20px] w-0.5 bg-primary/20"></div>
                                             )}
                                             <div className="w-3 h-3 rounded-full bg-primary mt-1 relative z-10 shrink-0"></div>
                                             <div className="bg-white/60 border border-white/60 rounded-xl p-3 flex-1 shadow-sm">

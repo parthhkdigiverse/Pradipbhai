@@ -54,7 +54,7 @@ export function WorkLogsPage() {
           <select 
             value={userFilter} 
             onChange={e => setUserFilter(e.target.value)}
-            className="pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm appearance-none"
+            className="pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white shadow-sm appearance-none"
           >
             <option value="">All Users</option>
             {uniqueUsers.map((u: any) => <option key={u} value={u}>{u}</option>)}
@@ -66,7 +66,7 @@ export function WorkLogsPage() {
           <select 
             value={jobFilter} 
             onChange={e => setJobFilter(e.target.value)}
-            className="pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm appearance-none"
+            className="pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white shadow-sm appearance-none"
           >
             <option value="">All Jobs</option>
             {uniqueJobs.map((j: any) => <option key={j} value={j}>{j}</option>)}
@@ -78,7 +78,7 @@ export function WorkLogsPage() {
             type="date" 
             value={dateFilter}
             onChange={e => setDateFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
+            className="px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-white shadow-sm"
           />
           {dateFilter && (
             <button onClick={() => setDateFilter('')} className="absolute right-3 text-gray-400 hover:text-gray-600">
@@ -121,7 +121,7 @@ export function WorkLogsPage() {
                     </td>
                     <td className="py-4 px-6 font-bold text-primary">
                       <div className="flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-blue-400" />
+                        <Briefcase className="w-4 h-4 text-primary/70" />
                         {log.jobTitle}
                       </div>
                     </td>

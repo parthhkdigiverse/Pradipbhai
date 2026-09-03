@@ -174,7 +174,7 @@ export function AttendancePage() {
                         value={record.checkIn}
                         onChange={(e) => updateAttendance(record.id, { checkIn: e.target.value })}
                         disabled={record.status === 'Absent' || record.status === 'Leave'}
-                        className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-blue-400 w-24 text-center disabled:opacity-50"
+                        className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                       />
                     </td>
                     <td className="py-4 px-6 text-center">
@@ -183,7 +183,7 @@ export function AttendancePage() {
                         value={record.checkOut}
                         onChange={(e) => updateAttendance(record.id, { checkOut: e.target.value })}
                         disabled={record.status === 'Absent' || record.status === 'Leave'}
-                        className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-blue-400 w-24 text-center disabled:opacity-50"
+                        className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                       />
                     </td>
                     <td className="py-4 px-6 text-center">

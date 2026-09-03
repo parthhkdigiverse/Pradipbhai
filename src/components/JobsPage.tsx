@@ -370,7 +370,7 @@ export function JobsPage() {
                         <span className="font-semibold text-gray-700">{getClientName(job.clientId)}</span>
                         {job.projectId && (
                           <span className="text-[10px] text-gray-500 flex items-center mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-1.5"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
                             {getProjectName(job.clientId, job.projectId)}
                           </span>
                         )}

@@ -480,7 +480,7 @@ export function SocialMediaPage() {
                                 onBlur={() => saveInlineEdit(field, inlineEdit!.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') saveInlineEdit(field, inlineEdit!.value); if (e.key === 'Escape') setInlineEdit(null); }}
                                 onClick={e => e.stopPropagation()}
-                                className="w-full px-2 py-1 bg-primary/10 border border-primary rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-400 text-center"
+                                className="w-full px-2 py-1 bg-primary/10 border border-primary rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/50 text-center"
                               />
                             ) : (
                               <span onClick={e => startEdit(e, field, value || '')} className="cursor-text hover:bg-gray-100 rounded px-1 py-0.5 transition-colors block text-center group/cell" title="Click to edit">
@@ -499,7 +499,7 @@ export function SocialMediaPage() {
                                 onBlur={() => saveInlineEdit(field, inlineEdit!.value)}
                                 onKeyDown={e => { if (e.key === 'Escape') setInlineEdit(null); }}
                                 onClick={e => e.stopPropagation()}
-                                className="px-2 py-1 bg-primary/10 border border-primary rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                className="px-2 py-1 bg-primary/10 border border-primary rounded-lg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-primary/50"
                               />
                             ) : (
                               <span onClick={e => startEdit(e, field, value || '')} className="cursor-text hover:bg-gray-100 rounded px-1 py-0.5 transition-colors inline-flex items-center gap-1 group/dc flex-col" title="Click to edit date">
@@ -524,7 +524,7 @@ export function SocialMediaPage() {
                                 onKeyDown={e => { if (e.key === 'Enter') saveInlineEdit(field, inlineEdit!.value); if (e.key === 'Escape') setInlineEdit(null); }} 
                                 onClick={e => e.stopPropagation()} 
                                 placeholder="Paste URL..." 
-                                className="w-full max-w-[120px] px-2 py-1 bg-primary/10 border border-primary rounded-lg text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-blue-400" 
+                                className="w-full max-w-[120px] px-2 py-1 bg-primary/10 border border-primary rounded-lg text-[10px] font-bold focus:outline-none focus:ring-1 focus:ring-primary/50" 
                               />
                             ) : value ? (
                               <div className="flex items-center justify-center gap-0.5 group/lc">
@@ -668,11 +668,11 @@ export function SocialMediaPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Start Date</label>
-                      <input type="date" value={bulkStartDate} onChange={e => setBulkStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700" />
+                      <input type="date" value={bulkStartDate} onChange={e => setBulkStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 font-bold text-gray-700" />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">End Date</label>
-                      <input type="date" value={bulkEndDate} onChange={e => setBulkEndDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700" />
+                      <input type="date" value={bulkEndDate} onChange={e => setBulkEndDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 font-bold text-gray-700" />
                     </div>
                   </div>
                   <div>
@@ -693,7 +693,7 @@ export function SocialMediaPage() {
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Format Type</label>
-                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700">
+                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 font-bold text-gray-700">
                       <option value="Post">Post</option>
                       <option value="Reel">Reel</option>
                       <option value="Story">Story</option>
@@ -754,7 +754,7 @@ export function SocialMediaPage() {
 
                   <div>
                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Format Type for Selected Dates</label>
-                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold text-gray-700">
+                    <select value={bulkFormatType} onChange={e => setBulkFormatType(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 font-bold text-gray-700">
                       <option value="Post">Post</option>
                       <option value="Reel">Reel</option>
                       <option value="Story">Story</option>
