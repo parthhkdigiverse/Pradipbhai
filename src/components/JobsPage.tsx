@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
-  const { jobs, setJobs, staff, clients, vendors, products } = useData();
+  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
@@ -20,6 +20,17 @@ export function JobsPage() {
   
   // Job Type for the modal (Designing or Printing)
   const [newJobType, setNewJobType] = useState<'Designing' | 'Printing'>('Designing');
+
+  useEffect(() => {
+    if (activeFilterIntent && activeFilterIntent.page === 'jobs') {
+      const { filterKey, filterValue } = activeFilterIntent;
+      if (filterKey === 'status') setFilterStatus(filterValue);
+      if (filterKey === 'billing') setFilterBilling(filterValue);
+      if (filterKey === 'type') setFilterType(filterValue);
+      
+      setActiveFilterIntent(null);
+    }
+  }, [activeFilterIntent, setActiveFilterIntent]);
 
   const [formData, setFormData] = useState({
     title: '',

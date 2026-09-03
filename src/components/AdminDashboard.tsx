@@ -1,13 +1,23 @@
+import { useMemo } from 'react';
+import { useData } from '../context/DataContext';
 import { 
-  TrendingUp, 
-  TrendingDown,
-  Check,
-  X,
-  FileText
+  Briefcase, 
+  CircleDollarSign, 
+  Clock, 
+  CheckCircle2, 
+  AlertCircle,
+  TrendingUp,
+  FileText,
+  PauseCircle,
+  CalendarDays,
+  CalendarRange,
+  Printer,
+  PenTool,
+  IndianRupee,
+  RefreshCcw,
+  Wallet
 } from 'lucide-react';
 import { 
-  LineChart, 
-  Line, 
   BarChart, 
   Bar, 
   XAxis, 
@@ -15,208 +25,344 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  Radar,
-  Legend
+  Legend,
+  Cell
 } from 'recharts';
 
-const sparklineData1 = [{ value: 10 }, { value: 15 }, { value: 12 }, { value: 18 }, { value: 25 }, { value: 20 }, { value: 30 }];
-const sparklineData2 = [{ value: 20 }, { value: 15 }, { value: 18 }, { value: 12 }, { value: 25 }, { value: 22 }, { value: 35 }];
-const sparklineData3 = [{ value: 5 }, { value: 10 }, { value: 8 }, { value: 15 }, { value: 20 }, { value: 18 }, { value: 25 }];
-const sparklineData4 = [{ value: 15 }, { value: 20 }, { value: 15 }, { value: 25 }, { value: 22 }, { value: 30 }, { value: 28 }];
-
-const projectData = [
-  { name: '15 Jan', active: 85, inprogress: 20, completed: 40 },
-  { name: '16 Jan', active: 45, inprogress: 70, completed: 40 },
-  { name: '17 Jan', active: 85, inprogress: 20, completed: 40 },
-  { name: '18 Jan', active: 45, inprogress: 20, completed: 80 },
-  { name: '19 Jan', active: 60, inprogress: 20, completed: 45 },
-  { name: '20 Jan', active: 25, inprogress: 20, completed: 45 },
-  { name: '21 Jan', active: 75, inprogress: 20, completed: 45 },
-];
-
-const radarData = [
-  { subject: '2025', male: 90, female: 60 },
-  { subject: '2026', male: 70, female: 50 },
-  { subject: '2027', male: 80, female: 90 },
-  { subject: '2028', male: 60, female: 80 },
-  { subject: '2029', male: 50, female: 70 },
-];
-
-function MetricCard({ title, value, change, isPositive, data, color }: any) {
+function DetailedMetricCard({ title, value, icon: Icon, colorClass, bgClass, subtext, onClick }: any) {
   return (
-    <div className="glass-panel rounded-2xl p-5 hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] transition-all duration-300">
-      <div className="text-gray-500 text-sm font-medium mb-2">{title}</div>
-      <div className="flex justify-between items-end">
-        <div>
-          <div className="text-2xl font-bold text-gray-800 mb-4">{value}</div>
-          <div className="flex items-center gap-2">
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-semibold ${isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {change}%
-            </div>
-            <span className="text-xs text-gray-500 whitespace-nowrap">in Last 7 Days</span>
+    <div 
+      onClick={onClick}
+      className={`bg-white/60 backdrop-blur-xl border border-white/80 rounded-2xl p-4 flex items-center gap-4 transition-all duration-300 ${onClick ? 'cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]' : ''}`}
+    >
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bgClass} ${colorClass} shadow-inner shrink-0`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <div className="text-xs text-gray-500 font-semibold mb-0.5">{title}</div>
+        <div className="text-xl font-bold text-gray-800 tracking-tight">{value}</div>
+        {subtext && (
+          <div className="text-[10px] text-emerald-600 font-medium flex items-center gap-1 mt-1">
+            <TrendingUp className="w-3 h-3" />
+            {subtext}
           </div>
-        </div>
-        <div className="w-24 h-12">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
-              <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-export function AdminDashboard() {
+export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: string) => void }) {
+  const { clients, jobs, invoices, setActiveFilterIntent } = useData();
+
+  const handleCardClick = (page: string, filterKey: string, filterValue: string) => {
+    setActiveFilterIntent({ page, filterKey, filterValue });
+    setCurrentPage(page);
+  };
+
+  // -------------------------------------------------------------
+  // DATA CALCULATIONS
+  // -------------------------------------------------------------
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Financial Overview
+  const totalRevenue = useMemo(() => {
+    return jobs.reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
+  }, [jobs]);
+
+  const pendingPayments = useMemo(() => {
+    return jobs.reduce((sum, j) => {
+      const total = Number(j.totalAmount) || 0;
+      const paid = Number(j.paidAmount) || 0;
+      return sum + Math.max(0, total - paid);
+    }, 0);
+  }, [jobs]);
+
+  const thisMonthRevenue = useMemo(() => {
+    const now = new Date();
+    return jobs.filter(j => {
+      const d = new Date(j.createdAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
+  }, [jobs]);
+
+  // Overall Job Summary
+  const overallSummary = useMemo(() => {
+    const summary = { total: jobs.length, pending: 0, progress: 0, hold: 0, completed: 0, dueToday: 0, dueThisWeek: 0, paid: 0, partialPaid: 0, unpaid: 0 };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+
+    jobs.forEach(j => {
+      // Status
+      if (j.status === 'Pending') summary.pending++;
+      else if (j.status === 'Progress') summary.progress++;
+      else if (j.status === 'Hold') summary.hold++;
+      else if (j.status === 'Completed') summary.completed++;
+
+      // Due Dates
+      if (j.dueDate) {
+        const due = new Date(j.dueDate);
+        due.setHours(0, 0, 0, 0);
+        if (due.getTime() === today.getTime()) summary.dueToday++;
+        if (due >= today && due <= nextWeek) summary.dueThisWeek++;
+      }
+
+      // Payments
+      if (j.paymentStatus === 'Paid') summary.paid++;
+      else if (j.paymentStatus === 'Partial') summary.partialPaid++;
+      else if (j.paymentStatus === 'Unpaid') summary.unpaid++;
+    });
+    return summary;
+  }, [jobs]);
+
+  // Printing Jobs
+  const printingSummary = useMemo(() => {
+    const pJobs = jobs.filter(j => j.type === 'Printing' || j.type === 'Des+Print');
+    const s = { total: pJobs.length, pending: 0, progress: 0, hold: 0, completed: 0 };
+    pJobs.forEach(j => {
+      if (j.status === 'Pending') s.pending++;
+      else if (j.status === 'Progress') s.progress++;
+      else if (j.status === 'Hold') s.hold++;
+      else if (j.status === 'Completed') s.completed++;
+    });
+    return s;
+  }, [jobs]);
+
+  // Designing Jobs
+  const designingSummary = useMemo(() => {
+    const dJobs = jobs.filter(j => j.type === 'Designing' || j.type === 'Des+Print');
+    const s = { total: dJobs.length, pending: 0, progress: 0, hold: 0, completed: 0 };
+    dJobs.forEach(j => {
+      if (j.status === 'Pending') s.pending++;
+      else if (j.status === 'Progress') s.progress++;
+      else if (j.status === 'Hold') s.hold++;
+      else if (j.status === 'Completed') s.completed++;
+    });
+    return s;
+  }, [jobs]);
+
+
+  // Chart Data
+  const jobStatusData = useMemo(() => [
+    { name: 'Pending', count: overallSummary.pending, fill: '#64748b' },
+    { name: 'In Progress', count: overallSummary.progress, fill: '#f97316' },
+    { name: 'Hold', count: overallSummary.hold, fill: '#eab308' },
+    { name: 'Completed', count: overallSummary.completed, fill: '#22c55e' },
+  ], [overallSummary]);
+
+  const invoiceData = useMemo(() => {
+    let paid = 0;
+    let unpaid = 0;
+    invoices.forEach(inv => {
+      if (inv.status === 'Paid') paid += Number(inv.total);
+      else unpaid += Number(inv.total);
+    });
+    return [
+      { name: 'Revenue', Paid: paid, Unpaid: unpaid }
+    ];
+  }, [invoices]);
+
+  const recentJobs = useMemo(() => {
+    return [...jobs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
+  }, [jobs]);
+
+  const pendingInvoices = useMemo(() => {
+    return invoices.filter(inv => inv.status !== 'Paid').slice(0, 5);
+  }, [invoices]);
+
+  const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
+
+  // -------------------------------------------------------------
+  // RENDER
+  // -------------------------------------------------------------
   return (
-    <>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm">Admin Dashboard</h1>
+    <div className="w-full flex flex-col gap-8 pb-10">
+      <div className="flex flex-col">
+        <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm">Dashboard</h1>
+        <p className="text-sm text-gray-500 font-medium">Comprehensive overview of your business operations</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <MetricCard title="Working Hours" value="950h 41m" change="20" isPositive={true} data={sparklineData1} color="#3b82f6" />
-        <MetricCard title="Production" value="400h 15m" change="20" isPositive={false} data={sparklineData2} color="#f97316" />
-        <MetricCard title="Unproductive" value="210h 15m" change="45" isPositive={true} data={sparklineData3} color="#3b82f6" />
-        <MetricCard title="Manual Added" value="46h 45m" change="22" isPositive={true} data={sparklineData4} color="#10b981" />
+      {/* 1. Financial Overview */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Financial Overview</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <DetailedMetricCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={IndianRupee} bgClass="bg-emerald-100" colorClass="text-emerald-600" />
+          <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={CircleDollarSign} bgClass="bg-rose-100" colorClass="text-rose-600" />
+          <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-blue-100" colorClass="text-blue-600" subtext="6.3% vs last month" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Top Members */}
+      {/* 2. Overall Job Summary */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Overall Job Summary</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <DetailedMetricCard title="Total Jobs" value={overallSummary.total} icon={Briefcase} bgClass="bg-indigo-100" colorClass="text-indigo-600" onClick={() => handleCardClick('jobs', 'status', 'All')} />
+          <DetailedMetricCard title="Pending" value={overallSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
+          <DetailedMetricCard title="Progress" value={overallSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
+          <DetailedMetricCard title="Hold" value={overallSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
+          <DetailedMetricCard title="Completed" value={overallSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+          
+          <DetailedMetricCard title="Due Today" value={overallSummary.dueToday} icon={CalendarDays} bgClass="bg-purple-100" colorClass="text-purple-600" />
+          <DetailedMetricCard title="Due This Week" value={overallSummary.dueThisWeek} icon={CalendarRange} bgClass="bg-purple-100" colorClass="text-purple-600" />
+          <DetailedMetricCard title="Paid" value={overallSummary.paid} icon={IndianRupee} bgClass="bg-teal-100" colorClass="text-teal-600" onClick={() => handleCardClick('jobs', 'billing', 'Paid')} />
+          <DetailedMetricCard title="Partial Paid" value={overallSummary.partialPaid} icon={Wallet} bgClass="bg-amber-100" colorClass="text-amber-600" onClick={() => handleCardClick('jobs', 'billing', 'Partial')} />
+          <DetailedMetricCard title="Unpaid" value={overallSummary.unpaid} icon={AlertCircle} bgClass="bg-rose-100" colorClass="text-rose-600" onClick={() => handleCardClick('jobs', 'billing', 'Unpaid')} />
+        </div>
+      </div>
+
+      {/* 3. Printing Jobs Status */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Printing Jobs Status Overview</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-blue-100" colorClass="text-blue-600" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
+          <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
+          <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
+          <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
+          <DetailedMetricCard title="Completed" value={printingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+        </div>
+      </div>
+
+      {/* 4. Designing Jobs Status */}
+      <div>
+        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Designing Jobs Status Overview</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <DetailedMetricCard title="Total Designing" value={designingSummary.total} icon={PenTool} bgClass="bg-fuchsia-100" colorClass="text-fuchsia-600" onClick={() => handleCardClick('jobs', 'type', 'Designing')} />
+          <DetailedMetricCard title="Pending" value={designingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
+          <DetailedMetricCard title="Progress" value={designingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
+          <DetailedMetricCard title="Hold" value={designingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
+          <DetailedMetricCard title="Completed" value={designingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+        </div>
+      </div>
+
+      {/* Enhanced Visualizations */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
         <div className="glass-panel rounded-2xl relative overflow-hidden">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20">Top Members</div>
-          <div className="p-5 space-y-6">
-            {[
-              { name: 'Leon Baxter', role: 'Test Lead', salary: '$6595', img: 'https://i.pravatar.cc/150?u=1' },
-              { name: 'Charles Cline', role: 'Security Engineer', salary: '$5145', img: 'https://i.pravatar.cc/150?u=2' },
-              { name: 'James Higham', role: 'Android Developer', salary: '$7478', img: 'https://i.pravatar.cc/150?u=3' },
-              { name: 'Thomas Ward', role: 'UI Designer', salary: '$4589', img: 'https://i.pravatar.cc/150?u=4' },
-              { name: 'Aliza Duncan', role: 'Backend Developer', salary: '$6987', img: 'https://i.pravatar.cc/150?u=5' }
-            ].map((member, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={member.img} alt={member.name} className="w-10 h-10 rounded-full object-cover" />
-                  <div>
-                    <div className="font-semibold text-sm text-gray-800">{member.name}</div>
-                    <div className="text-xs text-gray-500">{member.role}</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-gray-500">Salary</div>
-                  <div className="font-bold text-sm text-gray-800">{member.salary}</div>
-                </div>
-              </div>
-            ))}
+          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-blue-600" />
+            Jobs Pipeline
           </div>
-        </div>
-
-        {/* Members Overview */}
-        <div className="glass-panel rounded-2xl relative overflow-hidden">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20">Members Overview</div>
-          <div className="p-5 h-[350px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                <PolarGrid stroke="rgba(255,255,255,0.6)" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#4b5563', fontSize: 12 }} />
-                <Radar name="Female" dataKey="female" stroke="#ec4899" fill="#ec4899" fillOpacity={0.1} />
-                <Radar name="Male" dataKey="male" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Request Approval */}
-        <div className="glass-panel rounded-2xl relative">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 flex items-center justify-between bg-white/20 rounded-t-2xl">
-            Request Approval
-          </div>
-          <div className="p-5 space-y-6">
-            {[
-              { name: 'Jonathan King', date: '14 Sep 2025', img: 'https://i.pravatar.cc/150?u=6' },
-              { name: 'Peter Brooks', date: '28 Aug 2025', img: 'https://i.pravatar.cc/150?u=7' },
-              { name: 'Cindy Mateo', date: '20 Aug 2025', img: 'https://i.pravatar.cc/150?u=8' },
-              { name: 'Thomas Walsh', date: '10 Aug 2025', img: 'https://i.pravatar.cc/150?u=9' },
-              { name: 'Eliz Hiltner', date: '25 Jul 2025', img: 'https://i.pravatar.cc/150?u=10' }
-            ].map((req, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={req.img} alt={req.name} className="w-10 h-10 rounded-full object-cover" />
-                  <div>
-                    <div className="font-semibold text-sm text-gray-800">{req.name}</div>
-                    <div className="text-xs text-gray-500">{req.date}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center hover:bg-green-200 transition-colors">
-                    <Check className="w-4 h-4" />
-                  </button>
-                  <button className="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Project Statistics */}
-        <div className="lg:col-span-2 glass-panel rounded-2xl relative overflow-hidden">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20">Project Statistics</div>
           <div className="p-5 h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+              <BarChart data={jobStatusData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.6)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} />
-                <Tooltip cursor={{fill: 'transparent'}} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', top: -10 }} />
-                <Bar dataKey="active" name="Active" fill="#3b82f6" radius={[2, 2, 0, 0]} barSize={12} />
-                <Bar dataKey="inprogress" name="Inprogress" fill="#9ca3af" radius={[2, 2, 0, 0]} barSize={12} />
-                <Bar dataKey="completed" name="Completed" fill="#10b981" radius={[2, 2, 0, 0]} barSize={12} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12, fontWeight: 600 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} allowDecimals={false} />
+                <Tooltip cursor={{fill: 'rgba(255,255,255,0.4)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={40}>
+                  {jobStatusData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Recent Projects */}
-        <div className="glass-panel rounded-2xl relative">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl">Recent Projects</div>
-          <div className="p-5 space-y-4">
-            {[
-              { id: 'TZ', name: 'TaskZen - Productivity', color: 'bg-blue-100 text-blue-700', tasks: '08 Tasks', budget: '$3500' },
-              { id: 'FS', name: 'FlowSpark - Workflow tools', color: 'bg-orange-100 text-orange-700', tasks: '32 Tasks', budget: '$8966' },
-              { id: 'CL', name: 'Corelytics - Data tools', color: 'bg-pink-100 text-pink-700', tasks: '56 Tasks', budget: '$7896' },
-              { id: 'CP', name: 'CodePulse - Cloud tools', color: 'bg-teal-100 text-teal-700', tasks: '40 Tasks', budget: '$4124' },
-              { id: 'PD', name: 'Office Management', color: 'bg-purple-100 text-purple-700', tasks: '48 Tasks', budget: '$4578' }
-            ].map((proj, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded font-bold flex items-center justify-center ${proj.color}`}>{proj.id}</div>
-                  <div>
-                    <div className="font-semibold text-sm text-gray-800">{proj.name}</div>
-                    <div className="text-xs text-gray-500 flex items-center gap-2">
-                      <FileText className="w-3 h-3" /> {proj.tasks} | <span className="text-gray-800 font-medium">{proj.budget}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex -space-x-2">
-                  <img src="https://i.pravatar.cc/150?u=11" className="w-6 h-6 rounded-full border-2 border-white/50 shadow-sm" />
-                  <img src="https://i.pravatar.cc/150?u=12" className="w-6 h-6 rounded-full border-2 border-white/50 shadow-sm" />
-                  <img src="https://i.pravatar.cc/150?u=13" className="w-6 h-6 rounded-full border-2 border-white/50 shadow-sm" />
-                </div>
-              </div>
-            ))}
+        <div className="glass-panel rounded-2xl relative overflow-hidden">
+          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
+            <CircleDollarSign className="w-5 h-5 text-emerald-600" />
+            Invoice Revenue
+          </div>
+          <div className="p-5 h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={invoiceData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.6)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12, fontWeight: 600 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} tickFormatter={(val) => `₹${val}`} />
+                <Tooltip cursor={{fill: 'rgba(255,255,255,0.4)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: any) => [formatCurrency(Number(value) || 0), '']} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                <Bar dataKey="Paid" fill="#10b981" radius={[4, 4, 0, 0]} barSize={60} />
+                <Bar dataKey="Unpaid" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={60} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
-    </>
+
+      {/* Quick Lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="glass-panel rounded-2xl relative">
+          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-600" />
+            Recent Jobs
+          </div>
+          <div className="p-2">
+            {recentJobs.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 font-medium">No recent jobs found.</div>
+            ) : (
+              recentJobs.map((job) => (
+                <div key={job.id} className="p-3 hover:bg-white/40 rounded-xl transition-colors flex items-center justify-between border-b border-white/20 last:border-0">
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm text-gray-800">{job.title}</span>
+                    <span className="text-xs text-gray-500 font-medium mt-0.5">{getClientName(job.clientId)}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    {job.status === 'Completed' ? (
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md">
+                        <CheckCircle2 className="w-3 h-3" /> Completed
+                      </span>
+                    ) : job.status === 'Progress' ? (
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-md">
+                        <Clock className="w-3 h-3" /> In Progress
+                      </span>
+                    ) : job.status === 'Hold' ? (
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded-md">
+                        <PauseCircle className="w-3 h-3" /> Hold
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
+                        <Clock className="w-3 h-3" /> Pending
+                      </span>
+                    )}
+                    <span className="text-[10px] text-gray-400 mt-1">{new Date(job.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-2xl relative">
+          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-500" />
+            Pending Invoices
+          </div>
+          <div className="p-2">
+            {pendingInvoices.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 font-medium">No pending invoices found. Great job!</div>
+            ) : (
+              pendingInvoices.map((inv) => (
+                <div key={inv.id} className="p-3 hover:bg-white/40 rounded-xl transition-colors flex items-center justify-between border-b border-white/20 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm text-gray-800">{inv.invoiceNumber}</span>
+                      <span className="text-xs text-gray-500 font-medium mt-0.5">{getClientName(inv.clientId)}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold text-gray-800">{formatCurrency(inv.total)}</span>
+                    <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mt-1 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                      Due: {new Date(inv.dueDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

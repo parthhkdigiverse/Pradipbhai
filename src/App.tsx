@@ -31,7 +31,7 @@ function App() {
     <SettingsProvider>
       <DataProvider>
         <DashboardLayout currentPage={currentPage} setCurrentPage={setCurrentPage}>
-          {currentPage === 'dashboard' && <AdminDashboard />}
+          {currentPage === 'dashboard' && <AdminDashboard setCurrentPage={setCurrentPage} />}
           {currentPage === 'leads' && <LeadsPage />}
           {currentPage === 'clients' && <ClientsPage />}
           {currentPage === 'projects' && <ProjectsPage />}

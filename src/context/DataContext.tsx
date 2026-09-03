@@ -266,11 +266,15 @@ interface DataContextType {
   setInvoices: React.Dispatch<React.SetStateAction<any[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
+  activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
+  setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string } | null>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string } | null>(null);
+
   const [leads, setLeads] = useState<any[]>(() => {
     const saved = localStorage.getItem('app_leads');
     if (saved) {
@@ -463,7 +467,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       jobs, setJobs,
       invoices, setInvoices,
       convertLeadToClient, 
-      updateProject 
+      updateProject,
+      activeFilterIntent,
+      setActiveFilterIntent
     }}>
       {children}
     </DataContext.Provider>

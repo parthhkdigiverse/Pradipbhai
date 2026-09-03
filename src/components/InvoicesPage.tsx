@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function InvoicesPage() {
-  const { invoices, setInvoices, clients, jobs } = useData();
+  const { invoices, setInvoices, clients, jobs, activeFilterIntent, setActiveFilterIntent } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
@@ -23,6 +23,15 @@ export function InvoicesPage() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   
+  useEffect(() => {
+    if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
+      const { filterKey, filterValue } = activeFilterIntent;
+      if (filterKey === 'status') setFilterStatus(filterValue);
+      
+      setActiveFilterIntent(null);
+    }
+  }, [activeFilterIntent, setActiveFilterIntent]);
+
   const [formData, setFormData] = useState({
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: '',
