@@ -88,7 +88,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
           </div>
-          Dreams Timer
+          Alpha Creative
         </div>
       </div>
 
