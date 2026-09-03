@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { Calendar, Clock, Briefcase, User, Search, Filter } from 'lucide-react';
+import { Calendar, Clock, Briefcase, User, Filter } from 'lucide-react';
 
 export function WorkLogsPage() {
   const { workLogs } = useData();

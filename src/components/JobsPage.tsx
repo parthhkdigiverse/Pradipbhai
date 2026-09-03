@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar, FilterX, Square, Clock } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
