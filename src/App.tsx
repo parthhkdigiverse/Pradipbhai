@@ -15,6 +15,8 @@ import { VendorsPage } from './components/VendorsPage';
 import { JobsPage } from './components/JobsPage';
 import { InvoicesPage } from './components/InvoicesPage';
 import { ReportsPage } from './components/ReportsPage';
+import { WorkLogsPage } from './components/WorkLogsPage';
+import { ProfilePage } from './components/ProfilePage';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
@@ -40,12 +42,14 @@ function App() {
           {currentPage === 'catalog' && <CatalogPage />}
           {currentPage === 'staff' && <StaffPage />}
           {currentPage === 'attendance' && <AttendancePage />}
+          {currentPage === 'worklogs' && <WorkLogsPage />}
           {currentPage === 'payroll' && <PayrollPage />}
           {currentPage === 'vendors' && <VendorsPage />}
           {currentPage === 'jobs' && <JobsPage />}
           {currentPage === 'invoices' && <InvoicesPage />}
           {currentPage === 'reports' && <ReportsPage />}
           {currentPage === 'settings' && <SettingsPage />}
+          {currentPage === 'profile' && <ProfilePage />}
         </DashboardLayout>
       </DataProvider>
     </SettingsProvider>

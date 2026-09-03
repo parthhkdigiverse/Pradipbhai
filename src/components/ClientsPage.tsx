@@ -476,7 +476,7 @@ export function ClientsPage() {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-5 py-4">{getStatusBadge(client.status)}</td>
+                            <td className="px-5 py-4">{getStatusBadge(client)}</td>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
                                 <Calendar className="w-3.5 h-3.5 text-gray-400" />
@@ -664,7 +664,7 @@ export function ClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
-                  <select value={projectFormData.status} onChange={e => setProjectFormData({...projectFormData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select disabled title="Status is calculated automatically from Jobs" value={projectFormData.status} onChange={e => setProjectFormData({...projectFormData, status: e.target.value})} className="w-full px-3 py-2 bg-gray-100/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-400 cursor-not-allowed">
                     <option value="Planning">Planning</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Active">Active</option>

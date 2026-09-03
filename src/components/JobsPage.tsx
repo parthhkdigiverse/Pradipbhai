@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar, FilterX } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Pause, Edit, Calendar, FilterX, Square, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
-  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent } = useData();
+  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
@@ -143,6 +143,33 @@ export function JobsPage() {
 
   const updateJobStatus = (id: string, status: string) => {
     setJobs(prev => prev.map(j => j.id === id ? { ...j, status } : j));
+  };
+
+  const handleStartTracker = (jobId: string) => {
+    if (activeJobTracker && activeJobTracker.jobId !== jobId) {
+      // Stop previous tracker
+      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      setJobs(prev => prev.map(j => j.id === activeJobTracker.jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+    }
+    setActiveJobTracker({ jobId, startTime: Date.now() });
+    updateJobStatus(jobId, 'Progress'); // Optional: auto-set to Progress when tracking starts
+  };
+
+  const handleStopTracker = (jobId: string) => {
+    if (activeJobTracker && activeJobTracker.jobId === jobId) {
+      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+      setActiveJobTracker(null);
+      updateJobStatus(jobId, 'Pending'); // Optional: auto-set to pending/paused when tracking stops
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (!seconds) return '00:00:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
@@ -300,6 +327,7 @@ export function JobsPage() {
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6">Team</th>
                 <th className="py-4 px-6">Due Date</th>
+                <th className="py-4 px-6 text-center">Time</th>
                 <th className="py-4 px-6 text-center">Payment</th>
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
@@ -340,18 +368,36 @@ export function JobsPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        job.status === 'Pending' ? 'bg-gray-100 text-gray-600' : 
-                        job.status === 'Progress' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {job.status}
-                      </span>
+                      <select
+                        value={job.status}
+                        onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
+                          job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
+                          job.status === 'Progress' ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                        }`}
+                        style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
+                      >
+                        <option value="Pending">Pending</option>
+                        <option value="Progress">Progress</option>
+                        <option value="Done">Done</option>
+                      </select>
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-[11px] font-medium text-gray-600 bg-gray-100/80 px-2 py-1 rounded">{getStaffName(job.teamId)}</span>
                     </td>
                     <td className="py-4 px-6 text-gray-600 font-medium whitespace-nowrap">
                       {job.dueDate || '-'}
+                    </td>
+                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-mono bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        {activeJobTracker?.jobId === job.id ? (
+                           <span className="text-blue-600 animate-pulse font-bold">Tracking...</span>
+                        ) : (
+                          <span className="text-gray-600 font-medium">{formatTime(job.trackedTime || 0)}</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
@@ -362,20 +408,23 @@ export function JobsPage() {
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => updateJobStatus(job.id, 'Progress')}
-                          className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
-                          title="Start Progress"
-                        >
-                          <Play className="w-3 h-3" />
-                        </button>
-                        <button 
-                          onClick={() => updateJobStatus(job.id, 'Pending')}
-                          className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-colors"
-                          title="Pause Job"
-                        >
-                          <Pause className="w-3 h-3" />
-                        </button>
+                        {activeJobTracker?.jobId === job.id ? (
+                          <button 
+                            onClick={() => handleStopTracker(job.id)}
+                            className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                            title="Stop Tracking & Pause"
+                          >
+                            <Square className="w-3 h-3 fill-current" />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => handleStartTracker(job.id)}
+                            className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+                            title="Start Tracking & Progress"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                          </button>
+                        )}
                         <button 
                           onClick={() => handleOpenModal(job.type as 'Designing' | 'Printing', job.id)}
                           className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors"

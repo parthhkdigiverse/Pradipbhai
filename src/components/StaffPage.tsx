@@ -102,13 +102,32 @@ export function StaffPage() {
     handleCloseModal();
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (emp: any) => {
+    const status = emp.status;
+    let colorClass = "";
     switch(status) {
-      case 'Active': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'Inactive': return 'bg-rose-100 text-rose-700 border-rose-200';
-      case 'On Leave': return 'bg-amber-100 text-amber-700 border-amber-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'Active': colorClass = 'bg-emerald-100 text-emerald-700 border-emerald-200'; break;
+      case 'Inactive': colorClass = 'bg-rose-100 text-rose-700 border-rose-200'; break;
+      case 'On Leave': colorClass = 'bg-amber-100 text-amber-700 border-amber-200'; break;
+      default: colorClass = 'bg-gray-100 text-gray-700 border-gray-200'; break;
     }
+    
+    return (
+      <select 
+        value={status} 
+        onChange={(e) => {
+          const newStatus = e.target.value;
+          setStaff((prev: any[]) => prev.map(s => s.id === emp.id ? { ...s, status: newStatus } : s));
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className={`${colorClass} px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none pr-5 relative text-center`}
+        style={{ backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
+      >
+        <option value="Active">Active</option>
+        <option value="Inactive">Inactive</option>
+        <option value="On Leave">On Leave</option>
+      </select>
+    );
   };
 
   return (
@@ -224,9 +243,7 @@ export function StaffPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <span className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide ${getStatusBadge(emp.status)}`}>
-                        {emp.status}
-                      </span>
+                      {getStatusBadge(emp)}
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center">

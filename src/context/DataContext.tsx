@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 
@@ -180,7 +180,8 @@ const initialJobs = [
     totalAmount: 500,
     paidAmount: 0,
     printerId: null,
-    productId: '1'
+    productId: '1',
+    trackedTime: 0
   },
   {
     id: '2',
@@ -197,7 +198,8 @@ const initialJobs = [
     totalAmount: 1500,
     paidAmount: 0,
     printerId: null,
-    productId: '2'
+    productId: '2',
+    trackedTime: 0
   },
   {
     id: '3',
@@ -214,7 +216,8 @@ const initialJobs = [
     totalAmount: 3000,
     paidAmount: 1000,
     printerId: '3',
-    productId: '5'
+    productId: '5',
+    trackedTime: 0
   }
 ];
 
@@ -268,6 +271,14 @@ interface DataContextType {
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
   activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
   setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string } | null>>;
+  isPunchedIn: boolean;
+  setIsPunchedIn: React.Dispatch<React.SetStateAction<boolean>>;
+  punchInTime: number | null;
+  setPunchInTime: React.Dispatch<React.SetStateAction<number | null>>;
+  activeJobTracker: { jobId: string, startTime: number } | null;
+  setActiveJobTracker: React.Dispatch<React.SetStateAction<{ jobId: string, startTime: number } | null>>;
+  workLogs: any[];
+  setWorkLogs: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -455,10 +466,112 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_invoices', JSON.stringify(invoices));
   }, [invoices]);
 
+  const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
+    return localStorage.getItem('app_isPunchedIn') === 'true';
+  });
+
+  const [punchInTime, setPunchInTime] = useState<number | null>(() => {
+    const saved = localStorage.getItem('app_punchInTime');
+    return saved ? parseInt(saved) : null;
+  });
+
+  const [activeJobTracker, setActiveJobTracker] = useState<{ jobId: string, startTime: number } | null>(() => {
+    const saved = localStorage.getItem('app_activeJobTracker');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [workLogs, setWorkLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('app_workLogs');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.length > 0) return parsed;
+    }
+    return [
+      {
+        id: 'wk1',
+        date: '2026-09-01',
+        jobId: '1',
+        jobTitle: 'Install Security Cameras',
+        startTime: new Date('2026-09-01T09:00:00').getTime(),
+        endTime: new Date('2026-09-01T12:30:00').getTime(),
+        duration: 3.5 * 3600
+      },
+      {
+        id: 'wk2',
+        date: '2026-09-02',
+        jobId: '2',
+        jobTitle: 'Upgrade Network Switches',
+        startTime: new Date('2026-09-02T13:00:00').getTime(),
+        endTime: new Date('2026-09-02T17:45:00').getTime(),
+        duration: 4.75 * 3600
+      },
+      {
+        id: 'wk3',
+        date: '2026-09-03',
+        jobId: '3',
+        jobTitle: 'Fix Server Rack Cooling',
+        startTime: new Date('2026-09-03T10:15:00').getTime(),
+        endTime: new Date('2026-09-03T11:45:00').getTime(),
+        duration: 1.5 * 3600
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_isPunchedIn', isPunchedIn.toString());
+  }, [isPunchedIn]);
+
+  useEffect(() => {
+    if (punchInTime !== null) {
+      localStorage.setItem('app_punchInTime', punchInTime.toString());
+    } else {
+      localStorage.removeItem('app_punchInTime');
+    }
+  }, [punchInTime]);
+
+  useEffect(() => {
+    if (activeJobTracker) {
+      localStorage.setItem('app_activeJobTracker', JSON.stringify(activeJobTracker));
+    } else {
+      localStorage.removeItem('app_activeJobTracker');
+    }
+  }, [activeJobTracker]);
+
+  useEffect(() => {
+    localStorage.setItem('app_workLogs', JSON.stringify(workLogs));
+  }, [workLogs]);
+
+  // Helper inside DataContext to deal with potential mismatches if projectId is not exactly name
+  const getProjectNameFallback = (projectId: string) => {
+     // Just a dummy fallback, actual logic usually ensures j.projectId === project.name
+     return projectId;
+  };
+
+  const clientsWithDynamicStatus = useMemo(() => {
+    return clients.map(client => {
+      const updatedProjects = (client.projects || []).map((project: any) => {
+        const projectJobs = jobs.filter(j => j.clientId === client.id && (j.projectId === project.name || getProjectNameFallback(j.projectId) === project.name));
+        let status = project.status; // fallback
+        if (projectJobs.length > 0) {
+          const allDone = projectJobs.every(j => j.status === 'Done');
+          const anyProgress = projectJobs.some(j => j.status === 'Progress');
+          const allPending = projectJobs.every(j => j.status === 'Pending');
+          
+          if (allDone) status = 'Completed';
+          else if (anyProgress) status = 'In Progress';
+          else if (allPending) status = 'Planning';
+          else status = 'Active'; // Mixed jobs without progress
+        }
+        return { ...project, status };
+      });
+      return { ...client, projects: updatedProjects };
+    });
+  }, [clients, jobs]);
+
   return (
     <DataContext.Provider value={{ 
       leads, setLeads, 
-      clients, setClients, 
+      clients: clientsWithDynamicStatus, setClients, 
       products, setProducts, 
       staff, setStaff, 
       attendance, setAttendance, 
@@ -469,7 +582,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       convertLeadToClient, 
       updateProject,
       activeFilterIntent,
-      setActiveFilterIntent
+      setActiveFilterIntent,
+      isPunchedIn,
+      setIsPunchedIn,
+      punchInTime,
+      setPunchInTime,
+      activeJobTracker,
+      setActiveJobTracker,
+      workLogs,
+      setWorkLogs
     }}>
       {children}
     </DataContext.Provider>

@@ -10,7 +10,7 @@ export function DashboardLayout({ children, currentPage, setCurrentPage }: { chi
       <div className="relative z-10 flex min-h-screen">
         <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
         <div className="md:pl-64 flex flex-col w-full min-h-screen">
-          <Header />
+          <Header setCurrentPage={setCurrentPage} />
           <main className="flex-1 p-6 relative">
             {children}
           </main>
