@@ -8,6 +8,7 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
 
   useEffect(() => {
@@ -127,10 +128,46 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
           <div className={`w-2 h-2 rounded-full ${isPunchedIn ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></div>
           {isPunchedIn ? 'Punched In' : 'Punch In'}
         </button>
-        <button className="text-gray-600 hover:text-gray-900 transition-colors relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full shadow-sm shadow-red-500/50"></span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="text-gray-600 hover:text-gray-900 transition-colors relative p-1"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full shadow-sm shadow-red-500/50"></span>
+          </button>
+          
+          {/* Notifications Dropdown */}
+          {showNotifications && (
+            <div className="absolute right-0 mt-2 w-72 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                <p className="text-sm font-bold text-gray-800">Notifications</p>
+                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">2 New</span>
+              </div>
+              <div className="py-2 max-h-80 overflow-y-auto">
+                <div className="px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer border-b border-gray-50">
+                  <p className="text-xs font-semibold text-gray-800">New lead assigned</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Tech Solutions Inc. has been assigned to you.</p>
+                  <p className="text-[9px] font-medium text-primary mt-1">10 minutes ago</p>
+                </div>
+                <div className="px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer">
+                  <p className="text-xs font-semibold text-gray-800">Invoice Paid</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Invoice #INV-2026-001 has been paid.</p>
+                  <p className="text-[9px] font-medium text-gray-400 mt-1">2 hours ago</p>
+                </div>
+              </div>
+              <div className="border-t border-gray-100 p-2">
+                <button 
+                  onClick={() => setShowNotifications(false)}
+                  className="w-full text-center text-xs font-bold text-primary hover:text-primary/80 transition-colors py-1"
+                >
+                  Mark all as read
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="relative">
           <button 
             onClick={() => setShowProfileMenu(!showProfileMenu)}
