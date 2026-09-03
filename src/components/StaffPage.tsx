@@ -1,6 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX } from 'lucide-react';
+import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX, Shield } from 'lucide-react';
 import { useData } from '../context/DataContext';
+
+const MODULES = [
+  'Dashboard', 'Leads', 'Clients', 'Projects', 'Social Media', 'Chat', 'Catalog',
+  'Staff', 'Attendance', 'Work Logs', 'Payroll', 'Vendors', 'Jobs', 'Invoices',
+  'Reports', 'Settings', 'Security', 'Profile'
+];
 
 export function StaffPage() {
   const { staff, setStaff } = useData();
@@ -28,7 +34,8 @@ export function StaffPage() {
     phone: '',
     status: 'Active',
     joinDate: new Date().toISOString().split('T')[0],
-    baseSalary: ''
+    baseSalary: '',
+    permissions: {} as Record<string, { view: boolean, add: boolean, edit: boolean, delete: boolean }>
   });
 
   const uniqueRoles = useMemo(() => {
@@ -59,7 +66,8 @@ export function StaffPage() {
           phone: emp.phone,
           status: emp.status,
           joinDate: emp.joinDate,
-          baseSalary: emp.baseSalary.toString()
+          baseSalary: emp.baseSalary?.toString() || '',
+          permissions: (emp as any).permissions || {}
         });
         setEditingStaffId(staffId);
       }
@@ -71,7 +79,8 @@ export function StaffPage() {
         phone: '',
         status: 'Active',
         joinDate: new Date().toISOString().split('T')[0],
-        baseSalary: ''
+        baseSalary: '',
+        permissions: {} as Record<string, { view: boolean, add: boolean, edit: boolean, delete: boolean }>
       });
       setEditingStaffId(null);
     }
@@ -276,17 +285,18 @@ export function StaffPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleCloseModal}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
+          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30 flex-shrink-0">
               <h2 className="text-lg font-bold text-gray-800">{editingStaffId ? 'Edit Staff' : 'Add New Staff'}</h2>
               <button onClick={handleCloseModal} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleSaveStaff} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+            <form onSubmit={handleSaveStaff} className="flex flex-col overflow-hidden flex-1">
+              <div className="p-5 space-y-4 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Full Name <span className="text-rose-500">*</span></label>
                   <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                 </div>
@@ -326,7 +336,63 @@ export function StaffPage() {
                 </div>
               </div>
               
-              <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-white/40">
+              {/* Custom Permissions (Overrides) Section */}
+              <div className="mt-6 pt-4 border-t border-white/40">
+                <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" /> 
+                  Custom Permissions (Overrides)
+                </h3>
+                <p className="text-[11px] text-gray-500 mb-3">Granular exceptions to this user's base role permissions.</p>
+                
+                <div className="overflow-x-auto bg-white/30 rounded-xl border border-white/60">
+                  <table className="w-full text-sm text-left">
+                    <thead>
+                      <tr className="bg-gray-50/50 border-b border-gray-100/50">
+                        <th className="px-3 py-2 font-semibold text-gray-700 text-xs">Module</th>
+                        <th className="px-3 py-2 font-semibold text-gray-700 text-xs text-center">View</th>
+                        <th className="px-3 py-2 font-semibold text-gray-700 text-xs text-center">Add</th>
+                        <th className="px-3 py-2 font-semibold text-gray-700 text-xs text-center">Edit</th>
+                        <th className="px-3 py-2 font-semibold text-gray-700 text-xs text-center">Delete</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100/50">
+                      {MODULES.map(module => {
+                        const mPerms = formData.permissions[module] || { view: false, add: false, edit: false, delete: false };
+                        const handleCheck = (type: 'view' | 'add' | 'edit' | 'delete') => {
+                          setFormData(prev => ({
+                            ...prev,
+                            permissions: {
+                              ...prev.permissions,
+                              [module]: { ...mPerms, [type]: !mPerms[type] }
+                            }
+                          }));
+                        };
+                        return (
+                          <tr key={module} className="hover:bg-white/40 transition-colors">
+                            <td className="px-3 py-1.5 font-medium text-gray-800 text-xs">{module}</td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input type="checkbox" checked={mPerms.view} onChange={() => handleCheck('view')} className="rounded border-gray-300 text-primary focus:ring-primary/50" />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input type="checkbox" checked={mPerms.add} onChange={() => handleCheck('add')} className="rounded border-gray-300 text-primary focus:ring-primary/50" />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input type="checkbox" checked={mPerms.edit} onChange={() => handleCheck('edit')} className="rounded border-gray-300 text-primary focus:ring-primary/50" />
+                            </td>
+                            <td className="px-3 py-1.5 text-center">
+                              <input type="checkbox" checked={mPerms.delete} onChange={() => handleCheck('delete')} className="rounded border-gray-300 text-primary focus:ring-primary/50" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              </div>
+
+              
+              <div className="p-5 flex justify-end gap-3 border-t border-white/40 bg-white/30 flex-shrink-0">
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all">
                   Cancel
                 </button>

@@ -17,6 +17,7 @@ import { InvoicesPage } from './components/InvoicesPage';
 import { ReportsPage } from './components/ReportsPage';
 import { WorkLogsPage } from './components/WorkLogsPage';
 import { ProfilePage } from './components/ProfilePage';
+import { SecurityPage } from './components/SecurityPage';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
@@ -51,6 +52,7 @@ function App() {
             {currentPage === 'invoices' && <InvoicesPage />}
             {currentPage === 'reports' && <ReportsPage />}
             {currentPage === 'settings' && <SettingsPage />}
+            {currentPage === 'security' && <SecurityPage />}
             {currentPage === 'profile' && <ProfilePage />}
           </DashboardLayout>
         </DataProvider>

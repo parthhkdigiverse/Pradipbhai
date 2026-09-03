@@ -267,10 +267,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
             <span className="truncate">Reports</span>
           </button>
 
-          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2">
+          <button onClick={() => setCurrentPage('security')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'security' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Shield className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Security</span>
-          </a>
+          </button>
 
           <button onClick={() => setCurrentPage('settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Settings className="w-5 h-5 flex-shrink-0" />
