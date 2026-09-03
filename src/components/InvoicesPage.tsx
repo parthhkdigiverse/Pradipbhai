@@ -163,7 +163,7 @@ export function InvoicesPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={handleOpenModal}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Create Invoice
@@ -178,8 +178,8 @@ export function InvoicesPage() {
             <p className="text-sm font-semibold text-gray-500 mb-1">Total Outstanding</p>
             <h3 className="text-3xl font-bold text-gray-800">₹{totalOutstanding.toLocaleString()}</h3>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100">
-            <FileText className="w-6 h-6 text-blue-600" />
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+            <FileText className="w-6 h-6 text-primary" />
           </div>
         </div>
         <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
@@ -203,7 +203,7 @@ export function InvoicesPage() {
           <div className="flex items-center gap-4">
             <button 
               onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
               Reset Filters
             </button>
@@ -213,7 +213,7 @@ export function InvoicesPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Status</option>
               <option value="Draft">Draft</option>
               <option value="Sent">Sent</option>
@@ -223,18 +223,18 @@ export function InvoicesPage() {
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
-            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Clients</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Issue Date From</label>
-            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Issue Date To</label>
-            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
           </div>
         </div>
         
@@ -245,7 +245,7 @@ export function InvoicesPage() {
             placeholder="Search by invoice number..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>
@@ -293,7 +293,7 @@ export function InvoicesPage() {
                         onClick={(e) => e.stopPropagation()}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
                           invoice.status === 'Draft' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                          invoice.status === 'Sent' ? 'bg-blue-100 text-blue-600 border-blue-200' : 
+                          invoice.status === 'Sent' ? 'bg-primary/10 text-primary border-primary' : 
                           invoice.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
                           'bg-rose-100 text-rose-700 border-rose-200'
                         }`}
@@ -317,7 +317,7 @@ export function InvoicesPage() {
                           </button>
                         )}
                         <button 
-                          className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors"
+                          className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
                           title="Download PDF"
                         >
                           <Download className="w-3 h-3" />
@@ -364,7 +364,7 @@ export function InvoicesPage() {
                 {/* Select Client */}
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
-                  <select required value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select required value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="" disabled>Select client...</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
                   </select>
@@ -381,14 +381,14 @@ export function InvoicesPage() {
                         <div className="space-y-1">
                           {availableJobs.map(job => (
                             <label key={job.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                              selectedJobIds.includes(job.id) ? 'bg-blue-50 border-blue-200' : 'bg-white border-transparent hover:bg-gray-50/50'
+                              selectedJobIds.includes(job.id) ? 'bg-primary/10 border-primary' : 'bg-white border-transparent hover:bg-gray-50/50'
                             }`}>
                               <div className="flex items-center gap-3">
                                 <input 
                                   type="checkbox" 
                                   checked={selectedJobIds.includes(job.id)}
                                   onChange={() => toggleJobSelection(job.id)}
-                                  className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                  className="w-4 h-4 rounded text-primary focus:ring-blue-500"
                                 />
                                 <div>
                                   <p className="text-sm font-bold text-gray-800">{job.title}</p>
@@ -415,15 +415,15 @@ export function InvoicesPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Issue Date <span className="text-rose-500">*</span></label>
-                    <input type="date" required value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="date" required value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Due Date <span className="text-rose-500">*</span></label>
-                    <input type="date" required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="date" required value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Tax Rate (%)</label>
-                    <select value={formData.taxRate} onChange={e => setFormData({...formData, taxRate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                    <select value={formData.taxRate} onChange={e => setFormData({...formData, taxRate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                       <option value="0">0%</option>
                       <option value="5">5%</option>
                       <option value="12">12%</option>
@@ -446,7 +446,7 @@ export function InvoicesPage() {
                   <div className="h-px bg-gray-200 my-1"></div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-800 font-bold text-base">Total Amount</span>
-                    <span className="text-blue-600 font-bold text-xl">₹{modalTotal.toLocaleString()}</span>
+                    <span className="text-primary font-bold text-xl">₹{modalTotal.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
@@ -455,7 +455,7 @@ export function InvoicesPage() {
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2">
+                <button type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2">
                   <FileCheck className="w-4 h-4" />
                   Generate Invoice
                 </button>

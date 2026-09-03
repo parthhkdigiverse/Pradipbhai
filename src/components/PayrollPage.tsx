@@ -138,7 +138,7 @@ export function PayrollPage() {
           
           <button 
             onClick={markAllPaid}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
             Mark All Paid
@@ -165,7 +165,7 @@ export function PayrollPage() {
             </div>
             <button 
               onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
               Reset Filters
             </button>
@@ -175,7 +175,7 @@ export function PayrollPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Status</option>
               <option value="Pending">Pending</option>
               <option value="Paid">Paid</option>
@@ -190,7 +190,7 @@ export function PayrollPage() {
             placeholder="Search staff by name or role..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>
@@ -222,7 +222,7 @@ export function PayrollPage() {
                         <span className="bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded" title="Present">{emp.stats.daysPresent} P</span>
                         <span className="bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded" title="Absent">{emp.stats.daysAbsent} A</span>
                         <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded" title="Half Day">{emp.stats.daysHalf} H</span>
-                        <span className="bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded" title="Leave">{emp.stats.daysLeave} L</span>
+                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded" title="Leave">{emp.stats.daysLeave} L</span>
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">

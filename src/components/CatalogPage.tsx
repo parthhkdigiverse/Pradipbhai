@@ -82,7 +82,7 @@ export function CatalogPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-            <Box className="w-6 h-6 text-blue-600" />
+            <Box className="w-6 h-6 text-primary" />
             Products
           </h1>
           <p className="text-gray-500 mt-1 text-sm font-medium">
@@ -92,7 +92,7 @@ export function CatalogPage() {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => handleOpenModal()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add Product
@@ -110,7 +110,7 @@ export function CatalogPage() {
           <div className="flex items-center gap-4">
             <button 
               onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
               Reset Filters
             </button>
@@ -120,7 +120,7 @@ export function CatalogPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Types</option>
               <option value="Printing">Printing</option>
               <option value="Designing">Designing</option>
@@ -135,7 +135,7 @@ export function CatalogPage() {
             placeholder="Search products by name or description..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>
@@ -172,7 +172,7 @@ export function CatalogPage() {
                       <div className="flex items-center justify-center gap-2">
                         <button 
                           onClick={() => handleOpenModal(product)}
-                          className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 hover:text-blue-700 transition-colors opacity-0 group-hover:opacity-100"
+                          className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -216,7 +216,7 @@ export function CatalogPage() {
                 onClick={() => setCurrentPage(i + 1)}
                 className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors ${
                   currentPage === i + 1 
-                    ? 'bg-blue-600 text-white' 
+                    ? 'bg-primary text-white' 
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
@@ -248,22 +248,22 @@ export function CatalogPage() {
             <form onSubmit={handleSave} className="p-6 space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Name <span className="text-rose-500">*</span></label>
-                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Description</label>
-                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Type</label>
-                <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
                   <option value="Printing">Printing</option>
                   <option value="Designing">Designing</option>
                 </select>
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-md">Save</button>
+                <button type="submit" className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary transition-colors shadow-md">Save</button>
               </div>
             </form>
           </div>

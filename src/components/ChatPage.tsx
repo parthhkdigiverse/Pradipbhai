@@ -77,7 +77,7 @@ export function ChatPage() {
               placeholder="Search conversations..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 shadow-inner"
+              className="w-full pl-9 pr-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-inner"
             />
           </div>
         </div>
@@ -88,7 +88,7 @@ export function ChatPage() {
               <button 
                 key={contact.id}
                 onClick={() => setActiveContactId(contact.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all mb-1 ${activeContactId === contact.id ? 'bg-blue-600/10 border-blue-200/50' : 'hover:bg-white/40 border-transparent'} border`}
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all mb-1 ${activeContactId === contact.id ? 'bg-primary/10 border-primary/50' : 'hover:bg-white/40 border-transparent'} border`}
               >
                 <div className="relative">
                   <img src={contact.avatar} alt={contact.name} className="w-12 h-12 rounded-full border-2 border-white object-cover shadow-sm" />
@@ -96,13 +96,13 @@ export function ChatPage() {
                 </div>
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center justify-between mb-0.5">
-                    <h4 className={`text-sm font-bold truncate ${activeContactId === contact.id ? 'text-blue-800' : 'text-gray-800'}`}>{contact.name}</h4>
+                    <h4 className={`text-sm font-bold truncate ${activeContactId === contact.id ? 'text-primary' : 'text-gray-800'}`}>{contact.name}</h4>
                     <span className="text-[10px] font-semibold text-gray-400 shrink-0">{contact.time}</span>
                   </div>
                   <p className="text-xs text-gray-500 truncate font-medium">{contact.lastMessage}</p>
                 </div>
                 {contact.unread > 0 && (
-                  <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm">
+                  <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-sm">
                     {contact.unread}
                   </div>
                 )}
@@ -133,8 +133,8 @@ export function ChatPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-xl transition-all"><Phone className="w-5 h-5" /></button>
-              <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white/50 rounded-xl transition-all"><Video className="w-5 h-5" /></button>
+              <button className="p-2 text-gray-400 hover:text-primary hover:bg-white/50 rounded-xl transition-all"><Phone className="w-5 h-5" /></button>
+              <button className="p-2 text-gray-400 hover:text-primary hover:bg-white/50 rounded-xl transition-all"><Video className="w-5 h-5" /></button>
               <button className="p-2 text-gray-400 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all ml-2"><Info className="w-5 h-5" /></button>
             </div>
           </div>
@@ -148,7 +148,7 @@ export function ChatPage() {
                   <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                     <div className={`max-w-[70%] px-5 py-3 rounded-2xl shadow-sm relative group ${
                       isMe 
-                        ? 'bg-blue-600 text-white rounded-br-sm' 
+                        ? 'bg-primary text-white rounded-br-sm' 
                         : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'
                     }`}>
                       <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
@@ -190,7 +190,7 @@ export function ChatPage() {
               <button 
                 type="submit" 
                 disabled={!messageText.trim()}
-                className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl transition-all shrink-0 shadow-md group"
+                className="p-2.5 bg-primary hover:bg-primary disabled:bg-gray-300 text-white rounded-xl transition-all shrink-0 shadow-md group"
               >
                 <Send className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
               </button>

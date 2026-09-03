@@ -57,7 +57,7 @@ export function AttendancePage() {
       case 'Present': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'Absent': return 'bg-rose-100 text-rose-700 border-rose-200';
       case 'Half Day': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Leave': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'Leave': return 'bg-primary/10 text-primary border-primary';
       default: return 'bg-gray-100 text-gray-500 border-gray-200 border-dashed';
     }
   };
@@ -90,11 +90,11 @@ export function AttendancePage() {
             type="date" 
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/50 shadow-sm text-gray-700"
+            className="px-4 py-2 bg-white/60 border border-white/60 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm text-gray-700"
           />
           <button 
             onClick={markAllPresent}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
             Mark All Present
@@ -112,7 +112,7 @@ export function AttendancePage() {
           <div className="flex items-center gap-4">
             <button 
               onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
               Reset Filters
             </button>
@@ -122,7 +122,7 @@ export function AttendancePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Status</option>
               <option value="Unmarked">Unmarked</option>
               <option value="Present">Present</option>
@@ -140,7 +140,7 @@ export function AttendancePage() {
             placeholder="Search staff by name or role..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>

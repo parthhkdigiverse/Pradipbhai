@@ -100,8 +100,8 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
         
         {/* Active Job Tracker */}
         {activeJobTracker && (
-          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full shadow-sm">
-            <div className="flex items-center gap-1.5 text-blue-700">
+          <div className="flex items-center gap-3 bg-primary/10 border border-primary px-3 py-1.5 rounded-full shadow-sm">
+            <div className="flex items-center gap-1.5 text-primary">
               <Clock className="w-4 h-4 animate-pulse" />
               <span className="text-sm font-bold font-mono">{formatTime(elapsedJobTime)}</span>
             </div>
@@ -134,7 +134,7 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
         <div className="relative">
           <button 
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/60 shadow-sm hover:border-blue-400/60 transition-colors"
+            className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/60 shadow-sm hover:border-primary/60 transition-colors"
           >
             <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="User profile" className="w-full h-full object-cover" />
           </button>
@@ -152,7 +152,7 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
                     setCurrentPage?.('profile');
                     setShowProfileMenu(false);
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-primary/10 hover:text-primary transition-colors flex items-center gap-2"
                 >
                   <User className="w-4 h-4" /> My Profile
                 </button>

@@ -258,7 +258,7 @@ export function ClientsPage() {
     const newClients = clients.filter(c => new Date(c.clientSince).getMonth() === thisMonth).length;
 
     return [
-      { title: "Active Clients", value: activeClients.length.toString(), trend: "+2", trendUp: true, icon: <Building className="w-5 h-5" />, color: "text-blue-600" },
+      { title: "Active Clients", value: activeClients.length.toString(), trend: "+2", trendUp: true, icon: <Building className="w-5 h-5" />, color: "text-primary" },
       { title: "Monthly Recurring Revenue", value: `₹${mrr.toLocaleString()}`, trend: "+15%", trendUp: true, icon: <Activity className="w-5 h-5" />, color: "text-emerald-600" },
       { title: "Average LTV", value: `₹${avgLTV.toLocaleString()}`, trend: "+5%", trendUp: true, icon: <TrendingUp className="w-5 h-5" />, color: "text-indigo-600" },
       { title: "New Clients (Monthly)", value: newClients.toString(), trend: "-1", trendUp: false, icon: <Users className="w-5 h-5" />, color: "text-amber-600" },
@@ -270,7 +270,7 @@ export function ClientsPage() {
     let colorClass = "";
     switch (status) {
       case "Active": colorClass = "bg-emerald-100 text-emerald-700 border-emerald-200"; break;
-      case "Onboarding": colorClass = "bg-blue-100 text-blue-700 border-blue-200"; break;
+      case "Onboarding": colorClass = "bg-primary/10 text-primary border-primary"; break;
       case "Inactive": colorClass = "bg-gray-100 text-gray-700 border-gray-200"; break;
       default: colorClass = "bg-slate-100 text-slate-700 border-slate-200"; break;
     }
@@ -296,7 +296,7 @@ export function ClientsPage() {
   const getProjectStatusBadge = (status: string) => {
     switch (status) {
       case "Active": 
-      case "In Progress": return <span className="text-blue-600 font-semibold text-xs">{status}</span>;
+      case "In Progress": return <span className="text-primary font-semibold text-xs">{status}</span>;
       case "Completed": return <span className="text-emerald-600 font-semibold text-xs">{status}</span>;
       case "Planning": return <span className="text-amber-600 font-semibold text-xs">{status}</span>;
       default: return <span className="text-gray-600 font-semibold text-xs">{status}</span>;
@@ -312,7 +312,7 @@ export function ClientsPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => handleOpenModal()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add Client
@@ -349,7 +349,7 @@ export function ClientsPage() {
             <div className="flex items-center gap-4">
               <button 
                 onClick={resetFilters}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+                className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
               >
                 Reset Filters
               </button>
@@ -359,7 +359,7 @@ export function ClientsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                 <option value="All">All Status</option>
                 <option value="Active">Active</option>
                 <option value="Onboarding">Onboarding</option>
@@ -368,11 +368,11 @@ export function ClientsPage() {
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
             </div>
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since To</label>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
             </div>
           </div>
           
@@ -383,7 +383,7 @@ export function ClientsPage() {
               placeholder="Search by company, contact, or email..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
             />
           </div>
         </div>
@@ -420,15 +420,15 @@ export function ClientsPage() {
                         {editingRowId === client.id ? (
                           <>
                             <td className="px-5 py-4">
-                              <input type="text" value={editRowData.company} onChange={e => setEditRowData({...editRowData, company: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-blue-200 rounded text-sm font-bold text-gray-800" placeholder="Company Name" />
+                              <input type="text" value={editRowData.company} onChange={e => setEditRowData({...editRowData, company: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-primary rounded text-sm font-bold text-gray-800" placeholder="Company Name" />
                             </td>
                             <td className="px-5 py-4">
-                              <input type="text" value={editRowData.contact} onChange={e => setEditRowData({...editRowData, contact: e.target.value})} className="w-full mb-1 px-2 py-1 bg-white/70 border border-blue-200 rounded text-xs text-gray-800" placeholder="Contact Name" />
-                              <input type="email" value={editRowData.email} onChange={e => setEditRowData({...editRowData, email: e.target.value})} className="w-full mb-1 px-2 py-1 bg-white/70 border border-blue-200 rounded text-xs text-gray-800" placeholder="Email" />
-                              <input type="tel" value={editRowData.phone} onChange={e => setEditRowData({...editRowData, phone: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-blue-200 rounded text-xs text-gray-800" placeholder="Phone" />
+                              <input type="text" value={editRowData.contact} onChange={e => setEditRowData({...editRowData, contact: e.target.value})} className="w-full mb-1 px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" placeholder="Contact Name" />
+                              <input type="email" value={editRowData.email} onChange={e => setEditRowData({...editRowData, email: e.target.value})} className="w-full mb-1 px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" placeholder="Email" />
+                              <input type="tel" value={editRowData.phone} onChange={e => setEditRowData({...editRowData, phone: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" placeholder="Phone" />
                             </td>
                             <td className="px-5 py-4">
-                              <select value={editRowData.status} onChange={e => setEditRowData({...editRowData, status: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-blue-200 rounded text-xs text-gray-800">
+                              <select value={editRowData.status} onChange={e => setEditRowData({...editRowData, status: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800">
                                 <option value="Onboarding">Onboarding</option>
                                 <option value="Active">Active</option>
                                 <option value="Inactive">Inactive</option>
@@ -454,7 +454,7 @@ export function ClientsPage() {
                           <>
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-2">
-                                <button onClick={() => setExpandedRowId(expandedRowId === client.id ? null : client.id)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                                <button onClick={() => setExpandedRowId(expandedRowId === client.id ? null : client.id)} className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors">
                                   {expandedRowId === client.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                 </button>
                                 <div>
@@ -487,7 +487,7 @@ export function ClientsPage() {
                               ₹{(client.projects || []).reduce((sum: number, p: any) => sum + parseFloat(p.budget || '0'), 0).toLocaleString()}
                             </td>
                             <td className="px-5 py-4 text-right relative">
-                              <button onClick={() => handleStartInlineEdit(client)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                              <button onClick={() => handleStartInlineEdit(client)} className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)} className="p-1.5 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors ml-1">
@@ -496,7 +496,7 @@ export function ClientsPage() {
                               
                               {openMenuId === client.id && (
                                 <div className="absolute right-6 top-10 w-32 glass-panel border border-white/60 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
-                                  <button onClick={() => handleOpenModal(client.id)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2">
+                                  <button onClick={() => handleOpenModal(client.id)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-primary/10 hover:text-primary flex items-center gap-2">
                                     <Edit className="w-4 h-4" /> Full Edit
                                   </button>
                                   <button onClick={() => handleDeleteClient(client.id)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50/50 flex items-center gap-2">
@@ -516,9 +516,9 @@ export function ClientsPage() {
                             <div className="flex flex-col">
                               <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                                  <Briefcase className="w-4 h-4 text-blue-600" /> Active Projects
+                                  <Briefcase className="w-4 h-4 text-primary" /> Active Projects
                                 </h4>
-                                <button onClick={() => handleOpenProjectModal(client.id)} className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded">
+                                <button onClick={() => handleOpenProjectModal(client.id)} className="text-xs font-semibold text-primary hover:text-primary flex items-center gap-1 bg-primary/10 px-2 py-1 rounded">
                                   <Plus className="w-3 h-3" /> New Project
                                 </button>
                               </div>
@@ -533,7 +533,7 @@ export function ClientsPage() {
                                             <h5 className="font-bold text-gray-800 text-sm truncate">{proj.name}</h5>
                                             <div className="mt-0.5">{getProjectStatusBadge(proj.status)}</div>
                                           </div>
-                                          <button onClick={() => handleOpenProjectModal(client.id, idx)} className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors shrink-0" title="Edit Project">
+                                          <button onClick={() => handleOpenProjectModal(client.id, idx)} className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors shrink-0" title="Edit Project">
                                             <Edit className="w-3.5 h-3.5" />
                                           </button>
                                         </div>
@@ -593,16 +593,16 @@ export function ClientsPage() {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Company Name <span className="text-rose-500">*</span></label>
-                  <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                  <input required type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Primary Contact</label>
-                    <input type="text" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="text" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
-                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                       <option value="Onboarding">Onboarding</option>
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
@@ -610,11 +610,11 @@ export function ClientsPage() {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Email</label>
-                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Phone</label>
-                    <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                 </div>
               </div>
@@ -622,7 +622,7 @@ export function ClientsPage() {
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md">
+                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md">
                   {editingClientId ? 'Save Changes' : 'Create Client'}
                 </button>
               </div>
@@ -649,11 +649,11 @@ export function ClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>
-                  <input required type="text" value={projectFormData.name} onChange={e => setProjectFormData({...projectFormData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" placeholder="e.g. Website Redesign" />
+                  <input required type="text" value={projectFormData.name} onChange={e => setProjectFormData({...projectFormData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" placeholder="e.g. Website Redesign" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Category</label>
-                  <select value={projectFormData.category} onChange={e => setProjectFormData({...projectFormData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select value={projectFormData.category} onChange={e => setProjectFormData({...projectFormData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="Designing">Designing</option>
                     <option value="Printing">Printing</option>
                     <option value="Des+Print">Des+Print</option>
@@ -664,7 +664,7 @@ export function ClientsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
-                  <select disabled title="Status is calculated automatically from Jobs" value={projectFormData.status} onChange={e => setProjectFormData({...projectFormData, status: e.target.value})} className="w-full px-3 py-2 bg-gray-100/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-400 cursor-not-allowed">
+                  <select disabled title="Status is calculated automatically from Jobs" value={projectFormData.status} onChange={e => setProjectFormData({...projectFormData, status: e.target.value})} className="w-full px-3 py-2 bg-gray-100/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-400 cursor-not-allowed">
                     <option value="Planning">Planning</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Active">Active</option>
@@ -673,19 +673,19 @@ export function ClientsPage() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Budget (₹) <span className="text-rose-500">*</span></label>
-                  <input required type="number" value={projectFormData.budget} onChange={e => setProjectFormData({...projectFormData, budget: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" placeholder="500000" />
+                  <input required type="number" value={projectFormData.budget} onChange={e => setProjectFormData({...projectFormData, budget: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" placeholder="500000" />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline <span className="text-rose-500">*</span></label>
-                <input required type="date" value={projectFormData.deadline} onChange={e => setProjectFormData({...projectFormData, deadline: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                <input required type="date" value={projectFormData.deadline} onChange={e => setProjectFormData({...projectFormData, deadline: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
               </div>
               
               <div className="flex items-center justify-end gap-3 pt-5 border-t border-white/40 mt-6">
                 <button type="button" onClick={handleCloseProjectModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-md">
+                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md">
                   {editingProjectIndex !== null ? 'Save Changes' : 'Add Project'}
                 </button>
               </div>

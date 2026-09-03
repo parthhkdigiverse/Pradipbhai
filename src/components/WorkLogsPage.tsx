@@ -113,13 +113,13 @@ export function WorkLogsPage() {
                     </td>
                     <td className="py-4 px-6 font-bold text-gray-800">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-[10px]">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px]">
                           {(log.userName || 'U').charAt(0).toUpperCase()}
                         </div>
                         {log.userName || 'Unknown'}
                       </div>
                     </td>
-                    <td className="py-4 px-6 font-bold text-blue-600">
+                    <td className="py-4 px-6 font-bold text-primary">
                       <div className="flex items-center gap-2">
                         <Briefcase className="w-4 h-4 text-blue-400" />
                         {log.jobTitle}

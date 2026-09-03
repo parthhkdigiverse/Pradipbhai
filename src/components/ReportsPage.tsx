@@ -94,7 +94,7 @@ export function ReportsPage() {
           <button 
             onClick={() => setActiveTab('projects')}
             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'projects' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              activeTab === 'projects' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             Project Reports
@@ -102,7 +102,7 @@ export function ReportsPage() {
           <button 
             onClick={() => setActiveTab('jobs')}
             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'jobs' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              activeTab === 'jobs' ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             Job Reports
@@ -125,11 +125,11 @@ export function ReportsPage() {
             </div>
             <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-blue-500 mb-1">In Progress & Active</p>
-                <h3 className="text-3xl font-bold text-blue-600">{inProgressProjects}</h3>
+                <p className="text-sm font-semibold text-primary mb-1">In Progress & Active</p>
+                <h3 className="text-3xl font-bold text-primary">{inProgressProjects}</h3>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100">
-                <Clock className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                <Clock className="w-6 h-6 text-primary" />
               </div>
             </div>
             <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
@@ -158,7 +158,7 @@ export function ReportsPage() {
                 placeholder="Search by project or client name..." 
                 value={projectSearch}
                 onChange={(e) => setProjectSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
               />
             </div>
             
@@ -200,7 +200,7 @@ export function ReportsPage() {
                           <span className="font-semibold text-gray-800 text-sm">{project.clientName}</span>
                         </td>
                         <td className="py-4 px-6">
-                          <span className="font-bold text-blue-600 hover:underline cursor-pointer">{project.name}</span>
+                          <span className="font-bold text-primary hover:underline cursor-pointer">{project.name}</span>
                         </td>
                         <td className="py-4 px-6 text-gray-600 font-medium">
                           {project.category}
@@ -214,7 +214,7 @@ export function ReportsPage() {
                         <td className="py-4 px-6 text-center">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             project.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 
-                            (project.status === 'In Progress' || project.status === 'Active') ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-700'
+                            (project.status === 'In Progress' || project.status === 'Active') ? 'bg-primary/10 text-primary' : 'bg-amber-100 text-amber-700'
                           }`}>
                             {project.status}
                           </span>
@@ -254,7 +254,7 @@ export function ReportsPage() {
                 </div>
                 <button 
                   onClick={resetJobFilters}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
+                  className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
                 >
                   Reset Filters
                 </button>
@@ -264,7 +264,7 @@ export function ReportsPage() {
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                <select value={jobFilterStatus} onChange={(e) => setJobFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterStatus} onChange={(e) => setJobFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All</option>
                   <option value="Pending">Pending</option>
                   <option value="Progress">Progress</option>
@@ -274,28 +274,28 @@ export function ReportsPage() {
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
-                <select value={jobFilterClient} onChange={(e) => setJobFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterClient} onChange={(e) => setJobFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All Clients</option>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
-                <select value={jobFilterStaff} onChange={(e) => setJobFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterStaff} onChange={(e) => setJobFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All Staffs</option>
                   {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
-                <select value={jobFilterProduct} onChange={(e) => setJobFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterProduct} onChange={(e) => setJobFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All Products</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-                <select value={jobFilterBilling} onChange={(e) => setJobFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterBilling} onChange={(e) => setJobFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All</option>
                   <option value="Paid">Paid</option>
                   <option value="Unpaid">Unpaid</option>
@@ -303,7 +303,7 @@ export function ReportsPage() {
               </div>
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
-                <select value={jobFilterType} onChange={(e) => setJobFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                <select value={jobFilterType} onChange={(e) => setJobFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                   <option value="All">All Types</option>
                   <option value="Designing">Designing</option>
                   <option value="Printing">Printing</option>
@@ -319,7 +319,7 @@ export function ReportsPage() {
                 placeholder="Search by job title..." 
                 value={jobSearch}
                 onChange={(e) => setJobSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
               />
             </div>
           </div>
@@ -327,11 +327,11 @@ export function ReportsPage() {
           <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white/30">
               <h2 className="font-bold text-gray-800 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+                <FileText className="w-5 h-5 text-primary" />
                 Job Reports
               </h2>
               <div className="flex gap-2">
-                <button className="px-3 py-1.5 bg-blue-600/10 text-blue-700 hover:bg-blue-600/20 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
+                <button className="px-3 py-1.5 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5">
                   <Download className="w-3.5 h-3.5" />
                   Export to Excel
                 </button>

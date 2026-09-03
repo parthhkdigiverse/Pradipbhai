@@ -47,7 +47,7 @@ export function ProfilePage() {
       <div className="md:hidden px-8 mb-8 text-center">
         <h1 className="text-2xl font-bold text-gray-800">{formData.name}</h1>
         <p className="text-gray-500 font-medium flex items-center justify-center gap-2">
-          <Shield className="w-4 h-4 text-blue-500" /> {formData.role}
+          <Shield className="w-4 h-4 text-primary" /> {formData.role}
         </p>
       </div>
 
@@ -58,12 +58,12 @@ export function ProfilePage() {
           <div className="glass-panel p-6 rounded-2xl">
             <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <User className="w-5 h-5 text-blue-500" /> Personal Information
+                <User className="w-5 h-5 text-primary" /> Personal Information
               </h2>
               <button 
                 onClick={() => setIsEditing(!isEditing)}
                 className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
-                  isEditing ? 'bg-blue-500 text-white shadow-md shadow-blue-500/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  isEditing ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {isEditing ? (
@@ -158,7 +158,7 @@ export function ProfilePage() {
                     <p className="font-semibold text-gray-700 text-sm">Email Alerts</p>
                     <p className="text-xs text-gray-500">Daily summaries</p>
                   </div>
-                  <div className="w-10 h-5 bg-blue-500 rounded-full relative cursor-pointer shadow-inner">
+                  <div className="w-10 h-5 bg-primary rounded-full relative cursor-pointer shadow-inner">
                     <div className="w-4 h-4 bg-white rounded-full absolute right-0.5 top-0.5 shadow-sm"></div>
                   </div>
                 </div>
@@ -193,10 +193,10 @@ export function ProfilePage() {
             <div className="space-y-4">
               <div className="bg-white/60 p-4 rounded-xl flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Total Hours Logged</p>
+                  <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Total Hours Logged</p>
                   <p className="text-2xl font-black text-gray-800">{totalTrackedHours}h</p>
                 </div>
-                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center">
                   <Clock className="w-6 h-6" />
                 </div>
               </div>

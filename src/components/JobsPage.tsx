@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
@@ -44,7 +44,8 @@ export function JobsPage() {
     totalAmount: '',
     paidAmount: '',
     status: 'Pending',
-    paymentStatus: 'Unpaid'
+    paymentStatus: 'Unpaid',
+    vendorEmailSent: false
   });
 
   const filteredJobs = useMemo(() => {
@@ -86,7 +87,8 @@ export function JobsPage() {
           totalAmount: job.totalAmount.toString(),
           paidAmount: job.paidAmount.toString(),
           status: job.status,
-          paymentStatus: job.paymentStatus
+          paymentStatus: job.paymentStatus,
+          vendorEmailSent: job.vendorEmailSent || false
         });
         setEditingJobId(jobId);
         setNewJobType(job.type as 'Designing' | 'Printing');
@@ -104,7 +106,8 @@ export function JobsPage() {
         totalAmount: '',
         paidAmount: '',
         status: 'Pending',
-        paymentStatus: 'Unpaid'
+        paymentStatus: 'Unpaid',
+        vendorEmailSent: false
       });
       setEditingJobId(null);
     }
@@ -124,7 +127,8 @@ export function JobsPage() {
       totalAmount: parseFloat(formData.totalAmount) || 0,
       paidAmount: parseFloat(formData.paidAmount) || 0,
       type: newJobType,
-      paymentStatus: (parseFloat(formData.paidAmount) || 0) >= (parseFloat(formData.totalAmount) || 0) ? 'Paid' : 'Unpaid'
+      paymentStatus: (parseFloat(formData.paidAmount) || 0) >= (parseFloat(formData.totalAmount) || 0) ? 'Paid' : 'Unpaid',
+      vendorEmailSent: formData.vendorEmailSent
     };
 
     if (editingJobId) {
@@ -162,6 +166,10 @@ export function JobsPage() {
       setActiveJobTracker(null);
       updateJobStatus(jobId, 'Pending'); // Optional: auto-set to pending/paused when tracking stops
     }
+  };
+
+  const toggleVendorEmailSent = (jobId: string) => {
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, vendorEmailSent: !j.vendorEmailSent } : j));
   };
 
   const formatTime = (seconds: number) => {
@@ -206,14 +214,14 @@ export function JobsPage() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => handleOpenModal('Designing')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add New Designing Job
           </button>
           <button 
             onClick={() => handleOpenModal('Printing')}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Add New Printing Job
@@ -235,7 +243,7 @@ export function JobsPage() {
             </div>
             <button 
               onClick={resetFilters}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all hover:-translate-y-0.5"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5"
             >
               Reset Filters
             </button>
@@ -245,7 +253,7 @@ export function JobsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All</option>
               <option value="Pending">Pending</option>
               <option value="Progress">Progress</option>
@@ -255,28 +263,28 @@ export function JobsPage() {
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
-            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Clients</option>
               {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
-            <select value={filterStaff} onChange={(e) => setFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterStaff} onChange={(e) => setFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Staffs</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
-            <select value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Products</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-            <select value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All</option>
               <option value="Paid">Paid</option>
               <option value="Unpaid">Unpaid</option>
@@ -284,7 +292,7 @@ export function JobsPage() {
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
               <option value="All">All Types</option>
               <option value="Designing">Designing</option>
               <option value="Printing">Printing</option>
@@ -293,11 +301,11 @@ export function JobsPage() {
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Due Date From</label>
-            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Due Date To</label>
-            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
           </div>
         </div>
         
@@ -308,7 +316,7 @@ export function JobsPage() {
             placeholder="Search by job title or description..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
         </div>
       </div>
@@ -325,6 +333,7 @@ export function JobsPage() {
                 <th className="py-4 px-6 min-w-[250px]">Description</th>
                 <th className="py-4 px-6">Client & Project</th>
                 <th className="py-4 px-6 text-center">Status</th>
+                <th className="py-4 px-6 text-center">Docs Sent</th>
                 <th className="py-4 px-6">Team</th>
                 <th className="py-4 px-6">Due Date</th>
                 <th className="py-4 px-6 text-center">Time</th>
@@ -344,11 +353,11 @@ export function JobsPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <span className="font-bold text-blue-600 text-sm hover:underline cursor-pointer">{job.title}</span>
+                      <span className="font-bold text-primary text-sm hover:underline cursor-pointer">{job.title}</span>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide text-white shadow-sm ${
-                        job.type === 'Designing' ? 'bg-emerald-500' : 'bg-blue-500'
+                        job.type === 'Designing' ? 'bg-emerald-500' : 'bg-primary'
                       }`}>
                         {job.type}
                       </span>
@@ -374,7 +383,7 @@ export function JobsPage() {
                         onClick={(e) => e.stopPropagation()}
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
                           job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                          job.status === 'Progress' ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                          job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                         }`}
                         style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
                       >
@@ -382,6 +391,19 @@ export function JobsPage() {
                         <option value="Progress">Progress</option>
                         <option value="Done">Done</option>
                       </select>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); toggleVendorEmailSent(job.id); }}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto transition-colors ${
+                          job.vendorEmailSent 
+                            ? 'bg-emerald-100 text-emerald-600' 
+                            : 'bg-orange-100 text-orange-500'
+                        }`}
+                        title={job.vendorEmailSent ? "Docs Sent" : "Docs Pending"}
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-[11px] font-medium text-gray-600 bg-gray-100/80 px-2 py-1 rounded">{getStaffName(job.teamId)}</span>
@@ -393,7 +415,7 @@ export function JobsPage() {
                       <div className="flex items-center justify-center gap-1.5 text-xs font-mono bg-gray-50 px-2 py-1 rounded border border-gray-100">
                         <Clock className="w-3 h-3 text-gray-400" />
                         {activeJobTracker?.jobId === job.id ? (
-                           <span className="text-blue-600 animate-pulse font-bold">Tracking...</span>
+                           <span className="text-primary animate-pulse font-bold">Tracking...</span>
                         ) : (
                           <span className="text-gray-600 font-medium">{formatTime(job.trackedTime || 0)}</span>
                         )}
@@ -427,7 +449,7 @@ export function JobsPage() {
                         )}
                         <button 
                           onClick={() => handleOpenModal(job.type as 'Designing' | 'Printing', job.id)}
-                          className="w-6 h-6 rounded bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors"
+                          className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
                           title="Edit Job"
                         >
                           <Edit className="w-3 h-3" />
@@ -467,7 +489,7 @@ export function JobsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
-                  <select required value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value, projectId: ''})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select required value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value, projectId: ''})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="" disabled>Select client by name</option>
                     {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
                   </select>
@@ -478,7 +500,7 @@ export function JobsPage() {
                     value={formData.projectId} 
                     onChange={e => setFormData({...formData, projectId: e.target.value})} 
                     disabled={!formData.clientId}
-                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">No specific project</option>
                     {formData.clientId && clients.find(c => c.id === formData.clientId)?.projects?.map((p: any, idx: number) => (
@@ -492,18 +514,18 @@ export function JobsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Assign Team</label>
-                  <select value={formData.teamId} onChange={e => setFormData({...formData, teamId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select value={formData.teamId} onChange={e => setFormData({...formData, teamId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="">Select Staff</option>
                     {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Job Title <span className="text-rose-500">*</span></label>
-                  <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                  <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product</label>
-                  <select value={formData.productId} onChange={e => setFormData({...formData, productId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select value={formData.productId} onChange={e => setFormData({...formData, productId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="">Type to search product...</option>
                     {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
@@ -513,14 +535,14 @@ export function JobsPage() {
               {/* Description */}
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Work Description</label>
-                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 h-24 resize-none" />
+                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 h-24 resize-none" />
               </div>
 
               {/* Printer & Deadline */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Printer / Vendor</label>
-                  <select value={formData.printerId} onChange={e => setFormData({...formData, printerId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800">
+                  <select value={formData.printerId} onChange={e => setFormData({...formData, printerId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
                     <option value="">Select Printer</option>
                     {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
@@ -529,20 +551,39 @@ export function JobsPage() {
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline</label>
                   <div className="relative">
                     <Calendar className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                    <input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full pl-3 pr-9 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800" />
+                    <input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full pl-3 pr-9 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
                 </div>
+              </div>
+
+              {/* Checkboxes */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={formData.vendorEmailSent}
+                      onChange={(e) => setFormData({...formData, vendorEmailSent: e.target.checked})}
+                    />
+                    <div className={`block w-10 h-6 rounded-full transition-colors ${formData.vendorEmailSent ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.vendorEmailSent ? 'transform translate-x-4' : ''}`}></div>
+                  </div>
+                  <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <Mail className="w-3.5 h-3.5 text-gray-500" /> Required Documents Sent to Vendor
+                  </span>
+                </label>
               </div>
 
               {/* Amounts */}
               <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Total Amount (₹)</label>
-                  <input type="number" min="0" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 font-bold" />
+                  <input type="number" min="0" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 font-bold" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Paid Amount (₹)</label>
-                  <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-emerald-700 font-bold" />
+                  <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" />
                 </div>
               </div>
               
@@ -550,7 +591,7 @@ export function JobsPage() {
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-sm transition-all">
+                <button type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all">
                   {editingJobId ? 'Save Changes' : 'Save Job'}
                 </button>
               </div>

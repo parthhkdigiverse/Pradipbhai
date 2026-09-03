@@ -78,7 +78,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/20 z-10">
         <div className="flex items-center gap-2 font-bold text-xl text-gray-800">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
@@ -102,7 +102,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
             placeholder="Search..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-10 py-2 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-10 py-2 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
           {searchQuery && (
             <button 
@@ -135,7 +135,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           <button 
             onClick={() => setCurrentPage('dashboard')}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
-              currentPage === 'dashboard' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'
+              currentPage === 'dashboard' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'
             }`}
           >
             <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
@@ -155,19 +155,19 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.jobs ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Projects
               </button>
-              <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Jobs
               </button>
-              <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Catalog
               </button>
-              <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Vendors
               </button>
@@ -187,19 +187,19 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.hr ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.hr ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Staff
               </button>
-              <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Attendance
               </button>
-              <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Work Logs
               </button>
-              <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Payroll
               </button>
@@ -219,11 +219,11 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.sales ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Clients
               </button>
-              <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Leads
               </button>
@@ -231,7 +231,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           </div>
 
           {/* Social Media Management */}
-          <button onClick={() => setCurrentPage('social')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('social')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Megaphone className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Social Media</span>
           </button>
@@ -249,7 +249,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.finance ? 'rotate-180' : ''}`} />
             </button>
             <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.finance ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+              <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Invoices
               </button>
@@ -257,12 +257,12 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           </div>
 
           {/* Independent Items */}
-          <button onClick={() => setCurrentPage('chat')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('chat')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <MessageSquare className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Chat</span>
           </button>
 
-          <button onClick={() => setCurrentPage('reports')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-blue-700 font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('reports')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <LineChart className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Reports</span>
           </button>
@@ -272,7 +272,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
             <span className="truncate">Security</span>
           </a>
 
-          <button onClick={() => setCurrentPage('settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-blue-700 font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Settings className="w-5 h-5 flex-shrink-0" />
             <span className="truncate">Settings</span>
           </button>

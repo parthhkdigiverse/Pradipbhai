@@ -9,6 +9,12 @@
   --color-muted: rgba(255, 255, 255, 0.5);
   --color-muted-foreground: #4b5563;
   --color-glass-border: rgba(255, 255, 255, 0.6);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-ring: var(--ring);
 }
 
 @layer base {

@@ -197,7 +197,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <DetailedMetricCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={IndianRupee} bgClass="bg-emerald-100" colorClass="text-emerald-600" />
           <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={CircleDollarSign} bgClass="bg-rose-100" colorClass="text-rose-600" />
-          <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-blue-100" colorClass="text-blue-600" subtext="6.3% vs last month" />
+          <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-primary/10" colorClass="text-primary" subtext="6.3% vs last month" />
         </div>
       </div>
 
@@ -223,7 +223,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div>
         <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Printing Jobs Status Overview</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-blue-100" colorClass="text-blue-600" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
+          <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-primary/10" colorClass="text-primary" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
           <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
           <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
           <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
@@ -247,7 +247,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
         <div className="glass-panel rounded-2xl relative overflow-hidden">
           <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-blue-600" />
+            <Briefcase className="w-5 h-5 text-primary" />
             Jobs Pipeline
           </div>
           <div className="p-5 h-[300px]">
@@ -292,7 +292,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-panel rounded-2xl relative">
           <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl flex items-center gap-2">
-            <Clock className="w-5 h-5 text-blue-600" />
+            <Clock className="w-5 h-5 text-primary" />
             Recent Jobs
           </div>
           <div className="p-2">
@@ -311,7 +311,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
                         <CheckCircle2 className="w-3 h-3" /> Completed
                       </span>
                     ) : job.status === 'Progress' ? (
-                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-md">
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
                         <Clock className="w-3 h-3" /> In Progress
                       </span>
                     ) : job.status === 'Hold' ? (
