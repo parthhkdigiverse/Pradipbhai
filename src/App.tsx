@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { LoginPage } from './components/LoginPage';
 import { DashboardLayout } from './components/DashboardLayout';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LeadsPage } from './components/LeadsPage';
@@ -25,6 +26,15 @@ import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem('isAuthenticated') === 'true';
+  });
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+    localStorage.setItem('isAuthenticated', 'true');
+  };
+
   const [currentPage, setCurrentPage] = useState(() => {
     return localStorage.getItem('currentPage') || 'dashboard';
   });
@@ -32,6 +42,14 @@ function App() {
   useEffect(() => {
     localStorage.setItem('currentPage', currentPage);
   }, [currentPage]);
+
+  if (!isAuthenticated) {
+    return (
+      <ThemeProvider>
+        <LoginPage onLogin={handleLogin} />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>

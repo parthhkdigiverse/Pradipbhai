@@ -198,8 +198,8 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 </button>
                 <button 
                   onClick={() => {
-                    // Mock logout
-                    setShowProfileMenu(false);
+                    localStorage.removeItem('isAuthenticated');
+                    window.location.reload();
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2"
                 >
