@@ -17,6 +17,7 @@ import { InvoicesPage } from './components/InvoicesPage';
 import { ReportsPage } from './components/ReportsPage';
 import { WorkLogsPage } from './components/WorkLogsPage';
 import { ProfilePage } from './components/ProfilePage';
+import { DailyProgressPage } from './components/DailyProgressPage';
 import { SecurityPage } from './components/SecurityPage';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
@@ -43,6 +44,7 @@ function App() {
             {currentPage === 'social' && <SocialMediaPage />}
             {currentPage === 'chat' && <ChatPage />}
             {currentPage === 'catalog' && <CatalogPage />}
+            {currentPage === 'daily-progress' && <DailyProgressPage />}
             {currentPage === 'staff' && <StaffPage />}
             {currentPage === 'attendance' && <AttendancePage />}
             {currentPage === 'worklogs' && <WorkLogsPage />}

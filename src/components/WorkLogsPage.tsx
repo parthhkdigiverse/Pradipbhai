@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { Calendar, Clock, Briefcase, User, Filter } from 'lucide-react';
+import { Calendar, Clock, Briefcase, User, Filter, X } from 'lucide-react';
 
 export function WorkLogsPage() {
   const { workLogs } = useData();
@@ -86,6 +86,20 @@ export function WorkLogsPage() {
             </button>
           )}
         </div>
+
+        {(userFilter !== '' || jobFilter !== '' || dateFilter !== '') && (
+          <button 
+            onClick={() => {
+              setUserFilter('');
+              setJobFilter('');
+              setDateFilter('');
+            }}
+            className="ml-auto flex items-center gap-2 text-sm font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+            Clear Filters
+          </button>
+        )}
       </div>
 
       <div className="glass-panel p-6 rounded-2xl relative z-10 flex flex-col h-[calc(100vh-140px)]">

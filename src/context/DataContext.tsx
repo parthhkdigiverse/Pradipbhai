@@ -248,6 +248,63 @@ const initialInvoices = [
   }
 ];
 
+export interface DailyTask {
+  id: string;
+  description: string;
+  status: "done" | "pending";
+}
+
+export interface DailyRecord {
+  id: string;
+  employeeName: string;
+  role: string;
+  department: string;
+  submittedAt: string;
+  date: string;
+  tasksDone: DailyTask[];
+  tasksPending: DailyTask[];
+  verificationStatus: "Pending" | "Verified";
+  rating?: number;
+  managerRemarks?: string;
+  verifiedBy?: string;
+}
+
+const initialDailyProgressRecords: DailyRecord[] = [
+  {
+    id: "r1",
+    employeeName: "Alice Smith",
+    role: "Senior Designer",
+    department: "Design",
+    submittedAt: "05:30 PM",
+    date: new Date().toISOString().slice(0, 10),
+    verificationStatus: "Pending",
+    tasksDone: [
+      { id: "t1", description: "Design new logo for Client X", status: "done" },
+      { id: "t2", description: "Revise homepage mockups", status: "done" }
+    ],
+    tasksPending: [
+      { id: "t3", description: "Send mockups for review", status: "pending" }
+    ]
+  },
+  {
+    id: "r2",
+    employeeName: "Bob Johnson",
+    role: "Marketing Manager",
+    department: "Marketing",
+    submittedAt: "06:15 PM",
+    date: new Date().toISOString().slice(0, 10),
+    verificationStatus: "Verified",
+    rating: 4,
+    verifiedBy: "Admin",
+    managerRemarks: "Good progress on the ad campaign.",
+    tasksDone: [
+      { id: "t4", description: "Setup Facebook Ad campaign", status: "done" },
+      { id: "t5", description: "Review Q3 marketing metrics", status: "done" }
+    ],
+    tasksPending: []
+  }
+];
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
@@ -279,6 +336,11 @@ interface DataContextType {
   setActiveJobTracker: React.Dispatch<React.SetStateAction<{ jobId: string, startTime: number } | null>>;
   workLogs: any[];
   setWorkLogs: React.Dispatch<React.SetStateAction<any[]>>;
+  dailyRatings: Record<string, number>;
+  setDailyRatings: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  updateDailyRating: (userName: string, date: string, rating: number) => void;
+  dailyProgressRecords: DailyRecord[];
+  setDailyProgressRecords: React.Dispatch<React.SetStateAction<DailyRecord[]>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -394,6 +456,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return initialInvoices;
   });
 
+  const [dailyRatings, setDailyRatings] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('app_daily_ratings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>(() => {
+    const saved = localStorage.getItem('app_daily_progress');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialDailyProgressRecords;
+      }
+    }
+    return initialDailyProgressRecords;
+  });
+
   const { autoConvertLeads } = useSettings();
 
   const convertLeadToClient = (lead: any) => {
@@ -427,6 +513,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return { ...c, projects: newProjects };
       }
       return c;
+    }));
+  };
+
+  const updateDailyRating = (userName: string, date: string, rating: number) => {
+    setDailyRatings(prev => ({
+      ...prev,
+      [`${userName}_${date}`]: rating
     }));
   };
 
@@ -544,6 +637,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_workLogs', JSON.stringify(workLogs));
   }, [workLogs]);
 
+  useEffect(() => {
+    localStorage.setItem('app_daily_ratings', JSON.stringify(dailyRatings));
+  }, [dailyRatings]);
+
+  useEffect(() => {
+    localStorage.setItem('app_daily_progress', JSON.stringify(dailyProgressRecords));
+  }, [dailyProgressRecords]);
+
   // Helper inside DataContext to deal with potential mismatches if projectId is not exactly name
   const getProjectNameFallback = (projectId: string) => {
      // Just a dummy fallback, actual logic usually ensures j.projectId === project.name
@@ -584,6 +685,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       invoices, setInvoices,
       convertLeadToClient, 
       updateProject,
+      dailyRatings,
+      setDailyRatings,
+      updateDailyRating,
+      dailyProgressRecords,
+      setDailyProgressRecords,
       activeFilterIntent,
       setActiveFilterIntent,
       isPunchedIn,

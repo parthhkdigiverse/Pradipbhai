@@ -59,6 +59,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
     { name: 'Staff', group: 'HR' },
     { name: 'Attendance', group: 'HR' },
     { name: 'Work Logs', group: 'HR' },
+    { name: 'Daily Progress', group: 'HR' },
     { name: 'Payroll', group: 'HR' },
     { name: 'Clients', group: 'Sales' },
     { name: 'Leads', group: 'Sales' },
@@ -198,6 +199,10 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                 Work Logs
+              </button>
+              <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                Daily Progress
               </button>
               <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
