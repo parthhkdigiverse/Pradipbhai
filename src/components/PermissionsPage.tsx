@@ -22,7 +22,7 @@ const mockSessions = [
   { id: '3', device: 'Windows Desktop', browser: 'Edge 119.0', location: 'Delhi, India', ip: '103.45.x.x', lastActive: '2 days ago', current: false },
 ];
 
-export function SecurityPage() {
+export function PermissionsPage() {
   const [matrix, setMatrix] = useState(mockRoleMatrix);
   const [sessions, setSessions] = useState(mockSessions);
 

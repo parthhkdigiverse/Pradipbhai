@@ -15,7 +15,9 @@ import {
   FileText
 } from 'lucide-react';
 
-export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, setCurrentPage: (page: string) => void }) {
+export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollapsed }: { currentPage: string, setCurrentPage: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const effectiveIsCollapsed = isCollapsed && !isHovered;
   
   // State for collapsible menus
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
@@ -25,6 +27,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
     sales: false,
     social: false,
     finance: false,
+    security: false,
   });
 
   const toggleMenu = (menu: string) => {
@@ -37,6 +40,7 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
         sales: false,
         social: false,
         finance: false,
+        security: false,
       };
       
       // If the clicked menu wasn't already open, open it
@@ -75,11 +79,11 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
     : [];
 
   return (
-    <aside className="w-64 flex-shrink-0 glass-panel border-r border-white/40 flex flex-col h-screen fixed top-0 left-0 overflow-y-auto z-50 hidden md:flex custom-scrollbar shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+    <aside onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)} className={`flex-shrink-0 glass-panel border-r border-white/40 flex flex-col h-screen fixed top-0 left-0 overflow-y-auto z-50 hidden md:flex custom-scrollbar shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 ${effectiveIsCollapsed ? 'w-20' : 'w-64'}`}>
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/20 z-10">
-        <div className="flex items-center gap-2 font-bold text-xl text-gray-800">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
+      <div className="h-16 flex items-center px-6 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/20 z-10 overflow-hidden">
+        <div className="flex items-center gap-2 font-bold text-xl text-gray-800 whitespace-nowrap">
+          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-primary flex items-center justify-center text-white">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
               <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
@@ -89,44 +93,52 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
             </svg>
           </div>
-          Alpha Creative
+          <span className={`transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Alpha Creative</span>
         </div>
       </div>
 
-      <div className="p-4 flex-1">
+      <div className="p-4 flex-1 flex flex-col overflow-hidden">
         
         {/* Search Bar */}
         <div className="mb-6 relative z-50">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input 
-            type="text" 
-            placeholder="Search..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-10 py-2 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 transition-colors focus:outline-none"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-          
-          {searchQuery && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl shadow-lg rounded-xl overflow-hidden py-1 z-[100] border border-gray-200">
-              {suggestions.length > 0 ? (
-                suggestions.map((item, idx) => (
-                  <a key={idx} href="#" className="flex flex-col px-3 py-2 hover:bg-gray-100 transition-colors">
-                    <span className="text-sm font-medium text-gray-800">{item.name}</span>
-                    <span className="text-[10px] text-gray-500">{item.group}</span>
-                  </a>
-                ))
-              ) : (
-                <div className="px-3 py-2 text-sm text-gray-500">No matches found</div>
-              )}
+          {effectiveIsCollapsed ? (
+            <div className="w-full flex justify-center py-2 text-gray-500 cursor-pointer hover:text-gray-900 transition-colors" onClick={() => setIsCollapsed?.(false)} title="Search">
+              <Search className="w-5 h-5" />
             </div>
+          ) : (
+            <>
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input 
+                type="text" 
+                placeholder="Search..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-10 py-2 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 transition-colors focus:outline-none"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              
+              {searchQuery && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white/90 backdrop-blur-xl shadow-lg rounded-xl overflow-hidden py-1 z-[100] border border-gray-200">
+                  {suggestions.length > 0 ? (
+                    suggestions.map((item, idx) => (
+                      <a key={idx} href="#" className="flex flex-col px-3 py-2 hover:bg-gray-100 transition-colors">
+                        <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                        <span className="text-[10px] text-gray-500">{item.group}</span>
+                      </a>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-gray-500">No matches found</div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -135,154 +147,215 @@ export function Sidebar({ currentPage, setCurrentPage }: { currentPage: string, 
           {/* Dashboard */}
           <button 
             onClick={() => setCurrentPage('dashboard')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
+            title={effectiveIsCollapsed ? 'Dashboard' : undefined}
+            className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all ${
               currentPage === 'dashboard' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'
             }`}
           >
             <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Dashboard</span>
+            <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Dashboard</span>
           </button>
 
           {/* Job & Production Management */}
           <div>
             <button 
-              onClick={() => toggleMenu('jobs')}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
+              onClick={() => {
+                if (effectiveIsCollapsed) {
+                  setIsCollapsed?.(false);
+                  setOpenMenus(prev => ({ ...prev, jobs: true }));
+                } else {
+                  toggleMenu('jobs');
+                }
+              }}
+              title={effectiveIsCollapsed ? 'Production' : undefined}
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'} rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <Briefcase className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">Production</span>
+                <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Production</span>
               </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.jobs ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.jobs ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Projects
-              </button>
-              <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Jobs
-              </button>
-              <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Catalog
-              </button>
-              <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Vendors
-              </button>
-            </div>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Projects
+                </button>
+                <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Jobs
+                </button>
+                <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Catalog
+                </button>
+                <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Vendors
+                </button>
+              </div>
           </div>
 
           {/* HR Management */}
           <div>
             <button 
-              onClick={() => toggleMenu('hr')}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
+              onClick={() => {
+                if (effectiveIsCollapsed) {
+                  setIsCollapsed?.(false);
+                  setOpenMenus(prev => ({ ...prev, hr: true }));
+                } else {
+                  toggleMenu('hr');
+                }
+              }}
+              title={effectiveIsCollapsed ? 'HR' : undefined}
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'} rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <Users className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">HR</span>
+                <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>HR</span>
               </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.hr ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.hr ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.hr ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Staff
-              </button>
-              <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Attendance
-              </button>
-              <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Work Logs
-              </button>
-              <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Daily Progress
-              </button>
-              <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Payroll
-              </button>
-            </div>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Staff
+                </button>
+                <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Attendance
+                </button>
+                <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Work Logs
+                </button>
+                <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Daily Progress
+                </button>
+                <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Payroll
+                </button>
+              </div>
           </div>
 
           {/* Sales & Client Management */}
           <div>
             <button 
-              onClick={() => toggleMenu('sales')}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
+              onClick={() => {
+                if (effectiveIsCollapsed) {
+                  setIsCollapsed?.(false);
+                  setOpenMenus(prev => ({ ...prev, sales: true }));
+                } else {
+                  toggleMenu('sales');
+                }
+              }}
+              title={effectiveIsCollapsed ? 'Sales' : undefined}
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'} rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <Handshake className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">Sales</span>
+                <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Sales</span>
               </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.sales ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.sales ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Clients
-              </button>
-              <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Leads
-              </button>
-            </div>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Clients
+                </button>
+                <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Leads
+                </button>
+              </div>
           </div>
 
           {/* Social Media Management */}
-          <button onClick={() => setCurrentPage('social')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('social')} title={effectiveIsCollapsed ? 'Social Media' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Megaphone className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Social Media</span>
+            <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Social Media</span>
           </button>
 
           {/* Finance Management */}
           <div>
             <button 
-              onClick={() => toggleMenu('finance')}
-              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2"
+              onClick={() => {
+                if (effectiveIsCollapsed) {
+                  setIsCollapsed?.(false);
+                  setOpenMenus(prev => ({ ...prev, finance: true }));
+                } else {
+                  toggleMenu('finance');
+                }
+              }}
+              title={effectiveIsCollapsed ? 'Finance' : undefined}
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'} rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2`}
             >
               <div className="flex items-center gap-3 overflow-hidden">
                 <FileText className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">Finance</span>
+                <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Finance</span>
               </div>
-              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${openMenus.finance ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.finance ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${openMenus.finance ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-              <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
-                Invoices
-              </button>
-            </div>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.finance ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Invoices
+                </button>
+              </div>
           </div>
 
           {/* Independent Items */}
-          <button onClick={() => setCurrentPage('chat')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('chat')} title={effectiveIsCollapsed ? 'Chat' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <MessageSquare className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Chat</span>
+            <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Chat</span>
           </button>
 
-          <button onClick={() => setCurrentPage('reports')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('reports')} title={effectiveIsCollapsed ? 'Reports' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <LineChart className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Reports</span>
+            <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Reports</span>
           </button>
 
-          <button onClick={() => setCurrentPage('security')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'security' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
-            <Shield className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Security</span>
-          </button>
+          {/* Security Management */}
+          <div>
+            <button 
+              onClick={() => {
+                if (effectiveIsCollapsed) {
+                  setIsCollapsed?.(false);
+                  setOpenMenus(prev => ({ ...prev, security: true }));
+                } else {
+                  toggleMenu('security');
+                }
+              }}
+              title={effectiveIsCollapsed ? 'Security' : undefined}
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'justify-between px-3 py-2.5'} rounded-xl text-sm text-gray-600 hover:bg-white/40 hover:text-gray-900 transition-all mt-2`}
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <Shield className="w-5 h-5 flex-shrink-0" />
+                <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Security</span>
+              </div>
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.security ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
+            </button>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.security ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <button onClick={() => setCurrentPage('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Roles & Permissions
+                </button>
+                <button onClick={() => setCurrentPage('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Restrictions
+                </button>
+              </div>
+          </div>
 
-          <button onClick={() => setCurrentPage('settings')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+          <button onClick={() => setCurrentPage('settings')} title={effectiveIsCollapsed ? 'Settings' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
             <Settings className="w-5 h-5 flex-shrink-0" />
-            <span className="truncate">Settings</span>
+            <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Settings</span>
           </button>
 
         </div>
+        
       </div>
     </aside>
   );

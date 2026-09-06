@@ -3,7 +3,7 @@ import { useData } from '../context/DataContext';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => void }) {
+export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, setWorkLogs } = useData();
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
@@ -92,7 +92,10 @@ export function Header({ setCurrentPage }: { setCurrentPage?: (page: string) => 
   return (
     <header className="h-20 glass-header flex items-center justify-between px-6 py-4 sticky top-0 z-40">
       <div className="flex items-center gap-4">
-        <button className="text-gray-600 hover:text-gray-900 transition-colors">
+        <button 
+          onClick={() => setIsCollapsed?.(!isCollapsed)}
+          className="text-gray-600 hover:text-gray-900 transition-colors"
+        >
           <Menu className="w-5 h-5" />
         </button>
       </div>
