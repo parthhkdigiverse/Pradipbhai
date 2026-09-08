@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
-import { IndianRupee, Search, Calendar as CalendarIcon, Calculator, CheckCircle, FileText, FilterX } from 'lucide-react';
+import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function PayrollPage() {
   const { staff, attendance, payroll, setPayroll } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -269,8 +270,9 @@ export function PayrollPage() {
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center">
                         <button 
+                          onClick={() => setSelectedPayslip(emp)}
                           className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-200 hover:text-gray-700 transition-colors opacity-0 group-hover:opacity-100"
-                          title="Download Payslip"
+                          title="View Payslip"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
@@ -292,6 +294,91 @@ export function PayrollPage() {
           </table>
         </div>
       </div>
+
+      {/* Payslip Modal */}
+      {selectedPayslip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedPayslip(null)}></div>
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+              <h2 className="text-xl font-bold text-gray-800">Payslip Details</h2>
+              <button onClick={() => setSelectedPayslip(null)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-gray-200/50 pb-6">
+                <div>
+                  <h3 className="text-2xl font-black text-gray-800">{selectedPayslip.name}</h3>
+                  <p className="text-sm font-bold text-primary uppercase tracking-wider mt-1">{selectedPayslip.role}</p>
+                </div>
+                <div className="text-right">
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
+                    selectedPayslip.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {selectedPayslip.status}
+                  </div>
+                </div>
+              </div>
+
+              {/* Earnings & Deductions */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 font-semibold">Basic Salary</span>
+                  <span className="text-gray-800 font-bold flex items-center"><IndianRupee className="w-3.5 h-3.5 mr-0.5" />{selectedPayslip.basic.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 font-semibold">Deductions</span>
+                  <span className="text-rose-600 font-bold flex items-center">-<IndianRupee className="w-3.5 h-3.5 mx-0.5" />{selectedPayslip.deductions.toLocaleString()}</span>
+                </div>
+                
+                <div className="pt-4 mt-2 border-t border-gray-200/50 flex justify-between items-center">
+                  <span className="text-gray-800 font-bold text-lg">Net Pay</span>
+                  <span className="text-emerald-600 font-black text-2xl flex items-center">
+                    <IndianRupee className="w-5 h-5 mr-0.5" />
+                    {selectedPayslip.netPay.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Attendance Summary */}
+              <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Attendance Summary</p>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="bg-emerald-50 rounded-xl p-2">
+                    <div className="text-emerald-700 font-black text-lg">{selectedPayslip.stats.daysPresent}</div>
+                    <div className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Present</div>
+                  </div>
+                  <div className="bg-rose-50 rounded-xl p-2">
+                    <div className="text-rose-700 font-black text-lg">{selectedPayslip.stats.daysAbsent}</div>
+                    <div className="text-[10px] font-bold text-rose-600 uppercase mt-0.5">Absent</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-2">
+                    <div className="text-amber-700 font-black text-lg">{selectedPayslip.stats.daysHalf}</div>
+                    <div className="text-[10px] font-bold text-amber-600 uppercase mt-0.5">Half Day</div>
+                  </div>
+                  <div className="bg-primary/5 rounded-xl p-2">
+                    <div className="text-primary font-black text-lg">{selectedPayslip.stats.daysLeave}</div>
+                    <div className="text-[10px] font-bold text-primary uppercase mt-0.5">Leave</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3">
+              <button onClick={() => setSelectedPayslip(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-xl transition-all">
+                Close
+              </button>
+              <button onClick={() => { alert('Downloading payslip...'); setSelectedPayslip(null); }} className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
