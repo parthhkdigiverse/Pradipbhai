@@ -53,7 +53,7 @@ function DetailedMetricCard({ title, value, icon: Icon, colorClass, bgClass, sub
 }
 
 export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: string) => void }) {
-  const { clients, jobs, invoices, setActiveFilterIntent } = useData();
+  const { clients, jobs, invoices, leads, workLogs, setActiveFilterIntent } = useData();
 
   const handleCardClick = (page: string, filterKey: string, filterValue: string) => {
     setActiveFilterIntent({ page, filterKey, filterValue });
@@ -70,6 +70,38 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       maximumFractionDigits: 0
     }).format(amount);
   };
+
+  // Unregistered Work Metrics
+  const unregisteredWorkMetrics = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date();
+    todayDate.setHours(0,0,0,0);
+
+    const unassignedTasks = jobs.filter(j => !j.teamId && j.status !== 'Completed').length;
+    
+    // No update today: Jobs in Progress that don't have a worklog for today
+    const noUpdateToday = jobs.filter(j => 
+      j.status === 'Progress' && !workLogs.some(w => w.jobId === j.id && w.date === todayStr)
+    ).length;
+
+    const overdue = jobs.filter(j => {
+      if (j.status === 'Completed' || !j.dueDate) return false;
+      const due = new Date(j.dueDate);
+      due.setHours(0,0,0,0);
+      return due < todayDate;
+    }).length;
+
+    const clientFollowUpPending = leads.filter(l => {
+      if (l.status === 'Client Won' || !l.followUps) return false;
+      return l.followUps.some((f: any) => {
+        const fDate = new Date(f.date);
+        fDate.setHours(0,0,0,0);
+        return fDate <= todayDate;
+      });
+    }).length;
+
+    return { unassignedTasks, noUpdateToday, overdue, clientFollowUpPending };
+  }, [jobs, workLogs, leads]);
 
   // Financial Overview
   const totalRevenue = useMemo(() => {
@@ -189,6 +221,32 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div className="flex flex-col">
         <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm">Dashboard</h1>
         <p className="text-sm text-gray-500 font-medium">Comprehensive overview of your business operations</p>
+      </div>
+
+      {/* 0. UNASSIGNED / UNREGISTERED WORK */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <AlertCircle className="w-5 h-5 text-rose-600" />
+          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider">UNASSIGNED / UNREGISTERED WORK</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div className="w-4 h-4 rounded-full bg-rose-500 shadow-inner shrink-0"></div>
+            <div className="text-sm font-bold text-gray-800">Unassigned Tasks: {unregisteredWorkMetrics.unassignedTasks}</div>
+          </div>
+          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-amber-400 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div className="w-4 h-4 rounded-full bg-amber-400 shadow-inner shrink-0"></div>
+            <div className="text-sm font-bold text-gray-800">No Update Today: {unregisteredWorkMetrics.noUpdateToday}</div>
+          </div>
+          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-600 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div className="w-4 h-4 rounded-full bg-rose-600 shadow-inner shrink-0"></div>
+            <div className="text-sm font-bold text-gray-800">Overdue: {unregisteredWorkMetrics.overdue}</div>
+          </div>
+          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-orange-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div className="w-4 h-4 rounded-full bg-orange-500 shadow-inner shrink-0"></div>
+            <div className="text-sm font-bold text-gray-800">Client Follow-up Pending: {unregisteredWorkMetrics.clientFollowUpPending}</div>
+          </div>
+        </div>
       </div>
 
       {/* 1. Financial Overview */}
