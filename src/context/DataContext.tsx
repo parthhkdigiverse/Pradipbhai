@@ -232,7 +232,9 @@ const initialInvoices = [
     subtotal: 500,
     tax: 90,
     total: 590,
-    status: 'Sent'
+    status: 'Sent',
+    invoiceType: 'Tax',
+    taxRate: '18'
   },
   {
     id: '2',
@@ -244,7 +246,9 @@ const initialInvoices = [
     subtotal: 3000,
     tax: 540,
     total: 3540,
-    status: 'Paid'
+    status: 'Paid',
+    invoiceType: 'Tax',
+    taxRate: '18'
   }
 ];
 
