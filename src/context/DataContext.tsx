@@ -81,8 +81,19 @@ const initialClients = [
     contact: 'Sarah Jenkins',
     email: 'sarah.j@techcorp.com',
     phone: '+91 98765 43210',
+    address: '101, Tech Park',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395006',
+    gstin: '24AABCT1234D1Z5',
     status: 'Active',
     clientSince: '2024-01-15',
+    trafficLight: 'Green',
+    advanceRequired: 0,
+    billingType: 'Monthly Billing',
+    workStartAllowed: true,
+    deliveryAllowed: true,
+    lightChangeRequests: [],
     projects: [
       { name: 'Website Redesign', category: 'Designing', status: 'In Progress', budget: '500000', deadline: '2026-12-01' },
       { name: 'SEO Campaign', category: 'Social Media', status: 'Active', budget: '250000', deadline: '2026-10-31' }
@@ -90,12 +101,23 @@ const initialClients = [
   },
   {
     id: '2',
-    company: 'Global Retail Solutions',
+    company: 'FORCEMAN WATER TECHNOLOGIES',
     contact: 'Michael Chang',
-    email: 'm.chang@globalretail.com',
+    email: 'm.chang@forceman.com',
     phone: '+91 87654 32109',
+    address: 'Plot No.A-17, Udhna Udhyog Nagar, Road No.03, Near Dharti namkeen, Udhna',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395010',
+    gstin: '24AAGFF6092F1ZH',
     status: 'Onboarding',
     clientSince: '2026-08-20',
+    trafficLight: 'Red',
+    advanceRequired: 100,
+    billingType: 'Advance Payment',
+    workStartAllowed: false,
+    deliveryAllowed: false,
+    lightChangeRequests: [],
     projects: [
       { name: 'ERP Integration', category: 'Des+Print', status: 'Planning', budget: '450000', deadline: '2027-02-28' }
     ]
@@ -106,8 +128,19 @@ const initialClients = [
     contact: 'Priya Sharma',
     email: 'priya@nextgen.in',
     phone: '+91 76543 21098',
+    address: '404, Startup Hub',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395007',
+    gstin: '24BBBBT1234E1Z6',
     status: 'Active',
     clientSince: '2025-05-10',
+    trafficLight: 'Yellow',
+    advanceRequired: 60,
+    billingType: 'Per Project',
+    workStartAllowed: true,
+    deliveryAllowed: false,
+    lightChangeRequests: [],
     projects: [
       { name: 'Mobile App V2', category: 'Designing', status: 'Completed', budget: '600000', deadline: '2026-01-15' },
       { name: 'Maintenance Contract', category: 'Printing', status: 'Active', budget: '200000', deadline: '2026-12-31' }
@@ -119,8 +152,19 @@ const initialClients = [
     contact: 'Robert Fox',
     email: 'robert@legacy.com',
     phone: '+91 65432 10987',
+    address: 'Industrial Estate',
+    city: 'Surat',
+    state: 'Gujarat',
+    pincode: '395008',
+    gstin: '24CCCCT1234F1Z7',
     status: 'Inactive',
     clientSince: '2023-11-05',
+    trafficLight: 'Green',
+    advanceRequired: 0,
+    billingType: 'Monthly Billing',
+    workStartAllowed: true,
+    deliveryAllowed: true,
+    lightChangeRequests: [],
     projects: [
       { name: 'Digital Audit', category: 'Social Media', status: 'Completed', budget: '150000', deadline: '2024-02-10' }
     ]
@@ -345,11 +389,14 @@ interface DataContextType {
   updateDailyRating: (userName: string, date: string, rating: number) => void;
   dailyProgressRecords: DailyRecord[];
   setDailyProgressRecords: React.Dispatch<React.SetStateAction<DailyRecord[]>>;
+  currentUserRole: string;
+  setCurrentUserRole: React.Dispatch<React.SetStateAction<string>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const [currentUserRole, setCurrentUserRole] = useState<string>('Admin');
   const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string } | null>(null);
 
   const [leads, setLeads] = useState<any[]>(() => {
@@ -703,7 +750,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       activeJobTracker,
       setActiveJobTracker,
       workLogs,
-      setWorkLogs
+      setWorkLogs,
+      currentUserRole,
+      setCurrentUserRole
     }}>
       {children}
     </DataContext.Provider>

@@ -3,7 +3,7 @@ import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Cloc
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
-  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker } = useData();
+  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
@@ -45,8 +45,11 @@ export function JobsPage() {
     paidAmount: '',
     status: 'Pending',
     paymentStatus: 'Unpaid',
-    vendorEmailSent: false
+    vendorEmailSent: false,
+    paymentOverride: null as { reason: string, approvedBy: string, approvedAt: string } | null
   });
+
+  const [overrideReason, setOverrideReason] = useState('');
 
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
@@ -88,10 +91,12 @@ export function JobsPage() {
           paidAmount: job.paidAmount.toString(),
           status: job.status,
           paymentStatus: job.paymentStatus,
-          vendorEmailSent: job.vendorEmailSent || false
+          vendorEmailSent: job.vendorEmailSent || false,
+          paymentOverride: job.paymentOverride || null
         });
         setEditingJobId(jobId);
         setNewJobType(job.type as 'Designing' | 'Printing');
+        setOverrideReason('');
       }
     } else {
       setFormData({
@@ -107,9 +112,11 @@ export function JobsPage() {
         paidAmount: '',
         status: 'Pending',
         paymentStatus: 'Unpaid',
-        vendorEmailSent: false
+        vendorEmailSent: false,
+        paymentOverride: null
       });
       setEditingJobId(null);
+      setOverrideReason('');
     }
     setIsModalOpen(true);
   };
@@ -146,10 +153,35 @@ export function JobsPage() {
   };
 
   const updateJobStatus = (id: string, status: string) => {
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, status } : j));
+    setJobs(prev => {
+      const job = prev.find(j => j.id === id);
+      if (!job) return prev;
+
+      if (status !== 'Pending') {
+        const client = clients.find(c => c.id === job.clientId);
+        if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
+          alert('🔴 PAYMENT REQUIRED — Work is blocked for this Red client until an advance is recorded or a Partner override is provided.');
+          return prev;
+        }
+        if (status === 'Done' && client && client.trafficLight === 'Yellow' && job.paidAmount < job.totalAmount) {
+          alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
+          return prev;
+        }
+      }
+      return prev.map(j => j.id === id ? { ...j, status } : j);
+    });
   };
 
   const handleStartTracker = (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+    
+    const client = clients.find(c => c.id === job.clientId);
+    if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
+      alert('🔴 PAYMENT REQUIRED — Cannot start work tracker for this Red client without advance or Partner override.');
+      return;
+    }
+
     if (activeJobTracker && activeJobTracker.jobId !== jobId) {
       // Stop previous tracker
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
@@ -488,6 +520,99 @@ export function JobsPage() {
             </div>
             
             <form onSubmit={handleSaveJob} className="p-5 space-y-4">
+              {/* Auto Alert Banner */}
+              {(() => {
+                const selectedClient = clients.find(c => c.id === formData.clientId);
+                if (!selectedClient) return null;
+                
+                const getBannerStyle = () => {
+                  if (selectedClient.trafficLight === 'Red') return 'bg-rose-50 border-rose-200 text-rose-800';
+                  if (selectedClient.trafficLight === 'Yellow') return 'bg-amber-50 border-amber-200 text-amber-800';
+                  return 'bg-emerald-50 border-emerald-200 text-emerald-800';
+                };
+
+                const getBannerIcon = () => {
+                  if (selectedClient.trafficLight === 'Red') return '🔴';
+                  if (selectedClient.trafficLight === 'Yellow') return '🟡';
+                  return '🟢';
+                };
+
+                const getBannerText = () => {
+                  if (selectedClient.trafficLight === 'Red') return 'Advance Required • Work Blocked';
+                  if (selectedClient.trafficLight === 'Yellow') return `${selectedClient.advanceRequired || 0}% Advance Received • Balance Pending Before Delivery`;
+                  return 'Regular Client • Monthly Billing Allowed';
+                };
+
+                return (
+                  <div className={`p-4 rounded-xl border-2 mb-4 ${getBannerStyle()}`}>
+                    <h3 className="font-black text-lg mb-1 flex items-center gap-2">
+                      <span>{getBannerIcon()}</span>
+                      CLIENT PAYMENT STATUS: {selectedClient.trafficLight?.toUpperCase()}
+                    </h3>
+                    <p className="font-bold opacity-80 text-sm ml-8">{getBannerText()}</p>
+                  </div>
+                );
+              })()}
+
+              {/* Special Work Approval / Override (For Red Clients) */}
+              {(() => {
+                const selectedClient = clients.find(c => c.id === formData.clientId);
+                if (selectedClient?.trafficLight === 'Red') {
+                  const hasOverride = !!formData.paymentOverride;
+                  return (
+                    <div className="p-4 rounded-xl border border-gray-200 bg-gray-50 mb-4">
+                      <h4 className="font-bold text-gray-800 flex items-center gap-2 mb-2">
+                        <span>{hasOverride ? '🔓' : '🔒'}</span> SPECIAL WORK APPROVAL
+                      </h4>
+                      {hasOverride ? (
+                        <div className="text-sm">
+                          <p className="text-emerald-700 font-bold mb-1">Override Approved. Work can proceed.</p>
+                          <p className="text-gray-600"><span className="font-semibold">Reason:</span> {formData.paymentOverride?.reason}</p>
+                          <p className="text-gray-500 text-xs mt-1">Approved by {formData.paymentOverride?.approvedBy} on {new Date(formData.paymentOverride?.approvedAt || '').toLocaleString()}</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-600 font-semibold">Work normally blocked 👎</p>
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-gray-600 uppercase">Override Request Reason:</label>
+                            <input 
+                              type="text" 
+                              value={overrideReason}
+                              onChange={e => setOverrideReason(e.target.value)}
+                              placeholder="e.g. Partner approved work, payment later."
+                              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              disabled={currentUserRole !== 'Admin'}
+                            />
+                          </div>
+                          {currentUserRole === 'Admin' ? (
+                            <button 
+                              type="button"
+                              disabled={!overrideReason.trim()}
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  paymentOverride: {
+                                    reason: overrideReason,
+                                    approvedBy: 'Admin (Partner)',
+                                    approvedAt: new Date().toISOString()
+                                  }
+                                });
+                              }}
+                              className="px-4 py-2 bg-gray-800 text-white text-xs font-bold rounded-lg hover:bg-gray-900 disabled:opacity-50 transition-colors"
+                            >
+                              Approve Override
+                            </button>
+                          ) : (
+                            <p className="text-xs text-rose-500 font-bold">Only Admin/Partner can approve overrides.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Select Client & Team */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">

@@ -25,7 +25,7 @@ import { formatDate } from '../utils/dateFormatter';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
-  const { clients, setClients, setJobs } = useData();
+  const { clients, setClients, setJobs, currentUserRole } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   
@@ -56,7 +56,12 @@ export function ClientsPage() {
     contact: '',
     email: '',
     phone: '',
-    status: 'Onboarding'
+    status: 'Onboarding',
+    trafficLight: 'Green',
+    advanceRequired: 0,
+    billingType: 'Monthly Billing',
+    workStartAllowed: true,
+    deliveryAllowed: true
   });
 
   const [projectFormData, setProjectFormData] = useState({
@@ -73,7 +78,12 @@ export function ClientsPage() {
       contact: '',
       email: '',
       phone: '',
-      status: 'Onboarding'
+      status: 'Onboarding',
+      trafficLight: 'Green',
+      advanceRequired: 0,
+      billingType: 'Monthly Billing',
+      workStartAllowed: true,
+      deliveryAllowed: true
     });
     setEditingClientId(null);
   };
@@ -87,7 +97,12 @@ export function ClientsPage() {
           contact: client.contact,
           email: client.email,
           phone: client.phone,
-          status: client.status
+          status: client.status,
+          trafficLight: client.trafficLight || 'Green',
+          advanceRequired: client.advanceRequired || 0,
+          billingType: client.billingType || 'Monthly Billing',
+          workStartAllowed: client.workStartAllowed ?? true,
+          deliveryAllowed: client.deliveryAllowed ?? true
         });
         setEditingClientId(clientId);
       }
@@ -461,7 +476,10 @@ export function ClientsPage() {
                                   {expandedRowId === client.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                                 </button>
                                 <div>
-                                  <span className="font-bold text-gray-800 text-sm block">{client.company}</span>
+                                  <span className="font-bold text-gray-800 text-sm flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full shadow-inner shrink-0 ${client.trafficLight === 'Red' ? 'bg-rose-500' : client.trafficLight === 'Yellow' ? 'bg-amber-400' : 'bg-emerald-500'}`} title={`Payment Status: ${client.trafficLight}`}></div>
+                                    {client.company}
+                                  </span>
                                   <span className="text-[11px] text-gray-500 font-medium block mt-0.5">{client.projects?.length || 0} active projects</span>
                                 </div>
                               </div>
@@ -618,6 +636,81 @@ export function ClientsPage() {
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Phone</label>
                     <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                  </div>
+                </div>
+
+                {/* Client Payment Profile Section */}
+                <div className="mt-6 pt-4 border-t border-white/40">
+                  <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    Client Payment Profile
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Payment Status</label>
+                      <div className="flex gap-2">
+                        <select 
+                          value={formData.trafficLight} 
+                          onChange={e => setFormData({...formData, trafficLight: e.target.value})} 
+                          disabled={currentUserRole === 'Sales'}
+                          className="flex-1 px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          <option value="Green">🟢 Green - Trusted / Regular</option>
+                          <option value="Yellow">🟡 Yellow - Partial Advance</option>
+                          <option value="Red">🔴 Red - Advance Required</option>
+                        </select>
+                        {currentUserRole === 'Sales' && (
+                          <button type="button" onClick={() => alert('Status change request sent to Admin!')} className="px-3 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-xs font-bold transition-colors">
+                            Request Change
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Advance Required (%)</label>
+                      <input 
+                        type="number" 
+                        min="0" max="100" 
+                        value={formData.advanceRequired} 
+                        onChange={e => setFormData({...formData, advanceRequired: parseInt(e.target.value) || 0})} 
+                        className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Billing Type</label>
+                      <select 
+                        value={formData.billingType} 
+                        onChange={e => setFormData({...formData, billingType: e.target.value})} 
+                        className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                      >
+                        <option value="Monthly Billing">Monthly Billing</option>
+                        <option value="Per Project">Per Project</option>
+                        <option value="Advance Payment">Advance Payment</option>
+                      </select>
+                    </div>
+
+                    <div className="col-span-2 flex gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                          <input type="checkbox" checked={formData.workStartAllowed} onChange={e => setFormData({...formData, workStartAllowed: e.target.checked})} className="peer sr-only" />
+                          <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-colors"></div>
+                          <Check className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">Work Start Allowed</span>
+                      </label>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative flex items-center justify-center">
+                          <input type="checkbox" checked={formData.deliveryAllowed} onChange={e => setFormData({...formData, deliveryAllowed: e.target.checked})} className="peer sr-only" />
+                          <div className="w-5 h-5 border-2 border-gray-300 rounded peer-checked:bg-emerald-500 peer-checked:border-emerald-500 transition-colors"></div>
+                          <Check className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity" strokeWidth={3} />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">Delivery Allowed</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>

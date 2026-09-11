@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, setWorkLogs } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, setWorkLogs, currentUserRole, setCurrentUserRole } = useData();
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -184,7 +184,19 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             <div className="absolute right-0 mt-2 w-48 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
                 <p className="text-sm font-bold text-gray-800">John Doe</p>
-                <p className="text-xs text-gray-500 truncate">john.doe@techsolutions.com</p>
+                <p className="text-xs text-gray-500 truncate mb-2">john.doe@techsolutions.com</p>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Simulate Role</label>
+                  <select 
+                    value={currentUserRole}
+                    onChange={(e) => setCurrentUserRole(e.target.value)}
+                    className="w-full text-xs py-1 px-2 rounded border border-gray-200 bg-white text-gray-700 focus:outline-none focus:border-primary"
+                  >
+                    <option value="Admin">Admin / Partner</option>
+                    <option value="Manager">Manager (Monalisa)</option>
+                    <option value="Sales">Sales Team</option>
+                  </select>
+                </div>
               </div>
               <div className="py-1">
                 <button 
