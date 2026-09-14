@@ -2,6 +2,25 @@ import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 
+export interface Holiday {
+  id: string;
+  date: string;       // "YYYY-MM-DD"
+  name: string;
+  type: 'National' | 'Regional' | 'Company';
+}
+
+const initialHolidays: Holiday[] = [
+  { id: 'h1', date: '2026-01-26', name: 'Republic Day', type: 'National' },
+  { id: 'h2', date: '2026-03-25', name: 'Holi', type: 'National' },
+  { id: 'h3', date: '2026-04-14', name: 'Dr. Ambedkar Jayanti', type: 'National' },
+  { id: 'h4', date: '2026-08-15', name: 'Independence Day', type: 'National' },
+  { id: 'h5', date: '2026-08-16', name: 'Janmashtami', type: 'National' },
+  { id: 'h6', date: '2026-10-02', name: 'Gandhi Jayanti', type: 'National' },
+  { id: 'h7', date: '2026-10-20', name: 'Dussehra', type: 'National' },
+  { id: 'h8', date: '2026-11-08', name: 'Diwali', type: 'National' },
+  { id: 'h9', date: '2026-12-25', name: 'Christmas', type: 'National' },
+];
+
 // Initial Mock Data
 const initialLeads = [
   {
@@ -372,6 +391,8 @@ interface DataContextType {
   setJobs: React.Dispatch<React.SetStateAction<any[]>>;
   invoices: any[];
   setInvoices: React.Dispatch<React.SetStateAction<any[]>>;
+  holidays: Holiday[];
+  setHolidays: React.Dispatch<React.SetStateAction<Holiday[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
   activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
@@ -507,6 +528,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return initialInvoices;
   });
 
+  const [holidays, setHolidays] = useState<Holiday[]>(() => {
+    const saved = localStorage.getItem('app_holidays');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialHolidays;
+      }
+    }
+    return initialHolidays;
+  });
+
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('app_daily_ratings');
     if (saved) {
@@ -609,6 +642,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('app_invoices', JSON.stringify(invoices));
   }, [invoices]);
+
+  useEffect(() => {
+    localStorage.setItem('app_holidays', JSON.stringify(holidays));
+  }, [holidays]);
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
     return localStorage.getItem('app_isPunchedIn') === 'true';
@@ -734,6 +771,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       vendors, setVendors,
       jobs, setJobs,
       invoices, setInvoices,
+      holidays, setHolidays,
       convertLeadToClient, 
       updateProject,
       dailyRatings,

@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle } from 'lucide-react';
+import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle, Umbrella } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function PayrollPage() {
-  const { staff, attendance, payroll, setPayroll } = useData();
+  const { staff, attendance, payroll, setPayroll, holidays } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
@@ -25,6 +25,9 @@ export function PayrollPage() {
   };
 
   const monthlyPayroll = useMemo(() => {
+    // Count holidays in the selected month
+    const holidaysInMonth = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
+
     return staff.map(emp => {
       const record = payroll.find(p => p.staffId === emp.id && p.month === selectedMonth);
       
@@ -43,9 +46,10 @@ export function PayrollPage() {
         if (r.status === 'Leave') daysLeave++;
       });
 
-      // Default calculation logic
+      // Working days = total calendar days minus holidays (holidays are paid days off)
       const daysInMonth = getDaysInMonth(selectedMonth);
-      const perDaySalary = emp.baseSalary / daysInMonth;
+      const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
+      const perDaySalary = emp.baseSalary / workingDays;
       
       // Deduct full pay for Absent, half pay for Half Day. Leaves are considered paid.
       const calculatedDeductions = Math.round((daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)));
@@ -58,14 +62,17 @@ export function PayrollPage() {
         deductions: record?.deductions ?? calculatedDeductions,
         netPay: record?.netPay ?? calculatedNet,
         status: record?.status || 'Pending',
-        stats: { daysPresent, daysAbsent, daysHalf, daysLeave }
+        stats: { daysPresent, daysAbsent, daysHalf, daysLeave },
+        workingDays,
+        holidaysInMonth,
+        daysInMonth,
       };
     }).filter(emp => {
       const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'All' || emp.status === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [staff, attendance, payroll, selectedMonth, searchTerm, filterStatus]);
+  }, [staff, attendance, payroll, holidays, selectedMonth, searchTerm, filterStatus]);
 
   const updatePayroll = (staffId: string, updates: any) => {
     setPayroll(prev => {
@@ -136,6 +143,17 @@ export function PayrollPage() {
               className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 w-32"
             />
           </div>
+
+          {/* Holiday badge */}
+          {(() => {
+            const count = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
+            return count > 0 ? (
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-xl text-xs font-bold">
+                <Umbrella className="w-3.5 h-3.5" />
+                {count} Holiday{count > 1 ? 's' : ''}
+              </div>
+            ) : null;
+          })()}
           
           <button 
             onClick={markAllPaid}
@@ -342,6 +360,21 @@ export function PayrollPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Working Days Breakdown */}
+              {selectedPayslip.workingDays !== undefined && (
+                <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-100 flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 text-amber-700 font-semibold">
+                    <Umbrella className="w-4 h-4" />
+                    Working Days Basis
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-bold">
+                    <span className="text-gray-500">{selectedPayslip.daysInMonth} total</span>
+                    <span className="text-amber-600">- {selectedPayslip.holidaysInMonth} holidays</span>
+                    <span className="text-gray-800 bg-white px-2 py-0.5 rounded-md border border-gray-200">= {selectedPayslip.workingDays} working</span>
+                  </div>
+                </div>
+              )}
               
               {/* Attendance Summary */}
               <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">

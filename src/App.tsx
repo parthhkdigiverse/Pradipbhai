@@ -21,6 +21,7 @@ import { ProfilePage } from './components/ProfilePage';
 import { DailyProgressPage } from './components/DailyProgressPage';
 import { PermissionsPage } from './components/PermissionsPage';
 import { RestrictionsPage } from './components/RestrictionsPage';
+import { HolidaysPage } from './components/HolidaysPage';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider } from './context/DataContext';
@@ -75,6 +76,7 @@ function App() {
             {currentPage === 'settings' && <SettingsPage />}
             {currentPage === 'permissions' && <PermissionsPage />}
             {currentPage === 'restrictions' && <RestrictionsPage />}
+            {currentPage === 'holidays' && <HolidaysPage />}
             {currentPage === 'profile' && <ProfilePage />}
           </DashboardLayout>
         </DataProvider>
