@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, setWorkLogs, currentUserRole, setCurrentUserRole } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, setWorkLogs, currentUserRole, setCurrentUserRole, staff, setAttendance } = useData();
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -48,13 +48,63 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       setWorkLogs(prev => [...prev, {
         id: Math.random().toString(36).substr(2, 9),
         date: new Date().toISOString().split('T')[0],
-        userName: 'John Doe',
+        userName: 'Alice Smith',
         jobId: finalJobId,
         jobTitle: finalJobTitle,
         startTime: punchInTime || endTime,
         endTime,
         duration
       }]);
+
+      // Auto-record Attendance Check-Out & Punch Session
+      const todayStr = new Date().toISOString().split('T')[0];
+      const checkOutStr = new Date(endTime).toTimeString().slice(0, 5); // "HH:MM"
+      const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
+      const loggedStaffId = staff[0]?.id || '1'; // Currently logged in user (Alice Smith)
+
+      const newPunchSession = {
+        in: checkInStr,
+        out: checkOutStr
+      };
+
+      setAttendance(prev => {
+        const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          const existingRecord = updated[existingIdx];
+          const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
+          
+          // If the last punch in existingPunches has no 'out', update it
+          let newPunches = [...existingPunches];
+          if (newPunches.length > 0 && !newPunches[newPunches.length - 1].out) {
+            newPunches[newPunches.length - 1] = {
+              ...newPunches[newPunches.length - 1],
+              out: checkOutStr
+            };
+          } else {
+            newPunches.push(newPunchSession);
+          }
+
+          updated[existingIdx] = {
+            ...existingRecord,
+            status: 'Present',
+            checkIn: existingRecord.checkIn || checkInStr,
+            checkOut: checkOutStr,
+            punches: newPunches
+          };
+          return updated;
+        } else {
+          return [...prev, {
+            id: Math.random().toString(36).substr(2, 9),
+            staffId: loggedStaffId,
+            date: todayStr,
+            status: 'Present',
+            checkIn: checkInStr,
+            checkOut: checkOutStr,
+            punches: [newPunchSession]
+          }];
+        }
+      });
 
       setPunchInTime(null);
     } else {
@@ -72,6 +122,38 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setJobs(prev => prev.map(j => j.id === selectedJobId ? { ...j, status: 'Progress' } : j));
     setShowJobModal(false);
     setSelectedJobId('');
+
+    // Auto-record Attendance Check-In & Punch Session
+    const todayStr = new Date(now).toISOString().split('T')[0];
+    const checkInStr = new Date(now).toTimeString().slice(0, 5); // "HH:MM"
+    const loggedStaffId = staff[0]?.id || '1'; // Currently logged in user (Alice Smith)
+
+    setAttendance(prev => {
+      const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        const existingRecord = updated[existingIdx];
+        const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
+        
+        updated[existingIdx] = {
+          ...existingRecord,
+          status: 'Present',
+          checkIn: existingRecord.checkIn || checkInStr,
+          punches: [...existingPunches, { in: checkInStr, out: '' }]
+        };
+        return updated;
+      } else {
+        return [...prev, {
+          id: Math.random().toString(36).substr(2, 9),
+          staffId: loggedStaffId,
+          date: todayStr,
+          status: 'Present',
+          checkIn: checkInStr,
+          checkOut: '',
+          punches: [{ in: checkInStr, out: '' }]
+        }];
+      }
+    });
   };
 
   const handleStopTracker = () => {

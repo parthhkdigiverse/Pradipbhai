@@ -267,9 +267,67 @@ const initialStaff = [
 ];
 
 const initialAttendance = [
-  { id: '1', staffId: '1', date: '2026-09-01', status: 'Present', checkIn: '09:00', checkOut: '18:00' },
-  { id: '2', staffId: '2', date: '2026-09-01', status: 'Present', checkIn: '09:15', checkOut: '18:30' },
-  { id: '3', staffId: '3', date: '2026-09-01', status: 'Leave', checkIn: '', checkOut: '' },
+  { 
+    id: '1', 
+    staffId: '1', 
+    date: '2026-09-01', 
+    status: 'Present', 
+    checkIn: '09:00', 
+    checkOut: '18:15',
+    punches: [
+      { in: '09:00', out: '13:00' },
+      { in: '14:00', out: '16:30' },
+      { in: '17:00', out: '18:15' }
+    ]
+  },
+  { 
+    id: '2', 
+    staffId: '2', 
+    date: '2026-09-01', 
+    status: 'Present', 
+    checkIn: '09:15', 
+    checkOut: '18:30',
+    punches: [
+      { in: '09:15', out: '13:15' },
+      { in: '14:15', out: '18:30' }
+    ]
+  },
+  { id: '3', staffId: '3', date: '2026-09-01', status: 'Leave', checkIn: '', checkOut: '', punches: [] },
+
+  { 
+    id: '4', 
+    staffId: '1', 
+    date: '2026-09-14', 
+    status: 'Present', 
+    checkIn: '09:00', 
+    checkOut: '18:00',
+    punches: [
+      { in: '09:00', out: '12:45' },
+      { in: '13:45', out: '18:00' }
+    ]
+  },
+  { 
+    id: '5', 
+    staffId: '2', 
+    date: '2026-09-14', 
+    status: 'Present', 
+    checkIn: '09:05', 
+    checkOut: '18:15',
+    punches: [
+      { in: '09:05', out: '13:00' },
+      { in: '14:00', out: '16:00' },
+      { in: '16:30', out: '18:15' }
+    ]
+  },
+  { id: '6', staffId: '3', date: '2026-09-14', status: 'Present', checkIn: '09:30', checkOut: '18:00', punches: [{ in: '09:30', out: '18:00' }] },
+
+  { id: '7', staffId: '1', date: '2026-09-13', status: 'Half Day', checkIn: '09:00', checkOut: '13:30', punches: [{ in: '09:00', out: '13:30' }] },
+  { id: '8', staffId: '2', date: '2026-09-13', status: 'Present', checkIn: '09:10', checkOut: '18:20', punches: [{ in: '09:10', out: '13:00' }, { in: '14:00', out: '18:20' }] },
+  { id: '9', staffId: '3', date: '2026-09-13', status: 'Absent', checkIn: '', checkOut: '', punches: [] },
+
+  { id: '10', staffId: '1', date: '2026-09-12', status: 'Present', checkIn: '09:00', checkOut: '18:00', punches: [{ in: '09:00', out: '13:00' }, { in: '14:00', out: '18:00' }] },
+  { id: '11', staffId: '2', date: '2026-09-12', status: 'Leave', checkIn: '', checkOut: '', punches: [] },
+  { id: '12', staffId: '3', date: '2026-09-12', status: 'Present', checkIn: '09:20', checkOut: '18:00', punches: [{ in: '09:20', out: '18:00' }] },
 ];
 
 const initialPayroll = [
