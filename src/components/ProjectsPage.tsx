@@ -37,37 +37,35 @@ export function ProjectsPage() {
     deadline: ''
   });
 
-  // Extract non-social media projects with live job financials
+  // Extract all projects with live job financials
   const allProjects = useMemo(() => {
     const projects: any[] = [];
     clients.forEach(client => {
       if (client.projects && client.projects.length > 0) {
         client.projects.forEach((proj: any, idx: number) => {
-          if (proj.category !== 'Social Media') {
-            // Aggregate financials from all linked jobs
-            const linkedJobs = jobs.filter(
-              (j: any) => j.clientId === client.id && j.projectId === proj.name
-            );
-            const totalBilled = linkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
-            const totalPaid   = linkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
-            const jobCount    = linkedJobs.length;
-            const doneCount   = linkedJobs.filter((j: any) => j.status === 'Done').length;
-            projects.push({
-              ...proj,
-              clientId: client.id,
-              clientName: client.company,
-              clientContact: client.contact,
-              clientEmail: client.email,
-              clientPhone: client.phone,
-              originalProjectIndex: idx,
-              // live financials
-              totalBilled,
-              totalPaid,
-              balance: totalBilled - totalPaid,
-              jobCount,
-              doneCount
-            });
-          }
+          // Aggregate financials from all linked jobs
+          const linkedJobs = jobs.filter(
+            (j: any) => j.clientId === client.id && j.projectId === proj.name
+          );
+          const totalBilled = linkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
+          const totalPaid   = linkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
+          const jobCount    = linkedJobs.length;
+          const doneCount   = linkedJobs.filter((j: any) => j.status === 'Done').length;
+          projects.push({
+            ...proj,
+            clientId: client.id,
+            clientName: client.company,
+            clientContact: client.contact,
+            clientEmail: client.email,
+            clientPhone: client.phone,
+            originalProjectIndex: idx,
+            // live financials
+            totalBilled,
+            totalPaid,
+            balance: totalBilled - totalPaid,
+            jobCount,
+            doneCount
+          });
         });
       }
     });
@@ -225,7 +223,8 @@ export function ProjectsPage() {
                 { value: 'All', label: 'All Categories' },
                 { value: 'Designing', label: 'Designing' },
                 { value: 'Printing', label: 'Printing' },
-                { value: 'Des+Print', label: 'Des+Print' }
+                { value: 'Des+Print', label: 'Des+Print' },
+                { value: 'Social Media', label: 'Social Media' }
               ]}
             />
           </div>
@@ -282,6 +281,7 @@ export function ProjectsPage() {
                       <span className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
                         proj.category === 'Designing' ? 'bg-emerald-100 text-emerald-700' :
                         proj.category === 'Des+Print' ? 'bg-purple-100 text-purple-700' :
+                        proj.category === 'Social Media' ? 'bg-pink-100 text-pink-700' :
                         'bg-primary/10 text-primary'
                       }`}>{proj.category}</span>
                     </td>
@@ -410,7 +410,8 @@ export function ProjectsPage() {
                     options={[
                       { value: 'Designing', label: 'Designing' },
                       { value: 'Printing', label: 'Printing' },
-                      { value: 'Des+Print', label: 'Des+Print' }
+                      { value: 'Des+Print', label: 'Des+Print' },
+                      { value: 'Social Media', label: 'Social Media' }
                     ]}
                   />
                 </div>

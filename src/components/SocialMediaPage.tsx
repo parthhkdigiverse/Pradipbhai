@@ -7,7 +7,29 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function SocialMediaPage() {
   const { dateFormat } = useSettings();
-  const { clients, updateProject } = useData();
+  const { clients, updateProject, addProject } = useData();
+  
+  // Add SM Project Modal State
+  const [isAddProjectModalOpen, setIsAddProjectModalOpen] = useState(false);
+  const [selectedClientIdForSM, setSelectedClientIdForSM] = useState('');
+  const [newProjectForm, setNewProjectForm] = useState({
+    name: '',
+    status: 'Active',
+    budget: '',
+    deadline: ''
+  });
+
+  const handleSaveNewProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClientIdForSM || !newProjectForm.name.trim()) return;
+    addProject(selectedClientIdForSM, {
+      ...newProjectForm,
+      category: 'Social Media'
+    });
+    setIsAddProjectModalOpen(false);
+    setNewProjectForm({ name: '', status: 'Active', budget: '', deadline: '' });
+    setSelectedClientIdForSM('');
+  };
   
   // Extract Social Media projects
   const smProjects = useMemo(() => {
@@ -261,6 +283,16 @@ export function SocialMediaPage() {
                 Clear Filters
               </button>
           )}
+          <button
+            onClick={() => {
+              setSelectedClientIdForSM(clients[0]?.id || '');
+              setIsAddProjectModalOpen(true);
+            }}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg transition-all hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Social Media Project
+          </button>
         </div>
       </div>
 
@@ -636,6 +668,87 @@ export function SocialMediaPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Social Media Project Modal */}
+      {isAddProjectModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsAddProjectModalOpen(false)}></div>
+          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-primary" /> Add Social Media Project
+              </h2>
+              <button onClick={() => setIsAddProjectModalOpen(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewProject} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Client <span className="text-rose-500">*</span></label>
+                <SearchableSelect
+                  value={selectedClientIdForSM}
+                  onChange={setSelectedClientIdForSM}
+                  options={clients.map(c => ({ value: c.id, label: c.company }))}
+                  placeholder="Select client..."
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>
+                <input
+                  required
+                  type="text"
+                  value={newProjectForm.name}
+                  onChange={e => setNewProjectForm({ ...newProjectForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                  placeholder="e.g. Instagram Q4 Campaign"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
+                  <select
+                    value={newProjectForm.status}
+                    onChange={e => setNewProjectForm({ ...newProjectForm, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Planning">Planning</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Monthly Budget (₹)</label>
+                  <input
+                    type="number"
+                    value={newProjectForm.budget}
+                    onChange={e => setNewProjectForm({ ...newProjectForm, budget: e.target.value })}
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                    placeholder="e.g. 15000"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Contract End / Deadline</label>
+                <input
+                  type="date"
+                  value={newProjectForm.deadline}
+                  onChange={e => setNewProjectForm({ ...newProjectForm, deadline: e.target.value })}
+                  className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/40">
+                <button type="button" onClick={() => setIsAddProjectModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button type="submit" className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-all">
+                  Create Project
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

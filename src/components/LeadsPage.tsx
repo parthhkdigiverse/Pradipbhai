@@ -2,12 +2,14 @@ import { useState, useMemo, useEffect, Fragment } from 'react';
 import { 
   Users, Target, Search, MoreHorizontal, Phone, Mail,
   Calendar, Plus, Flame, IndianRupee, TrendingUp, Edit, X, Trash2, Check,
-  ChevronDown, ChevronUp, Clock, History, FilterX
+  ChevronDown, ChevronUp, Clock, History, FilterX, Settings2, Tag
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
+
+const DEFAULT_CATEGORIES = ['Hot Lead', 'Warm Lead', 'Cold Lead'];
 
 export function LeadsPage() {
   const { dateFormat } = useSettings();
@@ -20,7 +22,38 @@ export function LeadsPage() {
   const [filterPriority, setFilterPriority] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterHot, setFilterHot] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Dynamic Lead Categories
+  const [leadCategories, setLeadCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('app_lead_categories');
+      return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+    } catch { return DEFAULT_CATEGORIES; }
+  });
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('app_lead_categories', JSON.stringify(leadCategories));
+  }, [leadCategories]);
+
+  const handleAddCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed || leadCategories.includes(trimmed)) return;
+    setLeadCategories(prev => [...prev, trimmed]);
+    setNewCategoryInput('');
+  };
+
+  const handleDeleteCategory = (cat: string) => {
+    const usedByLeads = leads.some(l => l.category === cat);
+    if (usedByLeads) {
+      alert(`⚠️ Cannot delete "${cat}" — ${leads.filter(l => l.category === cat).length} lead(s) are assigned to this category. Reassign them first.`);
+      return;
+    }
+    setLeadCategories(prev => prev.filter(c => c !== cat));
+  };
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -30,9 +63,9 @@ export function LeadsPage() {
     setFilterPriority('All');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setFilterHot(false);
   };
 
-  
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
@@ -215,9 +248,14 @@ export function LeadsPage() {
   };
 
   // Filtering Logic
+  const hotLeadsCount = useMemo(() => leads.filter(l => l.isHot).length, [leads]);
+
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      // 1. Search Filter
+      // 1. Hot filter
+      if (filterHot && !lead.isHot) return false;
+
+      // 2. Search Filter
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
         lead.company.toLowerCase().includes(searchLower) ||
@@ -232,7 +270,7 @@ export function LeadsPage() {
 
       if (!matchesSearch) return false;
 
-      // 2. Master Filters
+      // 3. Master Filters
       if (filterStatus !== 'All' && lead.status !== filterStatus) return false;
       if (filterCategory !== 'All' && lead.category !== filterCategory) return false;
       if (filterSource !== 'All' && lead.source !== filterSource) return false;
@@ -243,7 +281,7 @@ export function LeadsPage() {
 
       return true;
     });
-  }, [leads, searchTerm, filterStatus, filterCategory, filterSource, filterPriority, filterDateFrom, filterDateTo]);
+  }, [leads, searchTerm, filterStatus, filterCategory, filterSource, filterPriority, filterDateFrom, filterDateTo, filterHot]);
 
   const groupedLeads = useMemo(() => {
     const groups: Record<string, any[]> = {};
@@ -251,15 +289,13 @@ export function LeadsPage() {
       if (!groups[lead.category]) groups[lead.category] = [];
       groups[lead.category].push(lead);
     });
-    
-    // Custom sort order
-    const order = ['Hot Lead', 'Warm Lead', 'Cold Lead'];
+    // Sort by user-defined category order
     return Object.entries(groups).sort((a, b) => {
-       const idxA = order.indexOf(a[0]);
-       const idxB = order.indexOf(b[0]);
+       const idxA = leadCategories.indexOf(a[0]);
+       const idxB = leadCategories.indexOf(b[0]);
        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
-  }, [filteredLeads]);
+  }, [filteredLeads, leadCategories]);
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => ({ ...prev, [category]: prev[category] === false ? true : false }));
@@ -325,6 +361,17 @@ export function LeadsPage() {
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Sales Management</h1>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowCategoryManager(m => !m)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all hover:-translate-y-0.5 flex items-center gap-2 ${
+              showCategoryManager
+                ? 'bg-primary/10 text-primary border-primary/30'
+                : 'bg-white/60 text-gray-600 border-white/60 hover:bg-white/80'
+            }`}
+          >
+            <Settings2 className="w-4 h-4" />
+            Manage Categories
+          </button>
           <button 
             onClick={() => handleOpenModal()}
             className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
@@ -334,6 +381,61 @@ export function LeadsPage() {
           </button>
         </div>
       </div>
+
+      {/* Category Manager Panel */}
+      {showCategoryManager && (
+        <div className="glass-panel border border-white/60 rounded-2xl p-5 mb-6 bg-white/50 backdrop-blur-md shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 mb-4">
+            <Tag className="w-4 h-4 text-primary" />
+            <h3 className="font-bold text-gray-800 text-sm">Lead Categories</h3>
+            <span className="text-xs text-gray-400 ml-1">— Add or remove categories for grouping leads</span>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {leadCategories.map(cat => {
+              const count = leads.filter(l => l.category === cat).length;
+              return (
+                <div
+                  key={cat}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-full text-sm font-semibold text-gray-700 shadow-sm"
+                >
+                  <span>{cat}</span>
+                  <span className="text-[10px] text-gray-400 font-normal">({count})</span>
+                  <button
+                    onClick={() => handleDeleteCategory(cat)}
+                    className="ml-1 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                    title={`Delete "${cat}" category`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+            {leadCategories.length === 0 && (
+              <span className="text-sm text-gray-400 italic">No categories yet. Add one below.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 max-w-sm">
+            <input
+              type="text"
+              value={newCategoryInput}
+              onChange={e => setNewCategoryInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+              placeholder="e.g. VIP Lead, Partner..."
+              className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+            />
+            <button
+              onClick={handleAddCategory}
+              disabled={!newCategoryInput.trim() || leadCategories.includes(newCategoryInput.trim())}
+              className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90 transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" /> Add
+            </button>
+          </div>
+          {newCategoryInput.trim() && leadCategories.includes(newCategoryInput.trim()) && (
+            <p className="text-xs text-rose-500 mt-1.5 font-semibold">This category already exists.</p>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {dynamicStats.map((stat, i) => (
@@ -360,8 +462,24 @@ export function LeadsPage() {
               <FilterX className="w-4 h-4 text-gray-500" />
               Filter Leads
             </h3>
-            <div className="flex items-center gap-4">
-              {(searchTerm !== '' || filterStatus !== 'All' || filterCategory !== 'All' || filterSource !== 'All' || filterPriority !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+            <div className="flex items-center gap-3">
+              {/* 🔥 Hot Leads Quick Toggle */}
+              <button
+                onClick={e => { e.stopPropagation(); setFilterHot(h => !h); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                  filterHot
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-200'
+                    : 'bg-orange-50 text-orange-500 border-orange-200 hover:bg-orange-100'
+                }`}
+                title="Show only Hot Leads"
+              >
+                <Flame className={`w-3.5 h-3.5 ${filterHot ? 'fill-white' : 'fill-orange-400'}`} />
+                Hot Leads
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  filterHot ? 'bg-white/30 text-white' : 'bg-orange-100 text-orange-600'
+                }`}>{hotLeadsCount}</span>
+              </button>
+              {(searchTerm !== '' || filterStatus !== 'All' || filterCategory !== 'All' || filterSource !== 'All' || filterPriority !== 'All' || filterDateFrom !== '' || filterDateTo !== '' || filterHot) && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                   className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
@@ -399,9 +517,7 @@ export function LeadsPage() {
                     onChange={setFilterCategory}
                     options={[
                       { value: 'All', label: 'All Categories' },
-                      { value: 'Hot Lead', label: 'Hot Lead' },
-                      { value: 'Warm Lead', label: 'Warm Lead' },
-                      { value: 'Cold Lead', label: 'Cold Lead' }
+                      ...leadCategories.map(c => ({ value: c, label: c }))
                     ]}
                   />
                 </div>
@@ -752,11 +868,7 @@ export function LeadsPage() {
                   <SearchableSelect
                     value={formData.category}
                     onChange={val => setFormData({...formData, category: val})}
-                    options={[
-                      { value: 'Hot Lead', label: 'Hot Lead' },
-                      { value: 'Warm Lead', label: 'Warm Lead' },
-                      { value: 'Cold Lead', label: 'Cold Lead' }
-                    ]}
+                    options={leadCategories.map(c => ({ value: c, label: c }))}
                   />
                 </div>
                 <div className="space-y-1 col-span-2">
