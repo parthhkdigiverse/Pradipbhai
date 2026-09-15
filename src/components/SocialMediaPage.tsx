@@ -3,6 +3,7 @@ import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Searc
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
+import { SearchableSelect } from './SearchableSelect';
 
 export function SocialMediaPage() {
   const { dateFormat } = useSettings();
@@ -46,7 +47,11 @@ export function SocialMediaPage() {
   
   const filteredProjects = useMemo(() => {
     return smProjects.filter(p => {
-      const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.clientName.toLowerCase().includes(searchTerm.toLowerCase());
+      const sLower = searchTerm.toLowerCase();
+      const matchSearch = p.name.toLowerCase().includes(sLower) || 
+                          p.clientName.toLowerCase().includes(sLower) ||
+                          (p.category && p.category.toLowerCase().includes(sLower)) ||
+                          (p.status && p.status.toLowerCase().includes(sLower));
       const matchClient = filterClient === 'All' || p.clientName === filterClient;
       return matchSearch && matchClient;
     });
@@ -273,12 +278,14 @@ export function SocialMediaPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
-                <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Clients</option>
-                  {uniqueClients.map(client => (
-                    <option key={client} value={client}>{client}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={filterClient}
+                  onChange={setFilterClient}
+                  options={[
+                    { value: 'All', label: 'All Clients' },
+                    ...uniqueClients.map(c => ({ value: c, label: c }))
+                  ]}
+                />
               </div>
             </div>
             <div className="mt-3 relative">

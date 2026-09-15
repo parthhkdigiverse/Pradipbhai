@@ -7,6 +7,7 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
+import { SearchableSelect } from './SearchableSelect';
 
 export function LeadsPage() {
   const { dateFormat } = useSettings();
@@ -222,7 +223,12 @@ export function LeadsPage() {
         lead.company.toLowerCase().includes(searchLower) ||
         lead.contact.toLowerCase().includes(searchLower) ||
         lead.email.toLowerCase().includes(searchLower) ||
-        lead.phone.toLowerCase().includes(searchLower);
+        lead.phone.toLowerCase().includes(searchLower) ||
+        (lead.source && lead.source.toLowerCase().includes(searchLower)) ||
+        (lead.category && lead.category.toLowerCase().includes(searchLower)) ||
+        (lead.status && lead.status.toLowerCase().includes(searchLower)) ||
+        (lead.priority && lead.priority.toLowerCase().includes(searchLower)) ||
+        (lead.expectedIncome && lead.expectedIncome.toString().includes(searchLower));
 
       if (!matchesSearch) return false;
 
@@ -372,43 +378,59 @@ export function LeadsPage() {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="All">All Status</option>
-                    <option value="Lead">Lead</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Proposal Sent">Proposal Sent</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Client Won">Client Won</option>
-                    <option value="Client Lost">Client Lost</option>
-                  </select>
+                  <SearchableSelect
+                    value={filterStatus}
+                    onChange={setFilterStatus}
+                    options={[
+                      { value: 'All', label: 'All Status' },
+                      { value: 'Lead', label: 'Lead' },
+                      { value: 'Contacted', label: 'Contacted' },
+                      { value: 'Proposal Sent', label: 'Proposal Sent' },
+                      { value: 'On Hold', label: 'On Hold' },
+                      { value: 'Client Won', label: 'Client Won' },
+                      { value: 'Client Lost', label: 'Client Lost' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
-                  <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="All">All Categories</option>
-                    <option value="Hot Lead">Hot Lead</option>
-                    <option value="Warm Lead">Warm Lead</option>
-                    <option value="Cold Lead">Cold Lead</option>
-                  </select>
+                  <SearchableSelect
+                    value={filterCategory}
+                    onChange={setFilterCategory}
+                    options={[
+                      { value: 'All', label: 'All Categories' },
+                      { value: 'Hot Lead', label: 'Hot Lead' },
+                      { value: 'Warm Lead', label: 'Warm Lead' },
+                      { value: 'Cold Lead', label: 'Cold Lead' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Source</label>
-                  <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="All">All Sources</option>
-                    <option value="Website">Website</option>
-                    <option value="Referral">Referral</option>
-                    <option value="Cold Call">Cold Call</option>
-                    <option value="Event">Event</option>
-                  </select>
+                  <SearchableSelect
+                    value={filterSource}
+                    onChange={setFilterSource}
+                    options={[
+                      { value: 'All', label: 'All Sources' },
+                      { value: 'Website', label: 'Website' },
+                      { value: 'Referral', label: 'Referral' },
+                      { value: 'Cold Call', label: 'Cold Call' },
+                      { value: 'Event', label: 'Event' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
-                  <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="All">All Priorities</option>
-                    <option value="High">High</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Low">Low</option>
-                  </select>
+                  <SearchableSelect
+                    value={filterPriority}
+                    onChange={setFilterPriority}
+                    options={[
+                      { value: 'All', label: 'All Priorities' },
+                      { value: 'High', label: 'High' },
+                      { value: 'Medium', label: 'Medium' },
+                      { value: 'Low', label: 'Low' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date From</label>

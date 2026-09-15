@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { numberToWords } from '../utils/numberToWords';
+import { SearchableSelect } from './SearchableSelect';
 
 export function InvoicesPage() {
   const { invoices, setInvoices, clients, jobs, activeFilterIntent, setActiveFilterIntent } = useData();
@@ -54,7 +55,14 @@ export function InvoicesPage() {
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter(inv => {
-      const matchSearch = inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      const sLower = searchTerm.toLowerCase();
+      const clientName = clients.find(c => c.id === inv.clientId)?.company || '';
+      const matchSearch = inv.invoiceNumber.toLowerCase().includes(sLower) ||
+                          inv.status.toLowerCase().includes(sLower) ||
+                          clientName.toLowerCase().includes(sLower) ||
+                          (inv.total && inv.total.toString().includes(sLower)) ||
+                          (inv.issueDate && inv.issueDate.includes(sLower)) ||
+                          (inv.dueDate && inv.dueDate.includes(sLower));
       const matchStatus = filterStatus === 'All' || inv.status === filterStatus;
       const matchClient = filterClient === 'All' || inv.clientId === filterClient;
       
@@ -226,20 +234,28 @@ export function InvoicesPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Status</option>
-              <option value="Draft">Draft</option>
-              <option value="Sent">Sent</option>
-              <option value="Paid">Paid</option>
-              <option value="Overdue">Overdue</option>
-            </select>
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Status' },
+                { value: 'Draft', label: 'Draft' },
+                { value: 'Sent', label: 'Sent' },
+                { value: 'Paid', label: 'Paid' },
+                { value: 'Overdue', label: 'Overdue' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
-            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Clients</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-            </select>
+            <SearchableSelect
+              value={filterClient}
+              onChange={setFilterClient}
+              options={[
+                { value: 'All', label: 'All Clients' },
+                ...clients.map(c => ({ value: c.id, label: c.company }))
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Issue Date From</label>

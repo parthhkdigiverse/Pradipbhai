@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function CatalogPage() {
   const { products, setProducts } = useData();
@@ -25,7 +26,10 @@ export function CatalogPage() {
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const sLower = searchTerm.toLowerCase();
+      const matchSearch = p.name.toLowerCase().includes(sLower) || 
+                          p.description.toLowerCase().includes(sLower) ||
+                          (p.type && p.type.toLowerCase().includes(sLower));
       const matchType = filterType === 'All' || p.type === filterType;
       return matchSearch && matchType;
     });
@@ -126,11 +130,15 @@ export function CatalogPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Types</option>
-              <option value="Printing">Printing</option>
-              <option value="Designing">Designing</option>
-            </select>
+            <SearchableSelect
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: 'All', label: 'All Types' },
+                { value: 'Printing', label: 'Printing' },
+                { value: 'Designing', label: 'Designing' }
+              ]}
+            />
           </div>
         </div>
         

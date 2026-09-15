@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Calendar, Search, CheckCircle, Check, X, FilterX , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function AttendancePage() {
   const { staff, attendance, setAttendance } = useData();
@@ -128,14 +129,18 @@ export function AttendancePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Status</option>
-              <option value="Unmarked">Unmarked</option>
-              <option value="Present">Present</option>
-              <option value="Absent">Absent</option>
-              <option value="Half Day">Half Day</option>
-              <option value="Leave">Leave</option>
-            </select>
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Status' },
+                { value: 'Unmarked', label: 'Unmarked' },
+                { value: 'Present', label: 'Present' },
+                { value: 'Absent', label: 'Absent' },
+                { value: 'Half Day', label: 'Half Day' },
+                { value: 'Leave', label: 'Leave' }
+              ]}
+            />
           </div>
         </div>
         

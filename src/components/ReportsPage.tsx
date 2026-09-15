@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function ReportsPage() {
   const { clients, jobs, staff, products, vendors } = useData();
@@ -270,51 +271,75 @@ export function ReportsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                    <select value={jobFilterStatus} onChange={(e) => setJobFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Progress">Progress</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancel">Cancel</option>
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterStatus}
+                      onChange={setJobFilterStatus}
+                      options={[
+                        { value: 'All', label: 'All' },
+                        { value: 'Pending', label: 'Pending' },
+                        { value: 'Progress', label: 'Progress' },
+                        { value: 'Completed', label: 'Completed' },
+                        { value: 'Cancel', label: 'Cancel' }
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
-                    <select value={jobFilterClient} onChange={(e) => setJobFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All Clients</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterClient}
+                      onChange={setJobFilterClient}
+                      options={[
+                        { value: 'All', label: 'All Clients' },
+                        ...clients.map(c => ({ value: c.id, label: c.company }))
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
-                    <select value={jobFilterStaff} onChange={(e) => setJobFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All Staffs</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterStaff}
+                      onChange={setJobFilterStaff}
+                      options={[
+                        { value: 'All', label: 'All Staffs' },
+                        ...staff.map(s => ({ value: s.id, label: s.name }))
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
-                    <select value={jobFilterProduct} onChange={(e) => setJobFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All Products</option>
-                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterProduct}
+                      onChange={setJobFilterProduct}
+                      options={[
+                        { value: 'All', label: 'All Products' },
+                        ...products.map(p => ({ value: p.id, label: p.name }))
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-                    <select value={jobFilterBilling} onChange={(e) => setJobFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Unpaid">Unpaid</option>
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterBilling}
+                      onChange={setJobFilterBilling}
+                      options={[
+                        { value: 'All', label: 'All' },
+                        { value: 'Paid', label: 'Paid' },
+                        { value: 'Unpaid', label: 'Unpaid' }
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
-                    <select value={jobFilterType} onChange={(e) => setJobFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="All">All Types</option>
-                      <option value="Designing">Designing</option>
-                      <option value="Printing">Printing</option>
-                      <option value="Des+Print">Des+Print</option>
-                    </select>
+                    <SearchableSelect
+                      value={jobFilterType}
+                      onChange={setJobFilterType}
+                      options={[
+                        { value: 'All', label: 'All Types' },
+                        { value: 'Designing', label: 'Designing' },
+                        { value: 'Printing', label: 'Printing' },
+                        { value: 'Des+Print', label: 'Des+Print' }
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="mt-3 relative">

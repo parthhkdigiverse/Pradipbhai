@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle, Umbrella, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function PayrollPage() {
   const { staff, attendance, payroll, setPayroll, holidays } = useData();
@@ -200,11 +201,15 @@ export function PayrollPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Status</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Paid">Paid</option>
-                </select>
+                <SearchableSelect
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  options={[
+                    { value: 'All', label: 'All Status' },
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Paid', label: 'Paid' }
+                  ]}
+                />
               </div>
             </div>
             <div className="mt-3 relative">

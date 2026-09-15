@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX, Shield , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 const MODULES = [
   'Dashboard', 'Leads', 'Clients', 'Projects', 'Social Media', 'Chat', 'Catalog',
@@ -182,19 +183,27 @@ export function StaffPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="On Leave">On Leave</option>
-            </select>
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Status' },
+                { value: 'Active', label: 'Active' },
+                { value: 'Inactive', label: 'Inactive' },
+                { value: 'On Leave', label: 'On Leave' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Role</label>
-            <select value={filterRole} onChange={(e) => setFilterRole(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Roles</option>
-              {uniqueRoles.map(r => <option key={r} value={r}>{r}</option>)}
-            </select>
+            <SearchableSelect
+              value={filterRole}
+              onChange={setFilterRole}
+              options={[
+                { value: 'All', label: 'All Roles' },
+                ...uniqueRoles.map(r => ({ value: r, label: r }))
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Join Date From</label>

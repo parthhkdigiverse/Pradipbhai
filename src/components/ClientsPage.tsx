@@ -22,6 +22,7 @@ import {
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
+import { SearchableSelect } from './SearchableSelect';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
@@ -247,7 +248,11 @@ export function ClientsPage() {
       const matchesSearch = 
         client.company.toLowerCase().includes(searchLower) ||
         client.contact.toLowerCase().includes(searchLower) ||
-        client.email.toLowerCase().includes(searchLower);
+        client.email.toLowerCase().includes(searchLower) ||
+        (client.phone && client.phone.toLowerCase().includes(searchLower)) ||
+        (client.status && client.status.toLowerCase().includes(searchLower)) ||
+        (client.trafficLight && client.trafficLight.toLowerCase().includes(searchLower)) ||
+        (client.clientSince && client.clientSince.includes(searchLower));
 
       if (!matchesSearch) return false;
       if (filterStatus !== 'All' && client.status !== filterStatus) return false;
@@ -379,12 +384,16 @@ export function ClientsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="All">All Status</option>
-                    <option value="Active">Active</option>
-                    <option value="Onboarding">Onboarding</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  <SearchableSelect
+                    value={filterStatus}
+                    onChange={setFilterStatus}
+                    options={[
+                      { value: 'All', label: 'All Status' },
+                      { value: 'Active', label: 'Active' },
+                      { value: 'Onboarding', label: 'Onboarding' },
+                      { value: 'Inactive', label: 'Inactive' }
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>

@@ -3,6 +3,7 @@ import { Search, Briefcase, IndianRupee, Edit, X, FilterX , ChevronDown } from '
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
+import { SearchableSelect } from './SearchableSelect';
 
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
@@ -65,7 +66,10 @@ export function ProjectsPage() {
       const matchesSearch = 
         proj.name.toLowerCase().includes(searchLower) ||
         proj.clientName.toLowerCase().includes(searchLower) ||
-        proj.clientContact.toLowerCase().includes(searchLower);
+        proj.clientContact.toLowerCase().includes(searchLower) ||
+        (proj.category && proj.category.toLowerCase().includes(searchLower)) ||
+        (proj.status && proj.status.toLowerCase().includes(searchLower)) ||
+        (proj.deadline && proj.deadline.includes(searchLower));
 
       if (!matchesSearch) return false;
       if (filterStatus !== 'All' && proj.status !== filterStatus) return false;
@@ -162,23 +166,31 @@ export function ProjectsPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Statuses</option>
-              <option value="Planning">Planning</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Active">Active</option>
-              <option value="On Hold">On Hold</option>
-              <option value="Completed">Completed</option>
-            </select>
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Statuses' },
+                { value: 'Planning', label: 'Planning' },
+                { value: 'In Progress', label: 'In Progress' },
+                { value: 'Active', label: 'Active' },
+                { value: 'On Hold', label: 'On Hold' },
+                { value: 'Completed', label: 'Completed' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Categories</option>
-              <option value="Designing">Designing</option>
-              <option value="Printing">Printing</option>
-              <option value="Des+Print">Des+Print</option>
-            </select>
+            <SearchableSelect
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: 'All', label: 'All Categories' },
+                { value: 'Designing', label: 'Designing' },
+                { value: 'Printing', label: 'Printing' },
+                { value: 'Des+Print', label: 'Des+Print' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Deadline From</label>

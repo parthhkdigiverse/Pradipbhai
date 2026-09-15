@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Search, Edit, X, Printer, Trash2, FilterX , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function VendorsPage() {
   const { vendors, setVendors } = useData();
@@ -23,7 +24,10 @@ export function VendorsPage() {
 
   const filteredVendors = useMemo(() => {
     return vendors.filter(v => {
-      const matchSearch = v.name.toLowerCase().includes(searchTerm.toLowerCase()) || v.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const sLower = searchTerm.toLowerCase();
+      const matchSearch = v.name.toLowerCase().includes(sLower) || 
+                          v.description.toLowerCase().includes(sLower) ||
+                          (v.category && v.category.toLowerCase().includes(sLower));
       const category = v.category || 'Printer';
       const matchCategory = filterCategory === 'All' || category === filterCategory;
       return matchSearch && matchCategory;
@@ -119,13 +123,17 @@ export function VendorsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
-            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Categories</option>
-              <option value="Printer">Printer</option>
-              <option value="Designer">Designer</option>
-              <option value="Supplier">Supplier</option>
-              <option value="Other">Other</option>
-            </select>
+            <SearchableSelect
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={[
+                { value: 'All', label: 'All Categories' },
+                { value: 'Printer', label: 'Printer' },
+                { value: 'Designer', label: 'Designer' },
+                { value: 'Supplier', label: 'Supplier' },
+                { value: 'Other', label: 'Other' }
+              ]}
+            />
           </div>
         </div>
         

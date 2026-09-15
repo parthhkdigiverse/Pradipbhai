@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
 
 export function JobsPage() {
   const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole } = useData();
@@ -54,8 +55,21 @@ export function JobsPage() {
 
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
-      const matchSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          job.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const sLower = searchTerm.toLowerCase();
+      const clientName = clients.find(c => c.id === job.clientId)?.company || '';
+      const staffName = staff.find(s => s.id === job.teamId)?.name || '';
+      const productName = products.find(p => p.id === job.productId)?.name || '';
+      const printerName = vendors.find(v => v.id === job.printerId)?.name || '';
+      const matchSearch = job.title.toLowerCase().includes(sLower) || 
+                          job.description.toLowerCase().includes(sLower) ||
+                          job.status.toLowerCase().includes(sLower) ||
+                          job.paymentStatus.toLowerCase().includes(sLower) ||
+                          (job.type && job.type.toLowerCase().includes(sLower)) ||
+                          clientName.toLowerCase().includes(sLower) ||
+                          staffName.toLowerCase().includes(sLower) ||
+                          productName.toLowerCase().includes(sLower) ||
+                          printerName.toLowerCase().includes(sLower) ||
+                          (job.totalAmount && job.totalAmount.toString().includes(sLower));
       const matchStatus = filterStatus === 'All' || job.status === filterStatus;
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
       const matchStaff = filterStaff === 'All' || job.teamId === filterStaff;
@@ -291,51 +305,75 @@ export function JobsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All</option>
-              <option value="Pending">Pending</option>
-              <option value="Progress">Progress</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancel">Cancel</option>
-            </select>
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All' },
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Progress', label: 'Progress' },
+                { value: 'Completed', label: 'Completed' },
+                { value: 'Cancel', label: 'Cancel' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
-            <select value={filterClient} onChange={(e) => setFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Clients</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-            </select>
+            <SearchableSelect
+              value={filterClient}
+              onChange={setFilterClient}
+              options={[
+                { value: 'All', label: 'All Clients' },
+                ...clients.map(c => ({ value: c.id, label: c.company }))
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
-            <select value={filterStaff} onChange={(e) => setFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Staffs</option>
-              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={filterStaff}
+              onChange={setFilterStaff}
+              options={[
+                { value: 'All', label: 'All Staffs' },
+                ...staff.map(s => ({ value: s.id, label: s.name }))
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
-            <select value={filterProduct} onChange={(e) => setFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Products</option>
-              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={filterProduct}
+              onChange={setFilterProduct}
+              options={[
+                { value: 'All', label: 'All Products' },
+                ...products.map(p => ({ value: p.id, label: p.name }))
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-            <select value={filterBilling} onChange={(e) => setFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All</option>
-              <option value="Paid">Paid</option>
-              <option value="Unpaid">Unpaid</option>
-            </select>
+            <SearchableSelect
+              value={filterBilling}
+              onChange={setFilterBilling}
+              options={[
+                { value: 'All', label: 'All' },
+                { value: 'Paid', label: 'Paid' },
+                { value: 'Unpaid', label: 'Unpaid' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-              <option value="All">All Types</option>
-              <option value="Designing">Designing</option>
-              <option value="Printing">Printing</option>
-              <option value="Des+Print">Des+Print</option>
-            </select>
+            <SearchableSelect
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: 'All', label: 'All Types' },
+                { value: 'Designing', label: 'Designing' },
+                { value: 'Printing', label: 'Printing' },
+                { value: 'Des+Print', label: 'Des+Print' }
+              ]}
+            />
           </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Due Date From</label>
