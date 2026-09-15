@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail , ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function JobsPage() {
   const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole } = useData();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
   const [filterStaff, setFilterStaff] = useState('All');
@@ -262,8 +263,8 @@ export function JobsPage() {
       </div>
 
       {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
+        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
             <FilterX className="w-4 h-4 text-gray-500" />
             Filter Jobs
@@ -275,16 +276,18 @@ export function JobsPage() {
             </div>
             {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterStaff !== 'All' || filterProduct !== 'All' || filterBilling !== 'All' || filterType !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
               <button 
-                onClick={resetFilters}
+                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                 className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 Clear Filters
               </button>
             )}
+          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
           </div>
-        </div>
-
+        </button>
+        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="px-4 pb-4">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
@@ -353,6 +356,8 @@ export function JobsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
           />
+        </div>
+          </div>
         </div>
       </div>
 

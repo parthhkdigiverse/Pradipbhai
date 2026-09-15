@@ -9,6 +9,29 @@ export interface Holiday {
   type: 'National' | 'Regional' | 'Company';
 }
 
+export interface LeaveRequest {
+  id: string;
+  staffId: string;
+  staffName: string;
+  type: 'Casual' | 'Sick' | 'Earned' | 'Unpaid';
+  fromDate: string;
+  toDate: string;
+  days: number;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  appliedOn: string;
+  reviewedBy?: string;
+  reviewNote?: string;
+  reviewedOn?: string;
+}
+
+export interface LeaveBalance {
+  staffId: string;
+  casual: number;
+  sick: number;
+  earned: number;
+}
+
 const initialHolidays: Holiday[] = [
   { id: 'h1', date: '2026-01-26', name: 'Republic Day', type: 'National' },
   { id: 'h2', date: '2026-03-25', name: 'Holi', type: 'National' },
@@ -19,6 +42,42 @@ const initialHolidays: Holiday[] = [
   { id: 'h7', date: '2026-10-20', name: 'Dussehra', type: 'National' },
   { id: 'h8', date: '2026-11-08', name: 'Diwali', type: 'National' },
   { id: 'h9', date: '2026-12-25', name: 'Christmas', type: 'National' },
+];
+
+const initialLeaveRequests: LeaveRequest[] = [
+  {
+    id: 'lr1',
+    staffId: '1',
+    staffName: 'Alice Smith',
+    type: 'Casual',
+    fromDate: '2026-09-20',
+    toDate: '2026-09-20',
+    days: 1,
+    reason: 'Personal work',
+    status: 'Pending',
+    appliedOn: '2026-09-14',
+  },
+  {
+    id: 'lr2',
+    staffId: '2',
+    staffName: 'Bob Johnson',
+    type: 'Sick',
+    fromDate: '2026-09-10',
+    toDate: '2026-09-11',
+    days: 2,
+    reason: 'Fever and rest',
+    status: 'Approved',
+    appliedOn: '2026-09-09',
+    reviewedBy: 'Admin',
+    reviewedOn: '2026-09-09',
+    reviewNote: 'Take care, get well soon.',
+  },
+];
+
+const initialLeaveBalances: LeaveBalance[] = [
+  { staffId: '1', casual: 12, sick: 10, earned: 15 },
+  { staffId: '2', casual: 12, sick: 10, earned: 15 },
+  { staffId: '3', casual: 12, sick: 10, earned: 15 },
 ];
 
 // Initial Mock Data
@@ -393,6 +452,10 @@ interface DataContextType {
   setInvoices: React.Dispatch<React.SetStateAction<any[]>>;
   holidays: Holiday[];
   setHolidays: React.Dispatch<React.SetStateAction<Holiday[]>>;
+  leaveRequests: LeaveRequest[];
+  setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
+  leaveBalances: LeaveBalance[];
+  setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
   convertLeadToClient: (lead: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
   activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
@@ -540,6 +603,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return initialHolidays;
   });
 
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => {
+    const saved = localStorage.getItem('app_leave_requests');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialLeaveRequests;
+      }
+    }
+    return initialLeaveRequests;
+  });
+
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(() => {
+    const saved = localStorage.getItem('app_leave_balances');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return initialLeaveBalances;
+      }
+    }
+    return initialLeaveBalances;
+  });
+
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('app_daily_ratings');
     if (saved) {
@@ -646,6 +733,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('app_holidays', JSON.stringify(holidays));
   }, [holidays]);
+
+  useEffect(() => {
+    localStorage.setItem('app_leave_requests', JSON.stringify(leaveRequests));
+  }, [leaveRequests]);
+
+  useEffect(() => {
+    localStorage.setItem('app_leave_balances', JSON.stringify(leaveBalances));
+  }, [leaveBalances]);
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
     return localStorage.getItem('app_isPunchedIn') === 'true';
@@ -772,6 +867,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       jobs, setJobs,
       invoices, setInvoices,
       holidays, setHolidays,
+      leaveRequests, setLeaveRequests,
+      leaveBalances, setLeaveBalances,
       convertLeadToClient, 
       updateProject,
       dailyRatings,

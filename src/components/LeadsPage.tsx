@@ -17,9 +17,9 @@ export function LeadsPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterSource, setFilterSource] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
-  
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -348,8 +348,8 @@ export function LeadsPage() {
 
       <div className="glass-panel rounded-2xl overflow-hidden flex flex-col min-h-[500px]">
         {/* Advanced Filters Panel */}
-        <div className="border-b border-white/40 bg-white/20 p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="border-b border-white/40">
+          <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-5 hover:bg-white/20 transition-colors cursor-pointer select-none">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
               <FilterX className="w-4 h-4 text-gray-500" />
               Filter Leads
@@ -357,76 +357,79 @@ export function LeadsPage() {
             <div className="flex items-center gap-4">
               {(searchTerm !== '' || filterStatus !== 'All' || filterCategory !== 'All' || filterSource !== 'All' || filterPriority !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
                 <button 
-                  onClick={resetFilters}
+                  onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                   className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Clear Filters
+                Clear
               </button>
               )}
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                <option value="All">All Status</option>
-                <option value="Lead">Lead</option>
-                <option value="Contacted">Contacted</option>
-                <option value="Proposal Sent">Proposal Sent</option>
-                <option value="On Hold">On Hold</option>
-                <option value="Client Won">Client Won</option>
-                <option value="Client Lost">Client Lost</option>
-              </select>
+          </button>
+          <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="px-5 pb-5">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                    <option value="All">All Status</option>
+                    <option value="Lead">Lead</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Proposal Sent">Proposal Sent</option>
+                    <option value="On Hold">On Hold</option>
+                    <option value="Client Won">Client Won</option>
+                    <option value="Client Lost">Client Lost</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
+                  <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                    <option value="All">All Categories</option>
+                    <option value="Hot Lead">Hot Lead</option>
+                    <option value="Warm Lead">Warm Lead</option>
+                    <option value="Cold Lead">Cold Lead</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Source</label>
+                  <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                    <option value="All">All Sources</option>
+                    <option value="Website">Website</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Cold Call">Cold Call</option>
+                    <option value="Event">Event</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
+                  <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                    <option value="All">All Priorities</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date From</label>
+                  <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date To</label>
+                  <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+              </div>
+              <div className="mt-3 relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input 
+                  type="text" 
+                  placeholder="Search by company, contact, email or phone..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Category</label>
-              <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                <option value="All">All Categories</option>
-                <option value="Hot Lead">Hot Lead</option>
-                <option value="Warm Lead">Warm Lead</option>
-                <option value="Cold Lead">Cold Lead</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Source</label>
-              <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                <option value="All">All Sources</option>
-                <option value="Website">Website</option>
-                <option value="Referral">Referral</option>
-                <option value="Cold Call">Cold Call</option>
-                <option value="Event">Event</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Priority</label>
-              <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                <option value="All">All Priorities</option>
-                <option value="High">High</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date From</label>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date To</label>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-            </div>
-          </div>
-          
-          <div className="mt-3 relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input 
-              type="text" 
-              placeholder="Search by company, contact, email or phone..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-            />
           </div>
         </div>
 

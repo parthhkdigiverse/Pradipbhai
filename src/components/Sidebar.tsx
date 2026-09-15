@@ -12,8 +12,7 @@ import {
   Search,
   X,
   Settings,
-  FileText,
-  CalendarDays
+  FileText
 } from 'lucide-react';
 
 export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollapsed }: { currentPage: string, setCurrentPage: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
@@ -66,6 +65,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
     { name: 'Work Logs', group: 'HR' },
     { name: 'Daily Progress', group: 'HR' },
     { name: 'Payroll', group: 'HR' },
+    { name: 'Leaves', group: 'HR' },
     { name: 'Holidays', group: 'HR' },
     { name: 'Clients', group: 'Sales' },
     { name: 'Leads', group: 'Sales' },
@@ -218,7 +218,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </div>
               <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.hr ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
             </button>
-            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-72 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}>
                 <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                   Staff
@@ -238,6 +238,10 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                 <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                   Payroll
+                </button>
+                <button onClick={() => setCurrentPage('leaves')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leaves' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
+                  Leaves
                 </button>
                 <button onClick={() => setCurrentPage('holidays')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'holidays' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                   <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX } from 'lucide-react';
+import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 export function ReportsPage() {
@@ -44,6 +44,7 @@ export function ReportsPage() {
 
   // --- JOBS TAB STATE ---
   const [jobSearch, setJobSearch] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [jobFilterStatus, setJobFilterStatus] = useState('All');
   const [jobFilterClient, setJobFilterClient] = useState('All');
   const [jobFilterStaff, setJobFilterStaff] = useState('All');
@@ -241,8 +242,8 @@ export function ReportsPage() {
       {activeTab === 'jobs' && (
         <div className="flex flex-col flex-1 animate-in fade-in zoom-in-95 duration-200">
           {/* Advanced Filters Panel */}
-          <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm p-4 mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md">
-            <div className="flex items-center justify-between mb-4">
+          <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
+            <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <FilterX className="w-4 h-4 text-gray-500" />
                 Filter Reports
@@ -254,76 +255,79 @@ export function ReportsPage() {
                 </div>
                 {(jobSearch !== '' || jobFilterStatus !== 'All' || jobFilterClient !== 'All' || jobFilterStaff !== 'All' || jobFilterProduct !== 'All' || jobFilterBilling !== 'All' || jobFilterType !== 'All') && (
                   <button 
-                    onClick={resetJobFilters}
+                    onClick={(e) => { e.stopPropagation(); resetJobFilters(); }}
                     className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    Clear Filters
+                    Clear
                   </button>
                 )}
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                <select value={jobFilterStatus} onChange={(e) => setJobFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Progress">Progress</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancel">Cancel</option>
-                </select>
+            </button>
+            <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+              <div className="px-4 pb-4">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+                    <select value={jobFilterStatus} onChange={(e) => setJobFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Progress">Progress</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Cancel">Cancel</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
+                    <select value={jobFilterClient} onChange={(e) => setJobFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All Clients</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
+                    <select value={jobFilterStaff} onChange={(e) => setJobFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All Staffs</option>
+                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
+                    <select value={jobFilterProduct} onChange={(e) => setJobFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All Products</option>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
+                    <select value={jobFilterBilling} onChange={(e) => setJobFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Unpaid">Unpaid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
+                    <select value={jobFilterType} onChange={(e) => setJobFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                      <option value="All">All Types</option>
+                      <option value="Designing">Designing</option>
+                      <option value="Printing">Printing</option>
+                      <option value="Des+Print">Des+Print</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-3 relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input 
+                    type="text" 
+                    placeholder="Search by job title..." 
+                    value={jobSearch}
+                    onChange={(e) => setJobSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Clients</label>
-                <select value={jobFilterClient} onChange={(e) => setJobFilterClient(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Clients</option>
-                  {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
-                <select value={jobFilterStaff} onChange={(e) => setJobFilterStaff(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Staffs</option>
-                  {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Product</label>
-                <select value={jobFilterProduct} onChange={(e) => setJobFilterProduct(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Products</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-                <select value={jobFilterBilling} onChange={(e) => setJobFilterBilling(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Unpaid">Unpaid</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
-                <select value={jobFilterType} onChange={(e) => setJobFilterType(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                  <option value="All">All Types</option>
-                  <option value="Designing">Designing</option>
-                  <option value="Printing">Printing</option>
-                  <option value="Des+Print">Des+Print</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="mt-3 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input 
-                type="text" 
-                placeholder="Search by job title..." 
-                value={jobSearch}
-                onChange={(e) => setJobSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-              />
             </div>
           </div>
 

@@ -28,9 +28,9 @@ export function ClientsPage() {
   const { clients, setClients, setJobs, currentUserRole } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-  
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   
   const resetFilters = () => {
     setSearchTerm('');
@@ -355,8 +355,8 @@ export function ClientsPage() {
 
       <div className="glass-panel rounded-2xl overflow-hidden flex flex-col min-h-[500px]">
         {/* Advanced Filters Panel */}
-        <div className="border-b border-white/40 bg-white/20 p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="border-b border-white/40">
+          <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-5 hover:bg-white/20 transition-colors cursor-pointer select-none">
             <h3 className="font-bold text-gray-800 flex items-center gap-2">
               <FilterX className="w-4 h-4 text-gray-500" />
               Filter Clients
@@ -364,45 +364,48 @@ export function ClientsPage() {
             <div className="flex items-center gap-4">
               {(searchTerm !== '' || filterStatus !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
                 <button 
-                  onClick={resetFilters}
+                  onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                   className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Clear Filters
+                Clear
               </button>
               )}
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Onboarding">Onboarding</option>
-                <option value="Inactive">Inactive</option>
-              </select>
+          </button>
+          <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="px-5 pb-5">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+                  <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
+                    <option value="All">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Onboarding">Onboarding</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>
+                  <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since To</label>
+                  <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+              </div>
+              <div className="mt-3 relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <input 
+                  type="text" 
+                  placeholder="Search by company, contact, or email..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-            </div>
-            <div>
-              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since To</label>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-            </div>
-          </div>
-          
-          <div className="mt-3 relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-            <input 
-              type="text" 
-              placeholder="Search by company, contact, or email..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-            />
           </div>
         </div>
 
