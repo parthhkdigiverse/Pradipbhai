@@ -537,7 +537,7 @@ export function AttendancePage() {
             <div className="p-4 border-b border-gray-100 bg-white/30 flex items-center justify-between">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-primary" />
-                Attendance Records for {employeeHistory.emp?.name} ({monthFilter})
+                Attendance Records for {employeeHistory.emp?.name} ({yearFilter} - {monthFilter === 'All' ? 'All Months' : monthFilter})
               </h3>
               <span className="text-xs text-gray-500 font-semibold">Total Logs: {employeeHistory.records.length}</span>
             </div>
@@ -548,8 +548,9 @@ export function AttendancePage() {
                   <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
                     <th className="py-4 px-6">Date</th>
                     <th className="py-4 px-6">Day</th>
-                    <th className="py-4 px-6 text-center">Check In</th>
-                    <th className="py-4 px-6 text-center">Check Out</th>
+                    <th className="py-4 px-6 text-center">First In</th>
+                    <th className="py-4 px-6 text-center">Last Out</th>
+                    <th className="py-4 px-6 text-center">Punch Sessions (Breaks)</th>
                     <th className="py-4 px-6 text-center">Status</th>
                   </tr>
                 </thead>
@@ -558,12 +559,41 @@ export function AttendancePage() {
                     employeeHistory.records.map((rec) => {
                       const dateObj = new Date(rec.date);
                       const dayName = isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+                      const punches = rec.punches || (rec.checkIn ? [{ in: rec.checkIn, out: rec.checkOut }] : []);
+
                       return (
                         <tr key={rec.id} className="hover:bg-white/60 transition-colors">
                           <td className="py-4 px-6 font-bold text-gray-800">{rec.date}</td>
                           <td className="py-4 px-6 font-medium text-gray-500">{dayName}</td>
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkIn || '--:--'}</td>
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkOut || '--:--'}</td>
+                          <td className="py-4 px-6 text-center">
+                            {punches.length > 0 ? (
+                              <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
+                                <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-mono text-gray-700 whitespace-nowrap">
+                                  {punches[0].in} - {punches[0].out || 'Active'}
+                                </span>
+                                {punches.length > 1 && (
+                                  <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold cursor-pointer whitespace-nowrap">
+                                    +{punches.length - 1} more
+                                  </span>
+                                )}
+                                <div className="hidden group-hover/popover:flex flex-col gap-1.5 absolute bottom-full mb-2 z-30 bg-gray-900/95 text-white p-2.5 rounded-xl shadow-xl text-left border border-gray-700 min-w-[170px] pointer-events-none transition-all">
+                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-800 pb-1">
+                                    All Sessions ({punches.length})
+                                  </span>
+                                  {punches.map((p: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between text-[11px] font-mono">
+                                      <span className="text-gray-400">#{idx + 1}:</span>
+                                      <span className="font-semibold text-emerald-400">{p.in} - {p.out || 'Active'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-gray-400 italic">No punches</span>
+                            )}
+                          </td>
                           <td className="py-4 px-6 text-center">
                             <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
                               {rec.status}
@@ -574,7 +604,7 @@ export function AttendancePage() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-gray-500">
+                      <td colSpan={6} className="py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center justify-center">
                           <Calendar className="w-12 h-12 text-gray-300 mb-4" />
                           <p>No attendance records found for this employee in {monthFilter}.</p>
@@ -608,32 +638,64 @@ export function AttendancePage() {
                     <th className="py-4 px-6">Date</th>
                     <th className="py-4 px-6">Employee</th>
                     <th className="py-4 px-6">Role</th>
-                    <th className="py-4 px-6 text-center">Check In</th>
-                    <th className="py-4 px-6 text-center">Check Out</th>
+                    <th className="py-4 px-6 text-center">First In</th>
+                    <th className="py-4 px-6 text-center">Last Out</th>
+                    <th className="py-4 px-6 text-center">Punch Sessions (Breaks)</th>
                     <th className="py-4 px-6 text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {allHistoryRecords.length > 0 ? (
-                    allHistoryRecords.map((rec) => (
-                      <tr key={rec.id} className="hover:bg-white/60 transition-colors">
-                        <td className="py-4 px-6 font-bold text-gray-800">{rec.date}</td>
-                        <td className="py-4 px-6 font-bold text-gray-800">{rec.staffName}</td>
-                        <td className="py-4 px-6">
-                          <span className="font-semibold text-gray-600 bg-gray-100/50 px-2 py-0.5 rounded text-[11px]">{rec.staffRole}</span>
-                        </td>
-                        <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkIn || '--:--'}</td>
-                        <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkOut || '--:--'}</td>
-                        <td className="py-4 px-6 text-center">
-                          <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
-                            {rec.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    allHistoryRecords.map((rec) => {
+                      const punches = rec.punches || (rec.checkIn ? [{ in: rec.checkIn, out: rec.checkOut }] : []);
+
+                      return (
+                        <tr key={rec.id} className="hover:bg-white/60 transition-colors">
+                          <td className="py-4 px-6 font-bold text-gray-800">{rec.date}</td>
+                          <td className="py-4 px-6 font-bold text-gray-800">{rec.staffName}</td>
+                          <td className="py-4 px-6">
+                            <span className="font-semibold text-gray-600 bg-gray-100/50 px-2 py-0.5 rounded text-[11px]">{rec.staffRole}</span>
+                          </td>
+                          <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkIn || '--:--'}</td>
+                          <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkOut || '--:--'}</td>
+                          <td className="py-4 px-6 text-center">
+                            {punches.length > 0 ? (
+                              <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
+                                <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-mono text-gray-700 whitespace-nowrap">
+                                  {punches[0].in} - {punches[0].out || 'Active'}
+                                </span>
+                                {punches.length > 1 && (
+                                  <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold cursor-pointer whitespace-nowrap">
+                                    +{punches.length - 1} more
+                                  </span>
+                                )}
+                                <div className="hidden group-hover/popover:flex flex-col gap-1.5 absolute bottom-full mb-2 z-30 bg-gray-900/95 text-white p-2.5 rounded-xl shadow-xl text-left border border-gray-700 min-w-[170px] pointer-events-none transition-all">
+                                  <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-800 pb-1">
+                                    All Sessions ({punches.length})
+                                  </span>
+                                  {punches.map((p: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between text-[11px] font-mono">
+                                      <span className="text-gray-400">#{idx + 1}:</span>
+                                      <span className="font-semibold text-emerald-400">{p.in} - {p.out || 'Active'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-gray-400 italic">No punches</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
+                              {rec.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-gray-500">
+                      <td colSpan={7} className="py-12 text-center text-gray-500">
                         <div className="flex flex-col items-center justify-center">
                           <Calendar className="w-12 h-12 text-gray-300 mb-4" />
                           <p>No historical attendance records found matching filters.</p>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail , ChevronDown } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -20,8 +20,13 @@ export function JobsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   
-  // Job Type for the modal (Designing or Printing)
-  const [newJobType, setNewJobType] = useState<'Designing' | 'Printing'>('Designing');
+  // Job Type for the modal (Designing, Printing, or Des+Print)
+  const [newJobType, setNewJobType] = useState<'Designing' | 'Printing' | 'Des+Print'>('Designing');
+
+  // Job Completion Modal States
+  const [completionModalJobId, setCompletionModalJobId] = useState<string | null>(null);
+  const [completionWorkLink, setCompletionWorkLink] = useState('');
+  const [completionWorkLocation, setCompletionWorkLocation] = useState('');
 
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'jobs') {
@@ -48,7 +53,9 @@ export function JobsPage() {
     status: 'Pending',
     paymentStatus: 'Unpaid',
     vendorEmailSent: false,
-    paymentOverride: null as { reason: string, approvedBy: string, approvedAt: string } | null
+    paymentOverride: null as { reason: string, approvedBy: string, approvedAt: string } | null,
+    workLink: '',
+    workLocation: ''
   });
 
   const [overrideReason, setOverrideReason] = useState('');
@@ -88,7 +95,7 @@ export function JobsPage() {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
   }, [filteredJobs]);
 
-  const handleOpenModal = (jobType: 'Designing' | 'Printing', jobId: string | null = null) => {
+  const handleOpenModal = (jobType: 'Designing' | 'Printing' | 'Des+Print', jobId: string | null = null) => {
     setNewJobType(jobType);
     if (jobId) {
       const job = jobs.find(x => x.id === jobId);
@@ -107,10 +114,12 @@ export function JobsPage() {
           status: job.status,
           paymentStatus: job.paymentStatus,
           vendorEmailSent: job.vendorEmailSent || false,
-          paymentOverride: job.paymentOverride || null
+          paymentOverride: job.paymentOverride || null,
+          workLink: job.workLink || '',
+          workLocation: job.workLocation || ''
         });
         setEditingJobId(jobId);
-        setNewJobType(job.type as 'Designing' | 'Printing');
+        setNewJobType((job.type as 'Designing' | 'Printing' | 'Des+Print') || 'Designing');
         setOverrideReason('');
       }
     } else {
@@ -128,7 +137,9 @@ export function JobsPage() {
         status: 'Pending',
         paymentStatus: 'Unpaid',
         vendorEmailSent: false,
-        paymentOverride: null
+        paymentOverride: null,
+        workLink: '',
+        workLocation: ''
       });
       setEditingJobId(null);
       setOverrideReason('');
@@ -146,11 +157,12 @@ export function JobsPage() {
     
     const jobData = {
       ...formData,
+      printerId: newJobType === 'Designing' ? '' : formData.printerId,
+      vendorEmailSent: newJobType === 'Designing' ? false : formData.vendorEmailSent,
       totalAmount: parseFloat(formData.totalAmount) || 0,
       paidAmount: parseFloat(formData.paidAmount) || 0,
       type: newJobType,
       paymentStatus: (parseFloat(formData.paidAmount) || 0) >= (parseFloat(formData.totalAmount) || 0) ? 'Paid' : 'Unpaid',
-      vendorEmailSent: formData.vendorEmailSent
     };
 
     if (editingJobId) {
@@ -168,23 +180,87 @@ export function JobsPage() {
   };
 
   const updateJobStatus = (id: string, status: string) => {
-    setJobs(prev => {
-      const job = prev.find(j => j.id === id);
-      if (!job) return prev;
+    const job = jobs.find(j => j.id === id);
+    if (!job) return;
 
-      if (status !== 'Pending') {
-        const client = clients.find(c => c.id === job.clientId);
-        if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
-          alert('🔴 PAYMENT REQUIRED — Work is blocked for this Red client until an advance is recorded or a Partner override is provided.');
-          return prev;
-        }
-        if (status === 'Done' && client && client.trafficLight === 'Yellow' && job.paidAmount < job.totalAmount) {
-          alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
-          return prev;
+    if (status !== 'Pending') {
+      const client = clients.find(c => c.id === job.clientId);
+      if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
+        alert('🔴 PAYMENT REQUIRED — Work is blocked for this Red client until an advance is recorded or a Partner override is provided.');
+        return;
+      }
+      if (status === 'Done' && client && client.trafficLight === 'Yellow' && job.paidAmount < job.totalAmount) {
+        alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
+        return;
+      }
+    }
+
+    if (status === 'Done') {
+      setCompletionModalJobId(id);
+      setCompletionWorkLink(job.workLink || '');
+      setCompletionWorkLocation(job.workLocation || '');
+      return;
+    }
+
+    setJobs(prev => prev.map(j => j.id === id ? { ...j, status } : j));
+  };
+
+  const handleSaveCompletionModal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completionWorkLink.trim() && !completionWorkLocation.trim()) {
+      alert('⚠️ At least ONE field is required: Please provide either a Work Output Link OR a Storage Location/Notes to complete this job.');
+      return;
+    }
+    if (completionModalJobId) {
+      const completedJob = jobs.find(j => j.id === completionModalJobId);
+      
+      setJobs(prev => prev.map(j => j.id === completionModalJobId ? {
+        ...j,
+        status: 'Done',
+        workLink: completionWorkLink.trim(),
+        workLocation: completionWorkLocation.trim()
+      } : j));
+
+      // Auto-create Printing job when a Designing job of a Des+Print project is completed
+      if (completedJob && completedJob.type === 'Designing' && completedJob.projectId) {
+        const client = clients.find((c: any) => c.id === completedJob.clientId);
+        const project = client?.projects?.find((p: any) => p.name === completedJob.projectId);
+        if (project && project.category === 'Des+Print') {
+          // Check if a printing job for this project already exists to avoid duplicates
+          const printingJobExists = jobs.some(
+            j => j.projectId === completedJob.projectId &&
+                 j.clientId === completedJob.clientId &&
+                 j.type === 'Printing'
+          );
+          if (!printingJobExists) {
+            const newPrintingJob = {
+              id: Math.random().toString(36).substr(2, 9),
+              createdBy: 'System (Auto)',
+              createdAt: new Date().toISOString().split('T')[0],
+              title: `[PRINT] ${completedJob.title.replace(/^\[DESIGN\]\s*/i, '')}`,
+              type: 'Printing',
+              description: `Auto-created Printing job after Designing was completed for project: ${completedJob.projectId}`,
+              clientId: completedJob.clientId,
+              projectId: completedJob.projectId,
+              status: 'Pending',
+              teamId: '',
+              dueDate: project.deadline || '',
+              paymentStatus: 'Unpaid',
+              totalAmount: 0,
+              paidAmount: 0,
+              printerId: '',
+              productId: completedJob.productId || '',
+              trackedTime: 0,
+              workLink: '',
+              workLocation: ''
+            };
+            setJobs(prev => [newPrintingJob, ...prev]);
+          }
         }
       }
-      return prev.map(j => j.id === id ? { ...j, status } : j);
-    });
+
+      setCompletionModalJobId(null);
+    }
   };
 
   const handleStartTracker = (jobId: string) => {
@@ -431,13 +507,41 @@ export function JobsPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <span className="font-bold text-primary text-sm hover:underline cursor-pointer">{job.title}</span>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-primary text-sm hover:underline cursor-pointer">{job.title}</span>
+                        {(job.workLink || job.workLocation) && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            {job.workLink && (
+                              <a
+                                href={job.workLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
+                                title={job.workLink}
+                              >
+                                <ExternalLink className="w-3 h-3 text-emerald-600" />
+                                View Work
+                              </a>
+                            )}
+                            {job.workLocation && (
+                              <span 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-md truncate max-w-[180px]"
+                                title={job.workLocation}
+                              >
+                                <Folder className="w-3 h-3 text-gray-400 shrink-0" />
+                                {job.workLocation}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide text-white shadow-sm ${
-                        job.type === 'Designing' ? 'bg-emerald-500' : 'bg-primary'
+                        job.type === 'Designing' ? 'bg-emerald-500' : job.type === 'Des+Print' ? 'bg-purple-600' : 'bg-primary'
                       }`}>
-                        {job.type}
+                        {job.type === 'Des+Print' ? 'Des + Print' : job.type}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-gray-600 text-[11px] truncate max-w-[250px]" title={job.description}>
@@ -455,33 +559,53 @@ export function JobsPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <select
-                        value={job.status}
-                        onChange={(e) => updateJobStatus(job.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
-                          job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                          job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                        }`}
-                        style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="Progress">Progress</option>
-                        <option value="Done">Done</option>
-                      </select>
+                      <div className="flex items-center justify-center gap-1">
+                        <select
+                          value={job.status}
+                          onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
+                            job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
+                            job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                          }`}
+                          style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Progress">Progress</option>
+                          <option value="Done">Done</option>
+                        </select>
+                        {job.status === 'Done' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCompletionModalJobId(job.id);
+                              setCompletionWorkLink(job.workLink || '');
+                              setCompletionWorkLocation(job.workLocation || '');
+                            }}
+                            className="p-1 text-gray-400 hover:text-emerald-600 transition-colors"
+                            title="Edit Work Link / Location"
+                          >
+                            <Link className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleVendorEmailSent(job.id); }}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto transition-colors ${
-                          job.vendorEmailSent 
-                            ? 'bg-emerald-100 text-emerald-600' 
-                            : 'bg-orange-100 text-orange-500'
-                        }`}
-                        title={job.vendorEmailSent ? "Docs Sent" : "Docs Pending"}
-                      >
-                        <Mail className="w-3.5 h-3.5" />
-                      </button>
+                      {job.type === 'Designing' ? (
+                        <span className="text-gray-400 font-bold text-xs">—</span>
+                      ) : (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleVendorEmailSent(job.id); }}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center mx-auto transition-colors ${
+                            job.vendorEmailSent 
+                              ? 'bg-emerald-100 text-emerald-600' 
+                              : 'bg-orange-100 text-orange-500'
+                          }`}
+                          title={job.vendorEmailSent ? "Docs Sent" : "Docs Pending"}
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <span className="text-[11px] font-medium text-gray-600 bg-gray-100/80 px-2 py-1 rounded">{getStaffName(job.teamId)}</span>
@@ -660,24 +784,25 @@ export function JobsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
-                  <select required value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value, projectId: ''})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="" disabled>Select client by name</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={formData.clientId}
+                    onChange={val => setFormData({...formData, clientId: val, projectId: ''})}
+                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    placeholder="Select client by name..."
+                  />
                 </div>
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Project</label>
-                  <select 
-                    value={formData.projectId} 
-                    onChange={e => setFormData({...formData, projectId: e.target.value})} 
+                  <SearchableSelect
+                    value={formData.projectId}
+                    onChange={val => setFormData({...formData, projectId: val})}
                     disabled={!formData.clientId}
-                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="">No specific project</option>
-                    {formData.clientId && clients.find(c => c.id === formData.clientId)?.projects?.map((p: any, idx: number) => (
-                      <option key={idx} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'No specific project' },
+                      ...(formData.clientId && clients.find(c => c.id === formData.clientId)?.projects?.map((p: any) => ({ value: p.name, label: p.name })) || [])
+                    ]}
+                    placeholder="Select project..."
+                  />
                 </div>
               </div>
 
@@ -685,10 +810,15 @@ export function JobsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Assign Team</label>
-                  <select value={formData.teamId} onChange={e => setFormData({...formData, teamId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="">Select Staff</option>
-                    {staff.map(s => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={formData.teamId}
+                    onChange={val => setFormData({...formData, teamId: val})}
+                    options={[
+                      { value: '', label: 'Select Staff' },
+                      ...staff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))
+                    ]}
+                    placeholder="Select staff..."
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Job Title <span className="text-rose-500">*</span></label>
@@ -696,10 +826,15 @@ export function JobsPage() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product</label>
-                  <select value={formData.productId} onChange={e => setFormData({...formData, productId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="">Type to search product...</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={formData.productId}
+                    onChange={val => setFormData({...formData, productId: val})}
+                    options={[
+                      { value: '', label: 'Type to search product...' },
+                      ...products.map(p => ({ value: p.id, label: p.name }))
+                    ]}
+                    placeholder="Type to search product..."
+                  />
                 </div>
               </div>
 
@@ -711,14 +846,21 @@ export function JobsPage() {
 
               {/* Printer & Deadline */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Printer / Vendor</label>
-                  <select value={formData.printerId} onChange={e => setFormData({...formData, printerId: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="">Select Printer</option>
-                    {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                  </select>
-                </div>
-                <div>
+                {newJobType !== 'Designing' && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Printer / Vendor</label>
+                    <SearchableSelect
+                      value={formData.printerId}
+                      onChange={val => setFormData({...formData, printerId: val})}
+                      options={[
+                        { value: '', label: 'Select Printer' },
+                        ...vendors.map(v => ({ value: v.id, label: v.name }))
+                      ]}
+                      placeholder="Select printer vendor..."
+                    />
+                  </div>
+                )}
+                <div className={newJobType === 'Designing' ? 'col-span-2' : ''}>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline</label>
                   <div className="relative">
                     <Calendar className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
@@ -727,24 +869,26 @@ export function JobsPage() {
                 </div>
               </div>
 
-              {/* Checkboxes */}
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div className="relative">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only" 
-                      checked={formData.vendorEmailSent}
-                      onChange={(e) => setFormData({...formData, vendorEmailSent: e.target.checked})}
-                    />
-                    <div className={`block w-10 h-6 rounded-full transition-colors ${formData.vendorEmailSent ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                    <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.vendorEmailSent ? 'transform translate-x-4' : ''}`}></div>
-                  </div>
-                  <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5 text-gray-500" /> Required Documents Sent to Vendor
-                  </span>
-                </label>
-              </div>
+              {/* Vendor Email Checkbox (Printing or Design + Print Jobs only) */}
+              {newJobType !== 'Designing' && (
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div className="relative">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only" 
+                        checked={formData.vendorEmailSent}
+                        onChange={(e) => setFormData({...formData, vendorEmailSent: e.target.checked})}
+                      />
+                      <div className={`block w-10 h-6 rounded-full transition-colors ${formData.vendorEmailSent ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                      <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.vendorEmailSent ? 'transform translate-x-4' : ''}`}></div>
+                    </div>
+                    <span className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-gray-500" /> Required Documents Sent to Vendor
+                    </span>
+                  </label>
+                </div>
+              )}
 
               {/* Amounts */}
               <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
@@ -757,6 +901,22 @@ export function JobsPage() {
                   <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" />
                 </div>
               </div>
+
+              {/* Work Deliverables / Completion Link */}
+              <div className="grid grid-cols-2 gap-4 bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/60">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block flex items-center gap-1">
+                    <Link className="w-3.5 h-3.5 text-primary" /> Work Output Link
+                  </label>
+                  <input type="url" value={formData.workLink} onChange={e => setFormData({...formData, workLink: e.target.value})} placeholder="https://drive.google.com/..." className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block flex items-center gap-1">
+                    <Folder className="w-3.5 h-3.5 text-emerald-600" /> Storage Location / Notes
+                  </label>
+                  <input type="text" value={formData.workLocation} onChange={e => setFormData({...formData, workLocation: e.target.value})} placeholder="Server/Print_Ready/..." className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                </div>
+              </div>
               
               <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-white/40">
                 <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all">
@@ -764,6 +924,105 @@ export function JobsPage() {
                 </button>
                 <button type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all">
                   {editingJobId ? 'Save Changes' : 'Save Job'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Job Completion Popup Modal */}
+      {completionModalJobId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setCompletionModalJobId(null)}></div>
+          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200 bg-white/95">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-emerald-500/10">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                <div>
+                  <h2 className="text-base font-bold text-gray-800">Job Completion Deliverable Details</h2>
+                  <p className="text-xs text-gray-500">Provide the link to the finished work or local storage location.</p>
+                </div>
+              </div>
+              <button onClick={() => setCompletionModalJobId(null)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCompletionModal} className="p-5 space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-800 font-semibold flex items-center gap-2">
+                <span>⚠️</span> At least 1 of the 2 fields below is compulsory to complete the job.
+              </div>
+
+              {/* Des+Print auto-Printing job notice */}
+              {(() => {
+                if (!completionModalJobId) return null;
+                const job = jobs.find(j => j.id === completionModalJobId);
+                if (!job || job.type !== 'Designing' || !job.projectId) return null;
+                const client = clients.find((c: any) => c.id === job.clientId);
+                const project = client?.projects?.find((p: any) => p.name === job.projectId);
+                if (!project || project.category !== 'Des+Print') return null;
+                const printingJobExists = jobs.some(
+                  j => j.projectId === job.projectId && j.clientId === job.clientId && j.type === 'Printing'
+                );
+                if (printingJobExists) return null;
+                return (
+                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-800 font-semibold flex items-start gap-2">
+                    <span className="text-base leading-none mt-0.5">🖨️</span>
+                    <div>
+                      <p className="font-bold text-purple-900">Des+Print Project Detected</p>
+                      <p className="font-normal mt-0.5 text-purple-700">Once this Designing job is marked complete, a <strong>Printing job</strong> will be automatically created for the project <span className="font-bold">"{job.projectId}"</span>.</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block flex items-center gap-1.5">
+                  <Link className="w-3.5 h-3.5 text-primary" /> Work Output / Delivery Link (URL)
+                </label>
+                <input 
+                  type="url" 
+                  value={completionWorkLink}
+                  onChange={e => setCompletionWorkLink(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/... or https://figma.com/..."
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Google Drive, Dropbox, Canva, Figma link, or client preview URL.</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block flex items-center gap-1.5">
+                  <Folder className="w-3.5 h-3.5 text-emerald-600" /> Work Location / Completion Notes
+                </label>
+                <input 
+                  type="text" 
+                  value={completionWorkLocation}
+                  onChange={e => setCompletionWorkLocation(e.target.value)}
+                  placeholder="e.g. Server/Print_Ready/Brochure_v2.pdf or Handed to client"
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Local server path, storage folder, or physical delivery notes.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button 
+                  type="button" 
+                  onClick={() => setCompletionModalJobId(null)}
+                  className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={!completionWorkLink.trim() && !completionWorkLocation.trim()}
+                  className={`px-6 py-2 text-sm font-semibold text-white rounded-xl transition-all shadow-md flex items-center gap-1.5 ${
+                    !completionWorkLink.trim() && !completionWorkLocation.trim()
+                      ? 'bg-gray-300 cursor-not-allowed opacity-70'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Save & Mark Completed
                 </button>
               </div>
             </form>

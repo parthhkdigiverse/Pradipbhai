@@ -238,12 +238,16 @@ export function VendorsPage() {
                 
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Category</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Printer">Printer</option>
-                    <option value="Designer">Designer</option>
-                    <option value="Supplier">Supplier</option>
-                    <option value="Other">Other</option>
-                  </select>
+                  <SearchableSelect
+                    value={formData.category}
+                    onChange={val => setFormData({...formData, category: val})}
+                    options={[
+                      { value: 'Printer', label: 'Printer' },
+                      { value: 'Designer', label: 'Designer' },
+                      { value: 'Supplier', label: 'Supplier' },
+                      { value: 'Other', label: 'Other' }
+                    ]}
+                  />
                 </div>
                 
                 <div>

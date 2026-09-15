@@ -730,14 +730,18 @@ export function LeadsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</label>
-                  <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Lead">Lead</option>
-                    <option value="Contacted">Contacted</option>
-                    <option value="Proposal Sent">Proposal Sent</option>
-                    <option value="On Hold">On Hold</option>
-                    <option value="Client Won">Client Won</option>
-                    <option value="Client Lost">Client Lost</option>
-                  </select>
+                  <SearchableSelect
+                    value={formData.status}
+                    onChange={val => setFormData({...formData, status: val})}
+                    options={[
+                      { value: 'Lead', label: 'Lead' },
+                      { value: 'Contacted', label: 'Contacted' },
+                      { value: 'Proposal Sent', label: 'Proposal Sent' },
+                      { value: 'On Hold', label: 'On Hold' },
+                      { value: 'Client Won', label: 'Client Won' },
+                      { value: 'Client Lost', label: 'Client Lost' }
+                    ]}
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Follow-up Date</label>
@@ -745,11 +749,15 @@ export function LeadsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Hot Lead">Hot Lead</option>
-                    <option value="Warm Lead">Warm Lead</option>
-                    <option value="Cold Lead">Cold Lead</option>
-                  </select>
+                  <SearchableSelect
+                    value={formData.category}
+                    onChange={val => setFormData({...formData, category: val})}
+                    options={[
+                      { value: 'Hot Lead', label: 'Hot Lead' },
+                      { value: 'Warm Lead', label: 'Warm Lead' },
+                      { value: 'Cold Lead', label: 'Cold Lead' }
+                    ]}
+                  />
                 </div>
                 <div className="space-y-1 col-span-2">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Follow-up Note</label>

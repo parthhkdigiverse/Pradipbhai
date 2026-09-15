@@ -26,7 +26,7 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
-  const { clients, setClients, setJobs, currentUserRole } = useData();
+  const { clients, setClients, currentUserRole, addProject, updateProject } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -65,6 +65,22 @@ export function ClientsPage() {
     deliveryAllowed: true
   });
 
+  // Country Codes List
+  const countryCodes = [
+    { code: '+91', country: 'IN', flag: '🇮🇳' },
+    { code: '+1', country: 'US/CA', flag: '🇺🇸' },
+    { code: '+44', country: 'UK', flag: '🇬🇧' },
+    { code: '+971', country: 'UAE', flag: '🇦🇪' },
+    { code: '+61', country: 'AU', flag: '🇦🇺' },
+    { code: '+65', country: 'SG', flag: '🇸🇬' },
+    { code: '+49', country: 'DE', flag: '🇩🇪' },
+    { code: '+33', country: 'FR', flag: '🇫🇷' },
+    { code: '+81', country: 'JP', flag: '🇯🇵' },
+    { code: '+86', country: 'CN', flag: '🇨🇳' },
+  ];
+
+  const [countryCode, setCountryCode] = useState('+91');
+
   const [projectFormData, setProjectFormData] = useState({
     name: '',
     category: 'Designing',
@@ -86,6 +102,7 @@ export function ClientsPage() {
       workStartAllowed: true,
       deliveryAllowed: true
     });
+    setCountryCode('+91');
     setEditingClientId(null);
   };
 
@@ -93,11 +110,24 @@ export function ClientsPage() {
     if (clientId) {
       const client = clients.find(c => c.id === clientId);
       if (client) {
+        let phoneVal = client.phone || '';
+        let detectedCode = '+91';
+
+        // Check if phone starts with a known country code
+        for (const cc of countryCodes) {
+          if (phoneVal.startsWith(cc.code)) {
+            detectedCode = cc.code;
+            phoneVal = phoneVal.replace(cc.code, '').trim();
+            break;
+          }
+        }
+
+        setCountryCode(detectedCode);
         setFormData({
           company: client.company,
           contact: client.contact,
           email: client.email,
-          phone: client.phone,
+          phone: phoneVal,
           status: client.status,
           trafficLight: client.trafficLight || 'Green',
           advanceRequired: client.advanceRequired || 0,
@@ -161,55 +191,29 @@ export function ClientsPage() {
   const handleSaveProject = (e: React.FormEvent) => {
     e.preventDefault();
     if (projectClientId) {
-      setClients(clients.map(c => {
-        if (c.id === projectClientId) {
-          if (editingProjectIndex !== null) {
-            const newProjects = [...(c.projects || [])];
-            newProjects[editingProjectIndex] = { ...projectFormData };
-            return { ...c, projects: newProjects };
-          } else {
-            const newJob = {
-              id: Math.random().toString(36).substr(2, 9),
-              createdBy: 'System',
-              createdAt: new Date().toISOString().split('T')[0],
-              title: projectFormData.name,
-              type: projectFormData.category,
-              description: 'Automatically created job for new project.',
-              clientId: c.id,
-              projectId: projectFormData.name,
-              status: 'Pending',
-              teamId: '',
-              dueDate: projectFormData.deadline || new Date().toISOString().split('T')[0],
-              paymentStatus: 'Unpaid',
-              totalAmount: projectFormData.budget ? parseFloat(projectFormData.budget) : 0,
-              paidAmount: 0,
-              printerId: null,
-              productId: ''
-            };
-            
-            // Note: We need to use a function updater or just call setJobs if we have the latest state, but we don't have jobs inside setClients directly without depending on closure. It's safe since handleSaveProject has the latest closure of `jobs` when called.
-            setJobs(prevJobs => [...prevJobs, newJob]);
-
-            return {
-              ...c,
-              projects: [...(c.projects || []), { ...projectFormData }]
-            };
-          }
-        }
-        return c;
-      }));
+      if (editingProjectIndex !== null) {
+        updateProject(projectClientId, editingProjectIndex, projectFormData);
+      } else {
+        addProject(projectClientId, projectFormData);
+      }
     }
     handleCloseProjectModal();
   };
 
   const handleSaveClient = (e: React.FormEvent) => {
     e.preventDefault();
+    const fullPhone = `${countryCode} ${formData.phone.trim()}`;
+    const payload = {
+      ...formData,
+      phone: fullPhone
+    };
+
     if (editingClientId) {
-      setClients(clients.map(c => c.id === editingClientId ? { ...c, ...formData } : c));
+      setClients(clients.map(c => c.id === editingClientId ? { ...c, ...payload } : c));
     } else {
       setClients([
         {
-          ...formData,
+          ...payload,
           id: Math.random().toString(36).substr(2, 9),
           projects: [],
           clientSince: new Date().toISOString().split('T')[0]
@@ -635,19 +639,46 @@ export function ClientsPage() {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
-                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                      <option value="Onboarding">Onboarding</option>
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
+                    <SearchableSelect
+                      value={formData.status}
+                      onChange={val => setFormData({...formData, status: val})}
+                      options={[
+                        { value: 'Onboarding', label: 'Onboarding' },
+                        { value: 'Active', label: 'Active' },
+                        { value: 'Inactive', label: 'Inactive' }
+                      ]}
+                    />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Email</label>
-                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" placeholder="client@company.com" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Phone</label>
-                    <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Phone <span className="text-rose-500">*</span></label>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <SearchableSelect
+                        value={countryCode}
+                        onChange={setCountryCode}
+                        options={countryCodes.map(cc => ({
+                          value: cc.code,
+                          label: `${cc.flag} ${cc.code} (${cc.country})`,
+                          displayLabel: `${cc.flag} ${cc.code}`
+                        }))}
+                        className="w-[100px] min-w-[100px] shrink-0"
+                        placeholder="+91"
+                      />
+                      <input 
+                        required 
+                        type="tel" 
+                        value={formData.phone} 
+                        onChange={e => setFormData({...formData, phone: e.target.value})} 
+                        className="w-full min-w-0 h-[38px] px-3 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                        placeholder="98765 43210" 
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -761,12 +792,16 @@ export function ClientsPage() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Category</label>
-                  <select value={projectFormData.category} onChange={e => setProjectFormData({...projectFormData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Designing">Designing</option>
-                    <option value="Printing">Printing</option>
-                    <option value="Des+Print">Des+Print</option>
-                    <option value="Social Media">Social Media</option>
-                  </select>
+                  <SearchableSelect
+                    value={projectFormData.category}
+                    onChange={val => setProjectFormData({...projectFormData, category: val})}
+                    options={[
+                      { value: 'Designing', label: 'Designing' },
+                      { value: 'Printing', label: 'Printing' },
+                      { value: 'Des+Print', label: 'Des+Print' },
+                      { value: 'Social Media', label: 'Social Media' }
+                    ]}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

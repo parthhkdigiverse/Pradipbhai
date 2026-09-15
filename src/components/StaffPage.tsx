@@ -325,11 +325,15 @@ export function StaffPage() {
                 
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
-                  <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="On Leave">On Leave</option>
-                  </select>
+                  <SearchableSelect
+                    value={formData.status}
+                    onChange={val => setFormData({...formData, status: val})}
+                    options={[
+                      { value: 'Active', label: 'Active' },
+                      { value: 'Inactive', label: 'Inactive' },
+                      { value: 'On Leave', label: 'On Leave' }
+                    ]}
+                  />
                 </div>
                 
                 <div>

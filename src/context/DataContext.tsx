@@ -515,6 +515,7 @@ interface DataContextType {
   leaveBalances: LeaveBalance[];
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
   convertLeadToClient: (lead: any) => void;
+  addProject: (clientId: string, projectData: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
   activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
   setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string } | null>>;
@@ -732,6 +733,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setClients((prevClients) => [newClient, ...prevClients]);
   };
 
+  const addProject = (clientId: string, projectData: any) => {
+    setClients((prevClients) => prevClients.map(c => {
+      if (c.id === clientId) {
+        const newProjects = [...(c.projects || []), { ...projectData }];
+        return { ...c, projects: newProjects };
+      }
+      return c;
+    }));
+
+    // Automatically create corresponding job for the new project
+    // For Des+Print projects, first job is always Designing (Printing auto-created upon its completion)
+    const jobType = projectData.category === 'Des+Print' ? 'Designing' : (projectData.category || 'Designing');
+    const jobTitle = projectData.category === 'Des+Print' ? `[DESIGN] ${projectData.name}` : projectData.name;
+    const newJob = {
+      id: Math.random().toString(36).substr(2, 9),
+      createdBy: 'System',
+      createdAt: new Date().toISOString().split('T')[0],
+      title: jobTitle,
+      type: jobType,
+      description: `Automatically created job for new project: ${projectData.name}`,
+      clientId: clientId,
+      projectId: projectData.name,
+      status: 'Pending',
+      teamId: '',
+      dueDate: projectData.deadline || new Date().toISOString().split('T')[0],
+      paymentStatus: 'Unpaid',
+      totalAmount: projectData.budget ? parseFloat(projectData.budget) : 0,
+      paidAmount: 0,
+      printerId: '',
+      productId: ''
+    };
+
+    setJobs((prevJobs) => [newJob, ...prevJobs]);
+  };
+
   const updateProject = (clientId: string, projectIndex: number, projectData: any) => {
     setClients((prevClients) => prevClients.map(c => {
       if (c.id === clientId) {
@@ -928,6 +964,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       leaveRequests, setLeaveRequests,
       leaveBalances, setLeaveBalances,
       convertLeadToClient, 
+      addProject,
       updateProject,
       dailyRatings,
       setDailyRatings,

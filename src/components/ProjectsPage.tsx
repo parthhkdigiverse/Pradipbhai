@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Briefcase, IndianRupee, Edit, X, FilterX , ChevronDown } from 'lucide-react';
+import { Search, Briefcase, IndianRupee, Edit, X, FilterX, ChevronDown, Plus, TrendingUp } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -7,7 +7,7 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
-  const { clients, updateProject } = useData();
+  const { clients, jobs, addProject, updateProject } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
@@ -28,6 +28,7 @@ export function ProjectsPage() {
   // Modal States
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingClientIndex, setEditingClientIndex] = useState<{clientId: string, projectIndex: number} | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [projectFormData, setProjectFormData] = useState({
     name: '',
     category: 'Designing',
@@ -36,13 +37,21 @@ export function ProjectsPage() {
     deadline: ''
   });
 
-  // Extract non-social media projects
+  // Extract non-social media projects with live job financials
   const allProjects = useMemo(() => {
     const projects: any[] = [];
     clients.forEach(client => {
       if (client.projects && client.projects.length > 0) {
         client.projects.forEach((proj: any, idx: number) => {
           if (proj.category !== 'Social Media') {
+            // Aggregate financials from all linked jobs
+            const linkedJobs = jobs.filter(
+              (j: any) => j.clientId === client.id && j.projectId === proj.name
+            );
+            const totalBilled = linkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
+            const totalPaid   = linkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
+            const jobCount    = linkedJobs.length;
+            const doneCount   = linkedJobs.filter((j: any) => j.status === 'Done').length;
             projects.push({
               ...proj,
               clientId: client.id,
@@ -50,14 +59,20 @@ export function ProjectsPage() {
               clientContact: client.contact,
               clientEmail: client.email,
               clientPhone: client.phone,
-              originalProjectIndex: idx
+              originalProjectIndex: idx,
+              // live financials
+              totalBilled,
+              totalPaid,
+              balance: totalBilled - totalPaid,
+              jobCount,
+              doneCount
             });
           }
         });
       }
     });
     return projects;
-  }, [clients]);
+  }, [clients, jobs]);
 
   // Apply filters
   const filteredProjects = useMemo(() => {
@@ -93,6 +108,19 @@ export function ProjectsPage() {
     setIsProjectModalOpen(true);
   };
 
+  const handleCreateNewProject = () => {
+    setProjectFormData({
+      name: '',
+      category: 'Designing',
+      status: 'Planning',
+      budget: '',
+      deadline: ''
+    });
+    setSelectedClientId(clients[0]?.id || '');
+    setEditingClientIndex(null);
+    setIsProjectModalOpen(true);
+  };
+
   const handleCloseProjectModal = () => {
     setIsProjectModalOpen(false);
     setEditingClientIndex(null);
@@ -102,6 +130,8 @@ export function ProjectsPage() {
     e.preventDefault();
     if (editingClientIndex) {
       updateProject(editingClientIndex.clientId, editingClientIndex.projectIndex, projectFormData);
+    } else if (selectedClientId) {
+      addProject(selectedClientId, projectFormData);
     }
     handleCloseProjectModal();
   };
@@ -138,6 +168,13 @@ export function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={handleCreateNewProject}
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md transition-all hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add New Project
+          </button>
         </div>
       </div>
 
@@ -225,7 +262,8 @@ export function ProjectsPage() {
                 <th className="py-4 px-6">Project Name</th>
                 <th className="py-4 px-6">Client Name</th>
                 <th className="py-4 px-6">Category</th>
-                <th className="py-4 px-6">Budget</th>
+                <th className="py-4 px-6">Budget / Financials</th>
+                <th className="py-4 px-6">Jobs</th>
                 <th className="py-4 px-6">Deadline</th>
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6 text-center">Actions</th>
@@ -233,10 +271,20 @@ export function ProjectsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredProjects.length > 0 ? (
-                filteredProjects.map((proj, idx) => (
+                filteredProjects.map((proj, idx) => {
+                  const budget = parseFloat(proj.budget || '0');
+                  const paidPct = proj.totalBilled > 0 ? Math.min(100, Math.round((proj.totalPaid / proj.totalBilled) * 100)) : 0;
+                  return (
                   <tr key={idx} className="hover:bg-white/60 transition-colors group">
                     <td className="py-4 px-6 text-gray-400 font-medium">{idx + 1}</td>
-                    <td className="py-4 px-6 text-sm font-bold text-gray-800">{proj.name}</td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-bold text-gray-800 block">{proj.name}</span>
+                      <span className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        proj.category === 'Designing' ? 'bg-emerald-100 text-emerald-700' :
+                        proj.category === 'Des+Print' ? 'bg-purple-100 text-purple-700' :
+                        'bg-primary/10 text-primary'
+                      }`}>{proj.category}</span>
+                    </td>
                     <td className="py-4 px-6 text-gray-500 font-medium">
                       {proj.clientName}
                       <span className="block text-[10px] text-gray-400">{proj.clientContact}</span>
@@ -244,9 +292,49 @@ export function ProjectsPage() {
                     <td className="py-4 px-6">
                       <span className="text-[10px] font-semibold text-gray-500 bg-gray-100/50 px-2 py-0.5 rounded">{proj.category}</span>
                     </td>
-                    <td className="py-4 px-6 text-sm font-bold text-emerald-700 flex items-center">
-                      <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
-                      {parseFloat(proj.budget || '0').toLocaleString()}
+                    {/* Budget & Live Financials */}
+                    <td className="py-4 px-6 min-w-[180px]">
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Budget</span>
+                          <span className="font-bold text-gray-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{budget.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Billed</span>
+                          <span className="font-bold text-primary flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalBilled.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Paid</span>
+                          <span className="font-bold text-emerald-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalPaid.toLocaleString()}</span>
+                        </div>
+                        {proj.balance > 0 && (
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-gray-400 font-semibold uppercase tracking-wide">Balance</span>
+                            <span className="font-bold text-rose-500 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.balance.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {proj.totalBilled > 0 && (
+                          <div className="mt-1.5">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className={`h-1.5 rounded-full transition-all ${
+                                  paidPct === 100 ? 'bg-emerald-500' : paidPct >= 50 ? 'bg-amber-400' : 'bg-rose-400'
+                                }`}
+                                style={{ width: `${paidPct}%` }}
+                              />
+                            </div>
+                            <p className="text-[9px] text-gray-400 mt-0.5 text-right">{paidPct}% paid</p>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    {/* Job progress */}
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="text-xs font-bold text-gray-700">{proj.doneCount}/{proj.jobCount}</span>
+                        <span className="text-[10px] text-gray-400">done</span>
+                      </div>
                     </td>
                     <td className="py-4 px-6 font-bold text-gray-700">
                       {formatDate(proj.deadline, dateFormat)}
@@ -266,10 +354,11 @@ export function ProjectsPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                  <td colSpan={9} className="py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
                       <Briefcase className="w-12 h-12 text-gray-300 mb-4" />
                       <p>No projects found matching your criteria.</p>
@@ -288,13 +377,26 @@ export function ProjectsPage() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleCloseProjectModal}></div>
           <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
-              <h2 className="text-lg font-bold text-gray-800">Edit Project</h2>
+              <h2 className="text-lg font-bold text-gray-800">
+                {editingClientIndex ? 'Edit Project' : 'Add New Project'}
+              </h2>
               <button onClick={handleCloseProjectModal} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
             <form onSubmit={handleSaveProject} className="p-5 space-y-4">
+              {!editingClientIndex && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
+                  <SearchableSelect
+                    value={selectedClientId}
+                    onChange={setSelectedClientId}
+                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    placeholder="Select client..."
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>
@@ -302,11 +404,15 @@ export function ProjectsPage() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Category</label>
-                  <select value={projectFormData.category} onChange={e => setProjectFormData({...projectFormData, category: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="Designing">Designing</option>
-                    <option value="Printing">Printing</option>
-                    <option value="Des+Print">Des+Print</option>
-                  </select>
+                  <SearchableSelect
+                    value={projectFormData.category}
+                    onChange={val => setProjectFormData({...projectFormData, category: val})}
+                    options={[
+                      { value: 'Designing', label: 'Designing' },
+                      { value: 'Printing', label: 'Printing' },
+                      { value: 'Des+Print', label: 'Des+Print' }
+                    ]}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

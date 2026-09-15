@@ -5,6 +5,7 @@ import { ChevronDown, Search, X } from 'lucide-react';
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  displayLabel?: string;
 }
 
 interface SearchableSelectProps {
@@ -26,7 +27,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [coords, setCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; showAbove: boolean }>({
+    top: 0,
+    left: 0,
+    width: 0,
+    showAbove: false,
+  });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -34,10 +40,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const updateCoords = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
+      const dropdownWidth = Math.max(rect.width, 180);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const showAbove = spaceBelow < 220 && rect.top > 220;
+
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownWidth - 8));
+
       setCoords({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-        width: Math.max(rect.width, 180),
+        top: showAbove ? rect.top - 4 : rect.bottom + 4,
+        left,
+        width: dropdownWidth,
+        showAbove,
       });
     }
   };
@@ -99,19 +112,21 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     }
   };
 
+  const hasCustomWidth = className.split(' ').some(c => c.startsWith('w-'));
+
   return (
-    <div className={`relative inline-block w-full ${className}`}>
+    <div className={`relative inline-block ${hasCustomWidth ? '' : 'w-full'} ${className}`}>
       <button
         ref={buttonRef}
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className={`w-full px-3 py-1.5 bg-white/60 hover:bg-white/80 border border-white/80 rounded-lg text-sm transition-all text-left flex items-center justify-between gap-2 focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 ${
+        className={`w-full px-2.5 h-[38px] bg-white/50 hover:bg-white/70 border border-white/60 rounded-xl text-xs font-medium transition-all text-left flex items-center justify-between gap-1 focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         }`}
       >
-        <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-500 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="truncate">{selectedOption ? (selectedOption.displayLabel || selectedOption.label) : placeholder}</span>
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen &&
@@ -122,6 +137,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               top: `${coords.top}px`,
               left: `${coords.left}px`,
               width: `${coords.width}px`,
+              transform: coords.showAbove ? 'translateY(-100%)' : undefined,
             }}
             className="fixed z-[9999] bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
           >

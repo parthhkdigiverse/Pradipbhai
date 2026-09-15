@@ -230,22 +230,46 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
           <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider">UNASSIGNED / UNREGISTERED WORK</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+          <button
+            onClick={() => handleCardClick('jobs', 'status', 'All')}
+            className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
+          >
             <div className="w-4 h-4 rounded-full bg-rose-500 shadow-inner shrink-0"></div>
-            <div className="text-sm font-bold text-gray-800">Unassigned Tasks: {unregisteredWorkMetrics.unassignedTasks}</div>
-          </div>
-          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-amber-400 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Unassigned Tasks: {unregisteredWorkMetrics.unassignedTasks}</div>
+              <div className="text-[10px] text-rose-500 font-semibold mt-0.5">→ View in Jobs</div>
+            </div>
+          </button>
+          <button
+            onClick={() => handleCardClick('jobs', 'status', 'Progress')}
+            className="bg-white/60 backdrop-blur-xl border-l-4 border-l-amber-400 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
+          >
             <div className="w-4 h-4 rounded-full bg-amber-400 shadow-inner shrink-0"></div>
-            <div className="text-sm font-bold text-gray-800">No Update Today: {unregisteredWorkMetrics.noUpdateToday}</div>
-          </div>
-          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-600 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div>
+              <div className="text-sm font-bold text-gray-800">No Update Today: {unregisteredWorkMetrics.noUpdateToday}</div>
+              <div className="text-[10px] text-amber-500 font-semibold mt-0.5">→ View In-Progress Jobs</div>
+            </div>
+          </button>
+          <button
+            onClick={() => handleCardClick('jobs', 'status', 'Pending')}
+            className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-600 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
+          >
             <div className="w-4 h-4 rounded-full bg-rose-600 shadow-inner shrink-0"></div>
-            <div className="text-sm font-bold text-gray-800">Overdue: {unregisteredWorkMetrics.overdue}</div>
-          </div>
-          <div className="bg-white/60 backdrop-blur-xl border-l-4 border-l-orange-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+            <div>
+              <div className="text-sm font-bold text-gray-800">Overdue: {unregisteredWorkMetrics.overdue}</div>
+              <div className="text-[10px] text-rose-600 font-semibold mt-0.5">→ View Pending Jobs</div>
+            </div>
+          </button>
+          <button
+            onClick={() => handleCardClick('leads', 'status', 'All')}
+            className="bg-white/60 backdrop-blur-xl border-l-4 border-l-orange-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
+          >
             <div className="w-4 h-4 rounded-full bg-orange-500 shadow-inner shrink-0"></div>
-            <div className="text-sm font-bold text-gray-800">Client Follow-up Pending: {unregisteredWorkMetrics.clientFollowUpPending}</div>
-          </div>
+            <div>
+              <div className="text-sm font-bold text-gray-800">Client Follow-up Pending: {unregisteredWorkMetrics.clientFollowUpPending}</div>
+              <div className="text-[10px] text-orange-500 font-semibold mt-0.5">→ View Leads</div>
+            </div>
+          </button>
         </div>
       </div>
 

@@ -408,10 +408,12 @@ export function InvoicesPage() {
                 {/* Select Client */}
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
-                  <select required value={selectedClientId} onChange={e => setSelectedClientId(e.target.value)} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                    <option value="" disabled>Select client...</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
-                  </select>
+                  <SearchableSelect
+                    value={selectedClientId}
+                    onChange={setSelectedClientId}
+                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    placeholder="Select client..."
+                  />
                 </div>
 
                 {/* Job Selection */}

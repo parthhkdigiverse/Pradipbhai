@@ -272,10 +272,14 @@ export function CatalogPage() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Type</label>
-                <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
-                  <option value="Printing">Printing</option>
-                  <option value="Designing">Designing</option>
-                </select>
+                <SearchableSelect
+                  value={formData.type}
+                  onChange={val => setFormData({...formData, type: val})}
+                  options={[
+                    { value: 'Printing', label: 'Printing' },
+                    { value: 'Designing', label: 'Designing' }
+                  ]}
+                />
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
