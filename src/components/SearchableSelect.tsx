@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, Search, X, Plus } from 'lucide-react';
 
 export interface SearchableSelectOption {
   value: string;
@@ -15,6 +15,8 @@ interface SearchableSelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  onCreateOption?: (searchQuery: string) => void;
+  createOptionLabel?: string;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -24,6 +26,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   placeholder = 'Select option...',
   className = '',
   disabled = false,
+  onCreateOption,
+  createOptionLabel = 'Add New',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,6 +109,14 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     setIsOpen(false);
   };
 
+  const handleCreate = () => {
+    if (onCreateOption) {
+      const queryToPass = searchQuery;
+      setIsOpen(false);
+      onCreateOption(queryToPass);
+    }
+  };
+
   const handleToggle = () => {
     if (!disabled) {
       if (!isOpen) updateCoords();
@@ -164,26 +176,50 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
             <div className="max-h-52 overflow-y-auto py-1 custom-scrollbar">
               {filteredOptions.length > 0 ? (
-                filteredOptions.map((opt) => {
-                  const isSelected = opt.value === value;
-                  return (
+                <>
+                  {filteredOptions.map((opt) => {
+                    const isSelected = opt.value === value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handleSelect(opt.value)}
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
+                          isSelected
+                            ? 'bg-primary/10 font-bold text-primary'
+                            : 'hover:bg-gray-100/80 text-gray-700'
+                        }`}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  {onCreateOption && (
                     <button
-                      key={opt.value}
                       type="button"
-                      onClick={() => handleSelect(opt.value)}
-                      className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
-                        isSelected
-                          ? 'bg-primary/10 font-bold text-primary'
-                          : 'hover:bg-gray-100/80 text-gray-700'
-                      }`}
+                      onClick={handleCreate}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 transition-colors border-t border-indigo-100 flex items-center gap-1.5 mt-1"
                     >
-                      <span className="truncate">{opt.label}</span>
-                      {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
+                      <Plus className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>{searchQuery ? `${createOptionLabel} "${searchQuery}"` : createOptionLabel}</span>
                     </button>
-                  );
-                })
+                  )}
+                </>
               ) : (
-                <div className="px-3 py-2 text-xs text-gray-400 text-center">No options found</div>
+                <div className="py-2 px-3">
+                  <div className="text-xs text-gray-400 text-center mb-2">No matching options found</div>
+                  {onCreateOption && (
+                    <button
+                      type="button"
+                      onClick={handleCreate}
+                      className="w-full text-center px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-100/90 hover:bg-indigo-200 border border-indigo-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span>{searchQuery ? `${createOptionLabel} "${searchQuery}"` : createOptionLabel}</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>,

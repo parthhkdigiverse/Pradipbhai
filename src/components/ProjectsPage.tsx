@@ -4,13 +4,18 @@ import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
+import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
-  const { clients, jobs, addProject, updateProject } = useData();
+  const { clients, jobs, products, addProject, updateProject } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
+  // Quick Add Client Modal State
+  const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
+  const [quickClientName, setQuickClientName] = useState('');
+
   // Filter States
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
@@ -31,6 +36,7 @@ export function ProjectsPage() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [projectFormData, setProjectFormData] = useState({
     name: '',
+    productId: '',
     category: 'Designing',
     status: 'Planning',
     budget: '',
@@ -97,6 +103,7 @@ export function ProjectsPage() {
   const handleOpenProjectModal = (project: any) => {
     setProjectFormData({
       name: project.name,
+      productId: project.productId || '',
       category: project.category,
       status: project.status,
       budget: project.budget,
@@ -109,6 +116,7 @@ export function ProjectsPage() {
   const handleCreateNewProject = () => {
     setProjectFormData({
       name: '',
+      productId: '',
       category: 'Designing',
       status: 'Planning',
       budget: '',
@@ -388,15 +396,66 @@ export function ProjectsPage() {
             <form onSubmit={handleSaveProject} className="p-5 space-y-4">
               {!editingClientIndex && (
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Select Client <span className="text-rose-500">*</span></label>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickClientName(''); setIsQuickClientModalOpen(true); }}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-600" /> Add Client
+                    </button>
+                  </div>
                   <SearchableSelect
                     value={selectedClientId}
                     onChange={setSelectedClientId}
                     options={clients.map(c => ({ value: c.id, label: c.company }))}
                     placeholder="Select client..."
+                    onCreateOption={(query) => {
+                      setQuickClientName(query);
+                      setIsQuickClientModalOpen(true);
+                    }}
+                    createOptionLabel="Add Client"
                   />
                 </div>
               )}
+
+              <QuickAddClientModal
+                isOpen={isQuickClientModalOpen}
+                onClose={() => setIsQuickClientModalOpen(false)}
+                initialName={quickClientName}
+                onClientCreated={(newClient) => {
+                  setSelectedClientId(newClient.id);
+                  setIsQuickClientModalOpen(false);
+                }}
+              />
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product (Optional)</label>
+                <SearchableSelect
+                  value={projectFormData.productId || ''}
+                  onChange={val => {
+                    const selectedProd = products.find(p => p.id === val);
+                    const autoBudget = (selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '')
+                      ? String(selectedProd.price)
+                      : projectFormData.budget;
+                    setProjectFormData(prev => ({
+                      ...prev,
+                      productId: val,
+                      budget: autoBudget
+                    }));
+                  }}
+                  options={[
+                    { value: '', label: 'Select product to auto-fetch price...' },
+                    ...products.map(p => ({
+                      value: p.id,
+                      label: p.price !== undefined && p.price !== null && p.price !== ''
+                        ? `${p.name} (₹${Number(p.price).toLocaleString('en-IN')})`
+                        : p.name
+                    }))
+                  ]}
+                  placeholder="Select product..."
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Project Name <span className="text-rose-500">*</span></label>

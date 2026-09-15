@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -21,7 +21,10 @@ export function CatalogPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: 'Printing'
+    type: 'Printing',
+    price: '',
+    estimatedTime: '',
+    estimatedTimeUnit: 'Hours'
   });
 
   const filteredProducts = useMemo(() => {
@@ -44,14 +47,20 @@ export function CatalogPage() {
       setFormData({
         name: product.name,
         description: product.description,
-        type: product.type
+        type: product.type,
+        price: product.price !== undefined && product.price !== null ? String(product.price) : '',
+        estimatedTime: product.estimatedTime !== undefined && product.estimatedTime !== null ? String(product.estimatedTime) : '',
+        estimatedTimeUnit: product.estimatedTimeUnit || 'Hours'
       });
     } else {
       setEditingId(null);
       setFormData({
         name: '',
         description: '-',
-        type: 'Printing'
+        type: 'Printing',
+        price: '',
+        estimatedTime: '',
+        estimatedTimeUnit: 'Hours'
       });
     }
     setIsModalOpen(true);
@@ -59,12 +68,19 @@ export function CatalogPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : undefined;
+    const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : undefined;
+    const dataToSave = {
+      ...formData,
+      price: parsedPrice,
+      estimatedTime: parsedTime
+    };
     if (editingId) {
-      setProducts(products.map(p => p.id === editingId ? { ...p, ...formData } : p));
+      setProducts(products.map(p => p.id === editingId ? { ...p, ...dataToSave } : p));
     } else {
       setProducts([
         ...products,
-        { ...formData, id: Math.random().toString(36).substr(2, 9) }
+        { ...dataToSave, id: Math.random().toString(36).substr(2, 9) }
       ]);
     }
     setIsModalOpen(false);
@@ -165,6 +181,8 @@ export function CatalogPage() {
                 <th className="py-4 px-6">Name</th>
                 <th className="py-4 px-6">Description</th>
                 <th className="py-4 px-6 text-center">Type</th>
+                <th className="py-4 px-6 text-center">Approx. Timeline</th>
+                <th className="py-4 px-6 text-right">Price (₹)</th>
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
@@ -183,6 +201,21 @@ export function CatalogPage() {
                     </td>
                     <td className="py-4 px-6 text-center">
                       {getTypeBadge(product.type)}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {product.estimatedTime ? (
+                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                          <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                          {product.estimatedTime} {product.estimatedTimeUnit || 'Hours'}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-right font-bold text-gray-800">
+                      {product.price !== undefined && product.price !== null && product.price !== '' 
+                        ? `₹${Number(product.price).toLocaleString('en-IN')}` 
+                        : '-'}
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -204,7 +237,7 @@ export function CatalogPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-gray-500">
+                  <td colSpan={7} className="py-12 text-center text-gray-500">
                     No products found.
                   </td>
                 </tr>
@@ -280,6 +313,41 @@ export function CatalogPage() {
                     { value: 'Designing', label: 'Designing' }
                   ]}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Default Price (₹)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 1500"
+                    value={formData.price} 
+                    onChange={e => setFormData({...formData, price: e.target.value})} 
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Approx. Timeline</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="1"
+                      placeholder="e.g. 4"
+                      value={formData.estimatedTime} 
+                      onChange={e => setFormData({...formData, estimatedTime: e.target.value})} 
+                      className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                    />
+                    <select 
+                      value={formData.estimatedTimeUnit} 
+                      onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})}
+                      className="w-1/2 px-2 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value="Hours">Hours</option>
+                      <option value="Days">Days</option>
+                    </select>
+                  </div>
+                </div>
               </div>
               <div className="pt-4 flex justify-end gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>

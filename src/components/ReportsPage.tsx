@@ -2,9 +2,39 @@ import { useState, useMemo } from 'react';
 import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
+import { InvoicePreviewModal } from './InvoicePreviewModal';
 
 export function ReportsPage() {
-  const { clients, jobs, staff, products, vendors } = useData();
+  const { clients, jobs, staff, products, vendors, invoices } = useData();
+  const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any | null>(null);
+  
+  const handleJobClick = (jobId: string) => {
+    const matchedInvoice = invoices.find((inv: any) => inv.jobIds && inv.jobIds.includes(jobId));
+    if (matchedInvoice) {
+      setSelectedPreviewInvoice(matchedInvoice);
+    } else {
+      const targetJob = jobs.find((j: any) => j.id === jobId);
+      if (targetJob) {
+        const subtotal = targetJob.totalAmount || 0;
+        const tax = (subtotal * 18) / 100;
+        const total = subtotal + tax;
+        setSelectedPreviewInvoice({
+          id: 'preview-' + targetJob.id,
+          invoiceNumber: `INV-${targetJob.id.toUpperCase()}`,
+          clientId: targetJob.clientId,
+          jobIds: [targetJob.id],
+          issueDate: new Date().toISOString().split('T')[0],
+          dueDate: targetJob.dueDate || '',
+          subtotal,
+          tax,
+          total,
+          status: targetJob.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
+          invoiceType: 'Tax',
+          taxRate: '18'
+        });
+      }
+    }
+  };
   
   // Tab State
   const [activeTab, setActiveTab] = useState<'projects' | 'jobs'>('jobs');
@@ -394,7 +424,14 @@ export function ReportsPage() {
                       <tr key={job.id} className="hover:bg-white/60 transition-colors">
                         <td className="py-3 px-4 font-bold text-gray-400">{index + 1}</td>
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-gray-800 text-sm">{job.title}</span>
+                          <button 
+                            onClick={() => handleJobClick(job.id)}
+                            className="font-bold text-primary hover:underline text-left text-sm flex items-center gap-1.5 group/link cursor-pointer"
+                            title="Click to view invoice"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-primary/70 group-hover/link:text-primary transition-colors flex-shrink-0" />
+                            <span>{job.title}</span>
+                          </button>
                           <div className="text-[10px] text-gray-500 mt-0.5">{job.type}</div>
                         </td>
                         <td className="py-3 px-4">
@@ -416,11 +453,15 @@ export function ReportsPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            job.paymentStatus === 'Paid' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-                          }`}>
+                          <button 
+                            onClick={() => handleJobClick(job.id)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-transform hover:scale-105 cursor-pointer ${
+                              job.paymentStatus === 'Paid' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                            }`}
+                            title="Click to view invoice"
+                          >
                             {job.paymentStatus}
-                          </span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -439,6 +480,14 @@ export function ReportsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invoice Preview Modal Overlay */}
+      {selectedPreviewInvoice && (
+        <InvoicePreviewModal 
+          invoice={selectedPreviewInvoice} 
+          onClose={() => setSelectedPreviewInvoice(null)} 
+        />
       )}
     </div>
   );

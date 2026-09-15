@@ -73,7 +73,7 @@ function App() {
             {currentPage === 'vendors' && <VendorsPage />}
             {currentPage === 'jobs' && <JobsPage />}
             {currentPage === 'invoices' && <InvoicesPage />}
-            {currentPage === 'reports' && <ReportsPage />}
+            {currentPage === 'reports' && <ReportsPage setCurrentPage={setCurrentPage} />}
             {currentPage === 'settings' && <SettingsPage />}
             {currentPage === 'permissions' && <PermissionsPage />}
             {currentPage === 'restrictions' && <RestrictionsPage />}

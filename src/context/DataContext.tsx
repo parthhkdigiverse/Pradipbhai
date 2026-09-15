@@ -250,14 +250,14 @@ const initialClients = [
 ];
 
 const initialProducts = [
-  { id: '1', name: 'Bag (Non woven)', description: '-', type: 'Printing' },
-  { id: '2', name: 'LANYARD', description: '-', type: 'Printing' },
-  { id: '3', name: 'Bank Details Corrections', description: '-', type: 'Designing' },
-  { id: '4', name: 'Folder File', description: 'Folder File', type: 'Designing' },
-  { id: '5', name: 'Channel letter Lighiting Board', description: '-', type: 'Printing' },
-  { id: '6', name: 'Carousel', description: 'Carousel', type: 'Designing' },
-  { id: '7', name: 'Amazone Listing post', description: 'Amazone Listing post', type: 'Designing' },
-  { id: '8', name: 'UV Printing', description: '-', type: 'Printing' }
+  { id: '1', name: 'Bag (Non woven)', description: '-', type: 'Printing', price: 15, estimatedTime: 2, estimatedTimeUnit: 'Hours' },
+  { id: '2', name: 'LANYARD', description: '-', type: 'Printing', price: 25, estimatedTime: 1, estimatedTimeUnit: 'Days' },
+  { id: '3', name: 'Bank Details Corrections', description: '-', type: 'Designing', price: 500, estimatedTime: 3, estimatedTimeUnit: 'Hours' },
+  { id: '4', name: 'Folder File', description: 'Folder File', type: 'Designing', price: 1500, estimatedTime: 1, estimatedTimeUnit: 'Days' },
+  { id: '5', name: 'Channel letter Lighiting Board', description: '-', type: 'Printing', price: 8500, estimatedTime: 3, estimatedTimeUnit: 'Days' },
+  { id: '6', name: 'Carousel', description: 'Carousel', type: 'Designing', price: 2000, estimatedTime: 4, estimatedTimeUnit: 'Hours' },
+  { id: '7', name: 'Amazone Listing post', description: 'Amazone Listing post', type: 'Designing', price: 1200, estimatedTime: 5, estimatedTimeUnit: 'Hours' },
+  { id: '8', name: 'UV Printing', description: '-', type: 'Printing', price: 3000, estimatedTime: 2, estimatedTimeUnit: 'Days' }
 ];
 
 const initialStaff = [
@@ -273,12 +273,8 @@ const initialAttendance = [
     date: '2026-09-01', 
     status: 'Present', 
     checkIn: '09:00', 
-    checkOut: '18:15',
-    punches: [
-      { in: '09:00', out: '13:00' },
-      { in: '14:00', out: '16:30' },
-      { in: '17:00', out: '18:15' }
-    ]
+    checkOut: '17:30', 
+    punches: [{ in: '09:00', out: '17:30' }] 
   },
   { 
     id: '2', 
@@ -286,14 +282,9 @@ const initialAttendance = [
     date: '2026-09-01', 
     status: 'Present', 
     checkIn: '09:15', 
-    checkOut: '18:30',
-    punches: [
-      { in: '09:15', out: '13:15' },
-      { in: '14:15', out: '18:30' }
-    ]
+    checkOut: '17:45',
+    punches: [{ in: '09:15', out: '17:45' }]
   },
-  { id: '3', staffId: '3', date: '2026-09-01', status: 'Leave', checkIn: '', checkOut: '', punches: [] },
-
   { 
     id: '4', 
     staffId: '1', 
@@ -517,8 +508,8 @@ interface DataContextType {
   convertLeadToClient: (lead: any) => void;
   addProject: (clientId: string, projectData: any) => void;
   updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
-  activeFilterIntent: { page: string, filterKey: string, filterValue: string } | null;
-  setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string } | null>>;
+  activeFilterIntent: { page: string, filterKey: string, filterValue: string, jobId?: string } | null;
+  setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>>;
   isPunchedIn: boolean;
   setIsPunchedIn: React.Dispatch<React.SetStateAction<boolean>>;
   punchInTime: number | null;
@@ -540,7 +531,7 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [currentUserRole, setCurrentUserRole] = useState<string>('Admin');
-  const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string } | null>(null);
+  const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>(null);
 
   const [leads, setLeads] = useState<any[]>(() => {
     const saved = localStorage.getItem('app_leads');

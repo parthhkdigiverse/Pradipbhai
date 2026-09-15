@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
+import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function JobsPage() {
-  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole } = useData();
+  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
@@ -13,6 +14,10 @@ export function JobsPage() {
   const [filterProduct, setFilterProduct] = useState('All');
   const [filterBilling, setFilterBilling] = useState('All');
   const [filterType, setFilterType] = useState('All');
+  
+  // Quick Add Client Modal State
+  const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
+  const [quickClientName, setQuickClientName] = useState('');
   
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -55,10 +60,47 @@ export function JobsPage() {
     vendorEmailSent: false,
     paymentOverride: null as { reason: string, approvedBy: string, approvedAt: string } | null,
     workLink: '',
-    workLocation: ''
+    workLocation: '',
+    estimatedTime: '',
+    estimatedTimeUnit: 'Hours',
+    delayReason: ''
   });
 
   const [overrideReason, setOverrideReason] = useState('');
+  const [delayModalJob, setDelayModalJob] = useState<any | null>(null);
+  const [delayReasonInput, setDelayReasonInput] = useState('');
+
+  const handleOpenDelayModal = (job: any) => {
+    setDelayModalJob(job);
+    setDelayReasonInput(job.delayReason || '');
+  };
+
+  const handleSaveDelayReason = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (delayModalJob) {
+      setJobs(prev => prev.map(j => j.id === delayModalJob.id ? { ...j, delayReason: delayReasonInput.trim() } : j));
+      setDelayModalJob(null);
+      setDelayReasonInput('');
+    }
+  };
+
+  const getJobTimelineInfo = (job: any) => {
+    if (!job.estimatedTime) return { isExceeded: false, expectedText: '', diffText: '' };
+    const val = parseFloat(job.estimatedTime) || 0;
+    const unit = job.estimatedTimeUnit || 'Hours';
+    const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : val * 3600;
+    const tracked = job.trackedTime || 0;
+    const isExceeded = tracked > expectedSeconds;
+    const diffSecs = tracked - expectedSeconds;
+    const diffHours = (diffSecs / 3600).toFixed(1);
+    return {
+      isExceeded,
+      expectedText: `${val} ${unit}`,
+      diffText: `${diffHours} hrs`,
+      tracked,
+      expectedSeconds
+    };
+  };
 
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
@@ -76,6 +118,7 @@ export function JobsPage() {
                           staffName.toLowerCase().includes(sLower) ||
                           productName.toLowerCase().includes(sLower) ||
                           printerName.toLowerCase().includes(sLower) ||
+                          (job.delayReason && job.delayReason.toLowerCase().includes(sLower)) ||
                           (job.totalAmount && job.totalAmount.toString().includes(sLower));
       const matchStatus = filterStatus === 'All' || job.status === filterStatus;
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
@@ -116,7 +159,10 @@ export function JobsPage() {
           vendorEmailSent: job.vendorEmailSent || false,
           paymentOverride: job.paymentOverride || null,
           workLink: job.workLink || '',
-          workLocation: job.workLocation || ''
+          workLocation: job.workLocation || '',
+          estimatedTime: job.estimatedTime !== undefined && job.estimatedTime !== null ? String(job.estimatedTime) : '',
+          estimatedTimeUnit: job.estimatedTimeUnit || 'Hours',
+          delayReason: job.delayReason || ''
         });
         setEditingJobId(jobId);
         setNewJobType((job.type as 'Designing' | 'Printing' | 'Des+Print') || 'Designing');
@@ -139,7 +185,10 @@ export function JobsPage() {
         vendorEmailSent: false,
         paymentOverride: null,
         workLink: '',
-        workLocation: ''
+        workLocation: '',
+        estimatedTime: '',
+        estimatedTimeUnit: 'Hours',
+        delayReason: ''
       });
       setEditingJobId(null);
       setOverrideReason('');
@@ -179,6 +228,66 @@ export function JobsPage() {
     handleCloseModal();
   };
 
+  const ensurePunchedIn = () => {
+    if (!isPunchedIn) {
+      const now = Date.now();
+      setIsPunchedIn(true);
+      setPunchInTime(now);
+
+      const todayStr = new Date(now).toISOString().split('T')[0];
+      const checkInStr = new Date(now).toTimeString().slice(0, 5);
+      const loggedStaffId = staff[0]?.id || '1';
+
+      setAttendance(prev => {
+        const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          const existingRecord = updated[existingIdx];
+          const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
+          
+          updated[existingIdx] = {
+            ...existingRecord,
+            status: 'Present',
+            checkIn: existingRecord.checkIn || checkInStr,
+            punches: [...existingPunches, { in: checkInStr, out: '' }]
+          };
+          return updated;
+        } else {
+          return [...prev, {
+            id: Math.random().toString(36).substr(2, 9),
+            staffId: loggedStaffId,
+            date: todayStr,
+            status: 'Present',
+            checkIn: checkInStr,
+            checkOut: '',
+            punches: [{ in: checkInStr, out: '' }]
+          }];
+        }
+      });
+    }
+  };
+
+  const handleStartTracker = (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+    
+    const client = clients.find(c => c.id === job.clientId);
+    if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
+      alert('🔴 PAYMENT REQUIRED — Cannot start work tracker for this Red client without advance or Partner override.');
+      return;
+    }
+
+    ensurePunchedIn();
+
+    if (activeJobTracker && activeJobTracker.jobId !== jobId) {
+      // Stop previous tracker
+      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      setJobs(prev => prev.map(j => j.id === activeJobTracker.jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+    }
+    setActiveJobTracker({ jobId, startTime: Date.now() });
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'Progress' } : j));
+  };
+
   const updateJobStatus = (id: string, status: string) => {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
@@ -193,6 +302,19 @@ export function JobsPage() {
         alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
         return;
       }
+    }
+
+    if (status === 'Progress') {
+      if (activeJobTracker?.jobId !== id) {
+        handleStartTracker(id);
+      }
+      return;
+    }
+
+    if (status !== 'Progress' && activeJobTracker?.jobId === id) {
+      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      setJobs(prev => prev.map(j => j.id === id ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+      setActiveJobTracker(null);
     }
 
     if (status === 'Done') {
@@ -263,31 +385,27 @@ export function JobsPage() {
     }
   };
 
-  const handleStartTracker = (jobId: string) => {
-    const job = jobs.find(j => j.id === jobId);
-    if (!job) return;
-    
-    const client = clients.find(c => c.id === job.clientId);
-    if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
-      alert('🔴 PAYMENT REQUIRED — Cannot start work tracker for this Red client without advance or Partner override.');
-      return;
-    }
-
-    if (activeJobTracker && activeJobTracker.jobId !== jobId) {
-      // Stop previous tracker
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => j.id === activeJobTracker.jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
-    }
-    setActiveJobTracker({ jobId, startTime: Date.now() });
-    updateJobStatus(jobId, 'Progress'); // Optional: auto-set to Progress when tracking starts
-  };
-
   const handleStopTracker = (jobId: string) => {
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+      let updatedJob: any = null;
+      setJobs(prev => prev.map(j => {
+        if (j.id === jobId) {
+          const newTracked = (j.trackedTime || 0) + elapsed;
+          updatedJob = { ...j, trackedTime: newTracked };
+          return updatedJob;
+        }
+        return j;
+      }));
       setActiveJobTracker(null);
-      updateJobStatus(jobId, 'Pending'); // Optional: auto-set to pending/paused when tracking stops
+      updateJobStatus(jobId, 'Pending');
+
+      if (updatedJob) {
+        const info = getJobTimelineInfo(updatedJob);
+        if (info.isExceeded && !updatedJob.delayReason) {
+          setTimeout(() => handleOpenDelayModal(updatedJob), 300);
+        }
+      }
     }
   };
 
@@ -614,14 +732,49 @@ export function JobsPage() {
                       {job.dueDate || '-'}
                     </td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5 text-xs font-mono bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                        <Clock className="w-3 h-3 text-gray-400" />
-                        {activeJobTracker?.jobId === job.id ? (
-                           <span className="text-primary animate-pulse font-bold">Tracking...</span>
-                        ) : (
-                          <span className="text-gray-600 font-medium">{formatTime(job.trackedTime || 0)}</span>
-                        )}
-                      </div>
+                      {(() => {
+                        const info = getJobTimelineInfo(job);
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            <div className="flex items-center justify-center gap-1.5 text-xs font-mono bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                              <Clock className="w-3 h-3 text-gray-400" />
+                              {activeJobTracker?.jobId === job.id ? (
+                                 <span className="text-primary animate-pulse font-bold">Tracking...</span>
+                              ) : (
+                                <span className="text-gray-600 font-medium">{formatTime(job.trackedTime || 0)}</span>
+                              )}
+                            </div>
+                            {info.expectedText && (
+                              <span className="text-[10px] text-gray-500 font-medium">
+                                Est: {info.expectedText}
+                              </span>
+                            )}
+                            {info.isExceeded && (
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[9px] font-bold">
+                                  ⚠️ Exceeded (+{info.diffText})
+                                </span>
+                                {job.delayReason ? (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
+                                    className="text-[10px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-semibold text-left max-w-[160px] truncate block cursor-pointer transition-colors" 
+                                    title={`Delay Reason: ${job.delayReason}`}
+                                  >
+                                    💬 {job.delayReason}
+                                  </button>
+                                ) : (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
+                                    className="text-[10px] text-white bg-rose-500 hover:bg-rose-600 font-bold px-2 py-0.5 rounded shadow-sm animate-pulse block cursor-pointer transition-all"
+                                  >
+                                    ⚠️ Add Delay Reason
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-4 px-6 text-center">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
@@ -783,12 +936,26 @@ export function JobsPage() {
               {/* Select Client & Team */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Select Client <span className="text-rose-500">*</span></label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Select Client <span className="text-rose-500">*</span></label>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickClientName(''); setIsQuickClientModalOpen(true); }}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-600" /> Add Client
+                    </button>
+                  </div>
                   <SearchableSelect
                     value={formData.clientId}
                     onChange={val => setFormData({...formData, clientId: val, projectId: ''})}
                     options={clients.map(c => ({ value: c.id, label: c.company }))}
                     placeholder="Select client by name..."
+                    onCreateOption={(query) => {
+                      setQuickClientName(query);
+                      setIsQuickClientModalOpen(true);
+                    }}
+                    createOptionLabel="Add Client"
                   />
                 </div>
                 <div className="col-span-1">
@@ -828,12 +995,73 @@ export function JobsPage() {
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product</label>
                   <SearchableSelect
                     value={formData.productId}
-                    onChange={val => setFormData({...formData, productId: val})}
+                    onChange={val => {
+                      const selectedProd = products.find(p => p.id === val);
+                      const autoPrice = (selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '') 
+                        ? String(selectedProd.price) 
+                        : formData.totalAmount;
+                      const autoTime = (selectedProd && selectedProd.estimatedTime !== undefined && selectedProd.estimatedTime !== null && selectedProd.estimatedTime !== '')
+                        ? String(selectedProd.estimatedTime)
+                        : formData.estimatedTime;
+                      const autoTimeUnit = (selectedProd && selectedProd.estimatedTimeUnit)
+                        ? selectedProd.estimatedTimeUnit
+                        : formData.estimatedTimeUnit;
+
+                      setFormData(prev => ({
+                        ...prev,
+                        productId: val,
+                        totalAmount: autoPrice,
+                        estimatedTime: autoTime,
+                        estimatedTimeUnit: autoTimeUnit
+                      }));
+                    }}
                     options={[
                       { value: '', label: 'Type to search product...' },
-                      ...products.map(p => ({ value: p.id, label: p.name }))
+                      ...products.map(p => {
+                        let labelStr = p.name;
+                        const priceStr = p.price !== undefined && p.price !== null && p.price !== '' ? `₹${Number(p.price).toLocaleString('en-IN')}` : '';
+                        const timeStr = p.estimatedTime ? `${p.estimatedTime} ${p.estimatedTimeUnit || 'Hours'}` : '';
+                        const meta = [priceStr, timeStr].filter(Boolean).join(' • ');
+                        if (meta) labelStr += ` (${meta})`;
+                        return { value: p.id, label: labelStr };
+                      })
                     ]}
                     placeholder="Type to search product..."
+                  />
+                </div>
+              </div>
+
+              {/* Est. Timeline & Delay Reason */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Approx. Timeline</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      placeholder="e.g. 4" 
+                      value={formData.estimatedTime} 
+                      onChange={e => setFormData({...formData, estimatedTime: e.target.value})} 
+                      className="w-1/2 px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                    />
+                    <select 
+                      value={formData.estimatedTimeUnit} 
+                      onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})} 
+                      className="w-1/2 px-2 py-2 bg-white/50 border border-white/60 rounded-xl text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value="Hours">Hours</option>
+                      <option value="Days">Days</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Delay Reason (If Exceeded)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Reason why timeline exceeded..." 
+                    value={formData.delayReason} 
+                    onChange={e => setFormData({...formData, delayReason: e.target.value})} 
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
                   />
                 </div>
               </div>
@@ -1029,6 +1257,70 @@ export function JobsPage() {
           </div>
         </div>
       )}
+
+      {/* Delay Reason Modal */}
+      {delayModalJob && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setDelayModalJob(null)}></div>
+          <div className="relative bg-white shadow-2xl rounded-3xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-rose-50/50">
+              <h2 className="text-lg font-black text-rose-800 flex items-center gap-2">
+                <span>⚠️</span> Timeline Exceeded — Explanation Required
+              </h2>
+              <button onClick={() => setDelayModalJob(null)} className="p-1 text-gray-400 hover:text-gray-700 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveDelayReason} className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl text-xs space-y-1">
+                <p className="font-bold text-amber-900 text-sm">{delayModalJob.title}</p>
+                <p className="text-amber-800">
+                  <span className="font-bold">Assigned Staff:</span> {getStaffName(delayModalJob.teamId)}
+                </p>
+                <p className="text-amber-800">
+                  <span className="font-bold">Estimated Timeline:</span> {delayModalJob.estimatedTime} {delayModalJob.estimatedTimeUnit || 'Hours'}
+                </p>
+                <p className="text-rose-700 font-bold">
+                  <span className="font-bold">Tracked Work Time:</span> {formatTime(delayModalJob.trackedTime || 0)} (Exceeded)
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">
+                  Reason for Timeline Delay <span className="text-rose-500">*</span>
+                </label>
+                <textarea 
+                  required 
+                  rows={3} 
+                  placeholder="Employee / Staff note explaining why work took longer than expected..." 
+                  value={delayReasonInput} 
+                  onChange={e => setDelayReasonInput(e.target.value)} 
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setDelayModalJob(null)} className="px-4 py-2 font-bold text-gray-600 hover:bg-gray-100 rounded-xl text-sm">
+                  Cancel
+                </button>
+                <button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm shadow-md transition-colors">
+                  Save Explanation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Quick Add Client Modal */}
+      <QuickAddClientModal
+        isOpen={isQuickClientModalOpen}
+        onClose={() => setIsQuickClientModalOpen(false)}
+        initialName={quickClientName}
+        onClientCreated={(newClient) => {
+          setFormData(prev => ({ ...prev, clientId: newClient.id, projectId: '' }));
+          setIsQuickClientModalOpen(false);
+        }}
+      />
     </div>
   );
 }

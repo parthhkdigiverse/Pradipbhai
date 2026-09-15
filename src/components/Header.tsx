@@ -1,4 +1,4 @@
-import { Menu, Bell, Square, Clock, X, User, LogOut } from 'lucide-react';
+import { Menu, Bell, Square, Clock, X, User, LogOut, ArrowRightLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -156,6 +156,29 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     });
   };
 
+  const handleSwitchJob = () => {
+    if (!selectedJobId) return;
+    const now = Date.now();
+
+    // Save time for previous tracked job
+    if (activeJobTracker) {
+      const elapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
+      setJobs(prev => prev.map(j => {
+        if (j.id === activeJobTracker.jobId) {
+          return { ...j, trackedTime: (j.trackedTime || 0) + elapsed, status: 'Pending' };
+        }
+        return j;
+      }));
+    }
+
+    // Switch to new job
+    setActiveJobTracker({ jobId: selectedJobId, startTime: now });
+    setJobs(prev => prev.map(j => j.id === selectedJobId ? { ...j, status: 'Progress' } : j));
+    
+    setShowJobModal(false);
+    setSelectedJobId('');
+  };
+
   const handleStopTracker = () => {
     if (activeJobTracker) {
       // Save time, but don't punch out
@@ -171,6 +194,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const s = seconds % 60;
     return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
   return (
     <header className="h-20 glass-header flex items-center justify-between px-6 py-4 sticky top-0 z-40">
       <div className="flex items-center gap-4">
@@ -185,21 +209,30 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       <div className="flex items-center gap-4">
         
         {/* Active Job Tracker */}
-        {activeJobTracker && (
-          <div className="flex items-center gap-3 bg-primary/10 border border-primary px-3 py-1.5 rounded-full shadow-sm">
-            <div className="flex items-center gap-1.5 text-primary">
-              <Clock className="w-4 h-4 animate-pulse" />
-              <span className="text-sm font-bold font-mono">{formatTime(elapsedJobTime)}</span>
+        {activeJobTracker && (() => {
+          const activeJob = jobs.find(j => j.id === activeJobTracker.jobId);
+          return (
+            <div className="flex items-center gap-2 bg-primary/10 border border-primary/40 px-3 py-1.5 rounded-full shadow-sm max-w-sm">
+              <Clock className="w-3.5 h-3.5 text-primary animate-pulse shrink-0" />
+              <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px]" title={activeJob?.title}>
+                {activeJob?.title || 'Job'}
+              </span>
+              <span className="text-xs font-bold font-mono text-primary shrink-0">{formatTime(elapsedJobTime)}</span>
+              
+              <button 
+                onClick={() => {
+                  setSelectedJobId('');
+                  setShowJobModal(true);
+                }}
+                className="flex items-center gap-1 text-[11px] font-bold text-primary bg-white/90 hover:bg-white border border-primary/30 px-2 py-0.5 rounded-full transition-all shrink-0 shadow-2xs hover:scale-105"
+                title="Switch / Change Active Job"
+              >
+                <ArrowRightLeft className="w-3 h-3 text-primary" />
+                <span>Switch</span>
+              </button>
             </div>
-            <button 
-              onClick={handleStopTracker}
-              className="bg-red-500 hover:bg-red-600 text-white rounded-full p-1 transition-colors"
-              title="Stop Job Tracker"
-            >
-              <Square className="w-3 h-3 fill-current" />
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Punch In / Out Button */}
         <button 
@@ -305,42 +338,48 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         </div>
       </div>
 
-      {/* Job Selection Modal */}
+      {/* Job Selection / Switch Modal */}
       {showJobModal && createPortal(
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h3 className="font-bold text-lg text-gray-800">Select Job for Punch In</h3>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
+              <h3 className="font-bold text-base text-gray-800 flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-primary" />
+                {activeJobTracker ? 'Switch Active Job' : 'Select Job for Punch In'}
+              </h3>
               <button onClick={() => setShowJobModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4">
-              <label className="block text-sm font-semibold text-gray-600 mb-2">Assigned Jobs</label>
+              <label className="block text-sm font-semibold text-gray-600 mb-2">
+                {activeJobTracker ? 'Select New Job to Switch To:' : 'Assigned Jobs'}
+              </label>
               <select 
                 value={selectedJobId} 
                 onChange={(e) => setSelectedJobId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
               >
                 <option value="" disabled>Select a job...</option>
-                {jobs.filter(j => j.status !== 'Done').map(job => (
-                  <option key={job.id} value={job.id}>{job.title} - {job.status}</option>
+                {jobs.filter(j => j.status !== 'Done' && j.id !== activeJobTracker?.jobId).map(job => (
+                  <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
                 ))}
               </select>
             </div>
             <div className="flex gap-2 p-4 bg-gray-50 border-t border-gray-100 justify-end">
               <button 
                 onClick={() => setShowJobModal(false)}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button 
-                onClick={confirmPunchIn}
+                onClick={activeJobTracker ? handleSwitchJob : confirmPunchIn}
                 disabled={!selectedJobId}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-300 text-white text-sm font-bold rounded-lg transition-colors shadow-sm shadow-emerald-500/20"
+                className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
               >
-                Confirm Punch In
+                <ArrowRightLeft className="w-4 h-4" />
+                {activeJobTracker ? 'Switch Job' : 'Confirm Punch In'}
               </button>
             </div>
           </div>
