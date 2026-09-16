@@ -1,4 +1,4 @@
-import { Menu, Bell, Square, Clock, X, User, LogOut, ArrowRightLeft } from 'lucide-react';
+import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -177,15 +177,6 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     
     setShowJobModal(false);
     setSelectedJobId('');
-  };
-
-  const handleStopTracker = () => {
-    if (activeJobTracker) {
-      // Save time, but don't punch out
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => j.id === activeJobTracker.jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed, status: 'Pending' } : j));
-      setActiveJobTracker(null);
-    }
   };
 
   const formatTime = (seconds: number) => {

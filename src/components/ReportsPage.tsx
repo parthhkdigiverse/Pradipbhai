@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 
-export function ReportsPage() {
+export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPage?: (page: string) => void }) {
   const { clients, jobs, staff, products, vendors, invoices } = useData();
   const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any | null>(null);
   
