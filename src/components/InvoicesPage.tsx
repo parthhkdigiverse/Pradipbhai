@@ -31,6 +31,7 @@ export function InvoicesPage() {
   const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any>(null);
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [customItems, setCustomItems] = useState<{ id: string; description: string; quantity: number; rate: number }[]>([]);
   
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
@@ -69,6 +70,26 @@ export function InvoicesPage() {
     invoiceType: 'Tax',
   });
 
+  const handleAddCustomItem = () => {
+    setCustomItems(prev => [
+      ...prev,
+      { id: Math.random().toString(36).substr(2, 9), description: '', quantity: 1, rate: 0 }
+    ]);
+  };
+
+  const handleUpdateCustomItem = (id: string, field: 'description' | 'quantity' | 'rate', value: any) => {
+    setCustomItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
+  const handleRemoveCustomItem = (id: string) => {
+    setCustomItems(prev => prev.filter(item => item.id !== id));
+  };
+
   // Calculate totals
   const totalOutstanding = useMemo(() => {
     return invoices.filter(i => i.status !== 'Paid').reduce((sum, inv) => sum + inv.total, 0);
@@ -106,11 +127,19 @@ export function InvoicesPage() {
   }, [selectedClientId, jobs]);
 
   const modalSubtotal = useMemo(() => {
-    return selectedJobIds.reduce((sum, jobId) => {
+    const jobsSum = selectedJobIds.reduce((sum, jobId) => {
       const job = jobs.find(j => j.id === jobId);
-      return sum + (job ? (job.totalAmount - job.paidAmount) : 0);
+      return sum + (job ? (job.totalAmount - (job.paidAmount || 0)) : 0);
     }, 0);
-  }, [selectedJobIds, jobs]);
+
+    const customSum = customItems.reduce((sum, item) => {
+      const qty = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      return sum + (qty * rate);
+    }, 0);
+
+    return jobsSum + customSum;
+  }, [selectedJobIds, jobs, customItems]);
 
   const modalTax = useMemo(() => {
     if (formData.invoiceType === 'Retail') return 0;
@@ -122,12 +151,13 @@ export function InvoicesPage() {
   const handleOpenModal = () => {
     setSelectedClientId('');
     setSelectedJobIds([]);
+    setCustomItems([]);
     setFormData({
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: '',
       taxRate: '18',
-    invoiceType: 'Tax',
-  });
+      invoiceType: 'Tax',
+    });
     setIsModalOpen(true);
   };
 
@@ -144,12 +174,52 @@ export function InvoicesPage() {
   const handleSaveInvoice = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (selectedJobIds.length === 0) {
-      alert("Please select at least one job to invoice.");
+    if (!selectedClientId) {
+      alert("Please select a client.");
       return;
     }
 
-    // Generate Invoice Number (e.g., INV-003)
+    if (selectedJobIds.length === 0 && customItems.length === 0) {
+      alert("Please select at least one job or add a custom item to invoice.");
+      return;
+    }
+
+    for (const item of customItems) {
+      if (!item.description.trim()) {
+        alert("Please provide a description for all custom items.");
+        return;
+      }
+    }
+
+    const jobInvoiceItems = selectedJobIds.map(jobId => {
+      const job = jobs.find(j => j.id === jobId);
+      const amt = job ? (job.totalAmount - (job.paidAmount || 0)) : 0;
+      return {
+        id: jobId,
+        description: job ? job.title : 'Job Item',
+        quantity: 1,
+        rate: amt,
+        amount: amt,
+        isJob: true,
+        jobId
+      };
+    });
+
+    const customInvoiceItems = customItems.map(item => {
+      const qty = Number(item.quantity) || 1;
+      const rate = Number(item.rate) || 0;
+      return {
+        id: item.id,
+        description: item.description.trim(),
+        quantity: qty,
+        rate: rate,
+        amount: qty * rate,
+        isJob: false
+      };
+    });
+
+    const allItems = [...jobInvoiceItems, ...customInvoiceItems];
+
     const newInvoiceNumber = `INV-${(invoices.length + 1).toString().padStart(3, '0')}`;
 
     const newInvoice = {
@@ -157,6 +227,7 @@ export function InvoicesPage() {
       invoiceNumber: newInvoiceNumber,
       clientId: selectedClientId,
       jobIds: selectedJobIds,
+      items: allItems,
       issueDate: formData.issueDate,
       dueDate: formData.dueDate,
       subtotal: modalSubtotal,
@@ -168,7 +239,7 @@ export function InvoicesPage() {
     };
 
     setInvoices(prev => [newInvoice, ...prev]);
-    handleCloseModal();
+    setIsModalOpen(false);
   };
 
   const updateInvoiceStatus = (id: string, status: string) => {
@@ -491,6 +562,72 @@ export function InvoicesPage() {
                       ) : (
                         <div className="p-4 text-center text-sm text-gray-500">
                           No unpaid jobs found for this client.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Invoice Items */}
+                {selectedClientId && (
+                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white/40">
+                    <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Custom Items (Optional)</span>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomItem}
+                        className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-indigo-600" /> Add Custom Item
+                      </button>
+                    </div>
+                    
+                    <div className="p-3 space-y-2">
+                      {customItems.length > 0 ? (
+                        customItems.map((item) => {
+                          const itemAmt = (Number(item.quantity) || 0) * (Number(item.rate) || 0);
+                          return (
+                            <div key={item.id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-100 shadow-2xs">
+                              <input
+                                type="text"
+                                placeholder="Item Description (e.g. Logo Design, Consultation)"
+                                value={item.description}
+                                onChange={e => handleUpdateCustomItem(item.id, 'description', e.target.value)}
+                                className="flex-1 text-xs px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-gray-800"
+                              />
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Qty"
+                                value={item.quantity}
+                                onChange={e => handleUpdateCustomItem(item.id, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                                className="w-16 text-xs px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-gray-800 text-center"
+                              />
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="Rate (₹)"
+                                value={item.rate || ''}
+                                onChange={e => handleUpdateCustomItem(item.id, 'rate', parseFloat(e.target.value) || 0)}
+                                className="w-24 text-xs px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary text-gray-800 text-right"
+                              />
+                              <div className="w-24 text-right">
+                                <span className="text-xs font-bold text-gray-800">₹{itemAmt.toLocaleString('en-IN')}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveCustomItem(item.id)}
+                                className="text-gray-400 hover:text-rose-500 p-1 transition-colors"
+                                title="Remove Item"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="py-2 text-center text-xs text-gray-400">
+                          No custom items added. Click "+ Add Custom Item" to add non-project charges.
                         </div>
                       )}
                     </div>

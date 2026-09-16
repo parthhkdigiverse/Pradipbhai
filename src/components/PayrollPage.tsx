@@ -10,6 +10,10 @@ export function PayrollPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Payment Account Confirmation Modal State
+  const [payAccountModalData, setPayAccountModalData] = useState<{ staffId: string; name: string; role: string; netPay: number } | null>(null);
+  const [selectedAccountType, setSelectedAccountType] = useState<'Current' | 'Savings'>('Current');
+
   const resetFilters = () => {
     setSearchTerm('');
     setFilterStatus('All');
@@ -64,6 +68,7 @@ export function PayrollPage() {
         deductions: record?.deductions ?? calculatedDeductions,
         netPay: record?.netPay ?? calculatedNet,
         status: record?.status || 'Pending',
+        paymentAccount: record?.paymentAccount || 'Current',
         stats: { daysPresent, daysAbsent, daysHalf, daysLeave },
         workingDays,
         holidaysInMonth,
@@ -71,10 +76,41 @@ export function PayrollPage() {
       };
     }).filter(emp => {
       const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStatus = filterStatus === 'All' || emp.status === filterStatus;
+      const matchStatus = filterStatus === 'All'
+        || (filterStatus === 'Pending' && emp.status === 'Pending')
+        || (filterStatus === 'Paid' && emp.status === 'Paid')
+        || (filterStatus === 'Current' && emp.status === 'Paid' && emp.paymentAccount === 'Current')
+        || (filterStatus === 'Savings' && emp.status === 'Paid' && emp.paymentAccount === 'Savings');
       return matchSearch && matchStatus;
     });
   }, [staff, attendance, payroll, holidays, selectedMonth, searchTerm, filterStatus]);
+
+  const payrollSummary = useMemo(() => {
+    let currentAccountPaid = 0;
+    let savingsAccountPaid = 0;
+    let pendingPaid = 0;
+    let totalPaid = 0;
+
+    monthlyPayroll.forEach(emp => {
+      if (emp.status === 'Paid') {
+        totalPaid += emp.netPay;
+        if (emp.paymentAccount === 'Savings') {
+          savingsAccountPaid += emp.netPay;
+        } else {
+          currentAccountPaid += emp.netPay;
+        }
+      } else {
+        pendingPaid += emp.netPay;
+      }
+    });
+
+    return {
+      currentAccountPaid,
+      savingsAccountPaid,
+      totalPaid,
+      pendingPaid
+    };
+  }, [monthlyPayroll]);
 
   const updatePayroll = (staffId: string, updates: any) => {
     setPayroll(prev => {
@@ -167,6 +203,83 @@ export function PayrollPage() {
         </div>
       </div>
 
+      {/* Monthly Salary Account Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        {/* Total Net Payroll */}
+        <div className="glass-panel p-4 rounded-2xl border border-white/60 bg-white/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Net Payroll</span>
+            <div className="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold">
+              <Calculator className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-gray-800 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-gray-500" />
+              {monthlyPayroll.reduce((sum, p) => sum + p.netPay, 0).toLocaleString()}
+            </span>
+            <span className="text-[11px] font-semibold text-gray-500">{monthlyPayroll.length} Staff</span>
+          </div>
+        </div>
+
+        {/* Current Account Paid */}
+        <div className="glass-panel p-4 rounded-2xl border border-blue-200/60 bg-blue-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">Current A/c Paid</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base">
+              🏦
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-blue-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-blue-600" />
+              {payrollSummary.currentAccountPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-200">
+              Commercial
+            </span>
+          </div>
+        </div>
+
+        {/* Savings Account Paid */}
+        <div className="glass-panel p-4 rounded-2xl border border-purple-200/60 bg-purple-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">Savings A/c Paid</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+              💰
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-purple-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-purple-600" />
+              {payrollSummary.savingsAccountPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-full border border-purple-200">
+              Personal
+            </span>
+          </div>
+        </div>
+
+        {/* Pending Salary */}
+        <div className="glass-panel p-4 rounded-2xl border border-amber-200/60 bg-amber-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Pending Salary</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base">
+              ⏳
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-amber-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-amber-600" />
+              {payrollSummary.pendingPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
+              {monthlyPayroll.filter(p => p.status === 'Pending').length} Pending
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Advanced Filters Panel */}
       <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
         <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
@@ -177,10 +290,10 @@ export function PayrollPage() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-4 text-sm font-bold text-gray-600 bg-white/40 px-4 py-2 rounded-xl border border-white/60">
               <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 font-medium">Total Net Pay:</span>
-                <span className="text-emerald-700 text-lg flex items-center">
+                <span className="text-gray-400 font-medium">Total Paid:</span>
+                <span className="text-emerald-700 text-lg flex items-center font-black">
                   <IndianRupee className="w-4 h-4" />
-                  {monthlyPayroll.reduce((sum, p) => sum + p.netPay, 0).toLocaleString()}
+                  {payrollSummary.totalPaid.toLocaleString()}
                 </span>
               </div>
             </div>
@@ -200,14 +313,16 @@ export function PayrollPage() {
           <div className="px-4 pb-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status & Account</label>
                 <SearchableSelect
                   value={filterStatus}
                   onChange={setFilterStatus}
                   options={[
                     { value: 'All', label: 'All Status' },
                     { value: 'Pending', label: 'Pending' },
-                    { value: 'Paid', label: 'Paid' }
+                    { value: 'Paid', label: 'All Paid' },
+                    { value: 'Current', label: 'Paid via Current A/c' },
+                    { value: 'Savings', label: 'Paid via Savings A/c' }
                   ]}
                 />
               </div>
@@ -285,14 +400,40 @@ export function PayrollPage() {
                     <td className="py-4 px-6 text-center">
                       <select 
                         value={emp.status}
-                        onChange={(e) => updatePayroll(emp.id, { status: e.target.value })}
-                        className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          if (newStatus === 'Paid') {
+                            setSelectedAccountType(emp.paymentAccount || 'Current');
+                            setPayAccountModalData({
+                              staffId: emp.id,
+                              name: emp.name,
+                              role: emp.role,
+                              netPay: emp.netPay
+                            });
+                          } else {
+                            updatePayroll(emp.id, { status: newStatus });
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${
                           emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
                         }`}
                       >
                         <option value="Pending">Pending</option>
                         <option value="Paid">Paid</option>
                       </select>
+                      {emp.status === 'Paid' && (
+                        <div className="mt-1.5 flex items-center justify-center">
+                          <select
+                            value={emp.paymentAccount || 'Current'}
+                            onChange={(e) => updatePayroll(emp.id, { paymentAccount: e.target.value })}
+                            className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 outline-none cursor-pointer hover:bg-indigo-100 transition-colors"
+                            title="Salary Payment Account"
+                          >
+                            <option value="Current">🏦 Current A/c</option>
+                            <option value="Savings">💰 Savings A/c</option>
+                          </select>
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center">
@@ -341,12 +482,17 @@ export function PayrollPage() {
                   <h3 className="text-2xl font-black text-gray-800">{selectedPayslip.name}</h3>
                   <p className="text-sm font-bold text-primary uppercase tracking-wider mt-1">{selectedPayslip.role}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-1">
                   <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
                     selectedPayslip.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                   }`}>
                     {selectedPayslip.status}
                   </div>
+                  {selectedPayslip.status === 'Paid' && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                      Paid via: {selectedPayslip.paymentAccount || 'Current'} Account
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -415,6 +561,107 @@ export function PayrollPage() {
               </button>
               <button onClick={() => { alert('Downloading payslip...'); setSelectedPayslip(null); }} className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
                 <FileText className="w-4 h-4" /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Payment Account Confirmation Modal */}
+      {payAccountModalData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setPayAccountModalData(null)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-emerald-50/50">
+              <h3 className="font-bold text-base text-emerald-900 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-600" /> Confirm Salary Payment
+              </h3>
+              <button onClick={() => setPayAccountModalData(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-gray-800 text-sm">{payAccountModalData.name}</p>
+                  <p className="text-xs text-gray-500 uppercase">{payAccountModalData.role}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-500 block">Net Salary</span>
+                  <span className="text-lg font-black text-emerald-700 flex items-center justify-end">
+                    <IndianRupee className="w-4 h-4 mr-0.5" />
+                    {payAccountModalData.netPay.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
+                  Select Account Paid From <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAccountType('Current')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      selectedAccountType === 'Current'
+                        ? 'bg-primary/10 border-primary ring-2 ring-primary/30'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">🏦</span>
+                      {selectedAccountType === 'Current' && <CheckCircle className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">Current Account</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Company Business A/c</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAccountType('Savings')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      selectedAccountType === 'Savings'
+                        ? 'bg-primary/10 border-primary ring-2 ring-primary/30'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">💰</span>
+                      {selectedAccountType === 'Savings' && <CheckCircle className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">Savings Account</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Personal / Partner A/c</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setPayAccountModalData(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updatePayroll(payAccountModalData.staffId, {
+                    status: 'Paid',
+                    paymentAccount: selectedAccountType
+                  });
+                  setPayAccountModalData(null);
+                }}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" /> Confirm & Mark Paid
               </button>
             </div>
           </div>

@@ -322,9 +322,9 @@ const initialAttendance = [
 ];
 
 const initialPayroll = [
-  { id: '1', staffId: '1', month: '2026-08', basic: 60000, deductions: 0, netPay: 60000, status: 'Paid' },
-  { id: '2', staffId: '2', month: '2026-08', basic: 75000, deductions: 2500, netPay: 72500, status: 'Paid' },
-  { id: '3', staffId: '3', month: '2026-08', basic: 45000, deductions: 0, netPay: 45000, status: 'Paid' }
+  { id: '1', staffId: '1', month: '2026-08', basic: 60000, deductions: 0, netPay: 60000, status: 'Paid', paymentAccount: 'Current' },
+  { id: '2', staffId: '2', month: '2026-08', basic: 75000, deductions: 2500, netPay: 72500, status: 'Paid', paymentAccount: 'Current' },
+  { id: '3', staffId: '3', month: '2026-08', basic: 45000, deductions: 0, netPay: 45000, status: 'Paid', paymentAccount: 'Savings' }
 ];
 
 const initialVendors = [
