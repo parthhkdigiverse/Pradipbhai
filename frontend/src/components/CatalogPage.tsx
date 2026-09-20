@@ -1,0 +1,371 @@
+import { useState, useMemo } from 'react';
+import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown, Clock } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
+
+export function CatalogPage() {
+  const { products, setProducts, currentUserRole, hasPermission } = useData();
+  const canManageProducts = hasPermission(currentUserRole, 'Manage Products');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterType, setFilterType] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterType('All');
+  };
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    type: 'Printing',
+    price: '',
+    estimatedTime: '',
+    estimatedTimeUnit: 'Hours'
+  });
+
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const sLower = searchTerm.toLowerCase();
+      const matchSearch = p.name.toLowerCase().includes(sLower) || 
+                          p.description.toLowerCase().includes(sLower) ||
+                          (p.type && p.type.toLowerCase().includes(sLower));
+      const matchType = filterType === 'All' || p.type === filterType;
+      return matchSearch && matchType;
+    });
+  }, [products, searchTerm, filterType]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleOpenModal = (product?: any) => {
+    if (product) {
+      setEditingId(product.id);
+      setFormData({
+        name: product.name,
+        description: product.description,
+        type: product.type,
+        price: product.price !== undefined && product.price !== null ? String(product.price) : '',
+        estimatedTime: product.estimatedTime !== undefined && product.estimatedTime !== null ? String(product.estimatedTime) : '',
+        estimatedTimeUnit: product.estimatedTimeUnit || 'Hours'
+      });
+    } else {
+      setEditingId(null);
+      setFormData({
+        name: '',
+        description: '-',
+        type: 'Printing',
+        price: '',
+        estimatedTime: '',
+        estimatedTimeUnit: 'Hours'
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : undefined;
+    const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : undefined;
+    const dataToSave = {
+      ...formData,
+      price: parsedPrice,
+      estimatedTime: parsedTime
+    };
+    if (editingId) {
+      setProducts(products.map(p => p.id === editingId ? { ...p, ...dataToSave } : p));
+    } else {
+      setProducts([
+        ...products,
+        { ...dataToSave, id: Math.random().toString(36).substr(2, 9) }
+      ]);
+    }
+    setIsModalOpen(false);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this product?')) {
+      setProducts(products.filter(p => p.id !== id));
+    }
+  };
+
+  const getTypeBadge = (type: string) => {
+    if (type === 'Printing') return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">Printing</span>;
+    if (type === 'Designing') return <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">Designing</span>;
+    return <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider">{type}</span>;
+  };
+
+  return (
+    <div className="w-full relative h-full flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
+            <Box className="w-6 h-6 text-primary" />
+            Products
+          </h1>
+          <p className="text-gray-500 mt-1 text-sm font-medium">
+            Manage your catalog items and services.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          {canManageProducts && (
+            <button 
+              onClick={() => handleOpenModal()}
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Product
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
+        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Catalog
+          </h3>
+          <div className="flex items-center gap-4">
+            {(searchTerm !== '' || filterType !== 'All') && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
+                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                Clear Filters
+              </button>
+            )}
+          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="px-4 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
+            <SearchableSelect
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: 'All', label: 'All Types' },
+                { value: 'Printing', label: 'Printing' },
+                { value: 'Designing', label: 'Designing' }
+              ]}
+            />
+          </div>
+        </div>
+        
+        <div className="mt-3 relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input 
+            type="text" 
+            placeholder="Search products by name or description..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+          />
+        </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
+        <div className="overflow-x-auto flex-1 p-1">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
+                <th className="py-4 px-6">#</th>
+                <th className="py-4 px-6">Name</th>
+                <th className="py-4 px-6">Description</th>
+                <th className="py-4 px-6 text-center">Type</th>
+                <th className="py-4 px-6 text-center">Approx. Timeline</th>
+                <th className="py-4 px-6 text-right">Price (₹)</th>
+                <th className="py-4 px-6 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {paginatedProducts.length > 0 ? (
+                paginatedProducts.map((product, index) => (
+                  <tr key={product.id} className="hover:bg-white/60 transition-colors group">
+                    <td className="py-4 px-6 text-gray-400 font-medium">
+                      {(currentPage - 1) * itemsPerPage + index + 1}
+                    </td>
+                    <td className="py-4 px-6 text-sm font-bold text-gray-800">
+                      {product.name}
+                    </td>
+                    <td className="py-4 px-6 text-gray-500 font-medium">
+                      {product.description}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {getTypeBadge(product.type)}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {product.estimatedTime ? (
+                        <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-bold">
+                          <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                          {product.estimatedTime} {product.estimatedTimeUnit || 'Hours'}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-right font-bold text-gray-800">
+                      {product.price !== undefined && product.price !== null && product.price !== '' 
+                        ? `₹${Number(product.price).toLocaleString('en-IN')}` 
+                        : '-'}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {canManageProducts ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleOpenModal(product)}
+                            className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                            title="Edit Product"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(product.id)}
+                            className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 hover:text-red-700 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 font-medium cursor-default" title="Read Only">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-gray-500">
+                    No products found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="border-t border-gray-100 bg-white/40 px-6 py-4 flex items-center justify-between shrink-0">
+          <p className="text-sm text-gray-500 font-medium">
+            Page {currentPage} of {totalPages || 1} | {filteredProducts.length} total
+          </p>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            {Array.from({ length: totalPages }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors ${
+                  currentPage === i + 1 
+                    ? 'bg-primary text-white' 
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
+          <div className="relative bg-[#f8fafc] shadow-2xl rounded-3xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-gray-50/50">
+              <h2 className="text-xl font-black text-gray-800">{editingId ? 'Edit Product' : 'Add Product'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Name <span className="text-rose-500">*</span></label>
+                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Description</label>
+                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Type</label>
+                <SearchableSelect
+                  value={formData.type}
+                  onChange={val => setFormData({...formData, type: val})}
+                  options={[
+                    { value: 'Printing', label: 'Printing' },
+                    { value: 'Designing', label: 'Designing' }
+                  ]}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Default Price (₹)</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="any"
+                    placeholder="e.g. 1500"
+                    value={formData.price} 
+                    onChange={e => setFormData({...formData, price: e.target.value})} 
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Approx. Timeline</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      min="1"
+                      placeholder="e.g. 4"
+                      value={formData.estimatedTime} 
+                      onChange={e => setFormData({...formData, estimatedTime: e.target.value})} 
+                      className="w-1/2 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                    />
+                    <select 
+                      value={formData.estimatedTimeUnit} 
+                      onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})}
+                      className="w-1/2 px-2 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <option value="Hours">Hours</option>
+                      <option value="Days">Days</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary transition-colors shadow-md">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

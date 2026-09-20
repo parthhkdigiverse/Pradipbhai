@@ -1,0 +1,696 @@
+import { useState, useMemo } from 'react';
+import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle, Umbrella, ChevronDown } from 'lucide-react';
+import { useData } from '../context/DataContext';
+import { SearchableSelect } from './SearchableSelect';
+
+export function PayrollPage() {
+  const { staff, attendance, payroll, setPayroll, holidays, currentUserRole, hasPermission } = useData();
+  const canManagePayroll = hasPermission(currentUserRole, 'Manage Payroll');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Payment Account Confirmation Modal State
+  const [payAccountModalData, setPayAccountModalData] = useState<{ staffId: string; name: string; role: string; netPay: number } | null>(null);
+  const [selectedAccountType, setSelectedAccountType] = useState<'Current' | 'Savings'>('Current');
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setFilterStatus('All');
+  };
+  
+  // Default to current month, format YYYY-MM
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const getDaysInMonth = (yearMonth: string) => {
+    const [year, month] = yearMonth.split('-');
+    return new Date(parseInt(year), parseInt(month), 0).getDate();
+  };
+
+  const monthlyPayroll = useMemo(() => {
+    // Count holidays in the selected month
+    const holidaysInMonth = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
+
+    return staff.map(emp => {
+      const record = payroll.find(p => p.staffId === emp.id && p.month === selectedMonth);
+      
+      // Calculate attendance stats for the month if no payroll record exists yet
+      let daysPresent = 0;
+      let daysAbsent = 0;
+      let daysHalf = 0;
+      let daysLeave = 0;
+
+      const monthRecords = attendance.filter(a => a.staffId === emp.id && a.date.startsWith(selectedMonth));
+      
+      monthRecords.forEach(r => {
+        if (r.status === 'Present') daysPresent++;
+        if (r.status === 'Absent') daysAbsent++;
+        if (r.status === 'Half Day') daysHalf++;
+        if (r.status === 'Leave') daysLeave++;
+      });
+
+      // Working days = total calendar days minus holidays (holidays are paid days off)
+      const daysInMonth = getDaysInMonth(selectedMonth);
+      const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
+      const perDaySalary = emp.baseSalary / workingDays;
+      
+      // Deduct full pay for Absent, half pay for Half Day. Leaves are considered paid.
+      const calculatedDeductions = Math.round((daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)));
+      const calculatedNet = emp.baseSalary - calculatedDeductions;
+
+      return {
+        ...emp,
+        payrollId: record?.id || null,
+        basic: record?.basic ?? emp.baseSalary,
+        deductions: record?.deductions ?? calculatedDeductions,
+        netPay: record?.netPay ?? calculatedNet,
+        status: record?.status || 'Pending',
+        paymentAccount: record?.paymentAccount || 'Current',
+        stats: { daysPresent, daysAbsent, daysHalf, daysLeave },
+        workingDays,
+        holidaysInMonth,
+        daysInMonth,
+      };
+    }).filter(emp => {
+      const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = filterStatus === 'All'
+        || (filterStatus === 'Pending' && emp.status === 'Pending')
+        || (filterStatus === 'Paid' && emp.status === 'Paid')
+        || (filterStatus === 'Current' && emp.status === 'Paid' && emp.paymentAccount === 'Current')
+        || (filterStatus === 'Savings' && emp.status === 'Paid' && emp.paymentAccount === 'Savings');
+      return matchSearch && matchStatus;
+    });
+  }, [staff, attendance, payroll, holidays, selectedMonth, searchTerm, filterStatus]);
+
+  const payrollSummary = useMemo(() => {
+    let currentAccountPaid = 0;
+    let savingsAccountPaid = 0;
+    let pendingPaid = 0;
+    let totalPaid = 0;
+
+    monthlyPayroll.forEach(emp => {
+      if (emp.status === 'Paid') {
+        totalPaid += emp.netPay;
+        if (emp.paymentAccount === 'Savings') {
+          savingsAccountPaid += emp.netPay;
+        } else {
+          currentAccountPaid += emp.netPay;
+        }
+      } else {
+        pendingPaid += emp.netPay;
+      }
+    });
+
+    return {
+      currentAccountPaid,
+      savingsAccountPaid,
+      totalPaid,
+      pendingPaid
+    };
+  }, [monthlyPayroll]);
+
+  const updatePayroll = (staffId: string, updates: any) => {
+    setPayroll(prev => {
+      const existingIdx = prev.findIndex(p => p.staffId === staffId && p.month === selectedMonth);
+      if (existingIdx >= 0) {
+        const newArr = [...prev];
+        // Ensure netPay stays synced if basic or deductions change
+        const merged = { ...newArr[existingIdx], ...updates };
+        merged.netPay = merged.basic - merged.deductions;
+        newArr[existingIdx] = merged;
+        return newArr;
+      } else {
+        const newRecord = {
+          id: Math.random().toString(36).substr(2, 9),
+          staffId,
+          month: selectedMonth,
+          basic: 0,
+          deductions: 0,
+          netPay: 0,
+          status: 'Pending',
+          ...updates
+        };
+        newRecord.netPay = newRecord.basic - newRecord.deductions;
+        return [...prev, newRecord];
+      }
+    });
+  };
+
+  const markAllPaid = () => {
+    const pending = monthlyPayroll.filter(p => p.status === 'Pending');
+    if (pending.length === 0) return;
+
+    setPayroll(prev => {
+      let next = [...prev];
+      pending.forEach(p => {
+        const existingIdx = next.findIndex(x => x.staffId === p.id && x.month === selectedMonth);
+        if (existingIdx >= 0) {
+          next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
+        } else {
+          next.push({
+            id: Math.random().toString(36).substr(2, 9),
+            staffId: p.id,
+            month: selectedMonth,
+            basic: p.basic,
+            deductions: p.deductions,
+            netPay: p.netPay,
+            status: 'Paid'
+          });
+        }
+      });
+      return next;
+    });
+  };
+
+  return (
+    <div className="w-full relative">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Payroll Management</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm">
+            <CalendarIcon className="w-4 h-4 text-gray-500" />
+            <input 
+              type="month" 
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 w-32"
+            />
+          </div>
+
+          {/* Holiday badge */}
+          {(() => {
+            const count = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
+            return count > 0 ? (
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-xl text-xs font-bold">
+                <Umbrella className="w-3.5 h-3.5" />
+                {count} Holiday{count > 1 ? 's' : ''}
+              </div>
+            ) : null;
+          })()}
+          
+          <button 
+            onClick={markAllPaid}
+            className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+          >
+            <CheckCircle className="w-4 h-4" />
+            Mark All Paid
+          </button>
+        </div>
+      </div>
+
+      {/* Monthly Salary Account Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        {/* Total Net Payroll */}
+        <div className="glass-panel p-4 rounded-2xl border border-white/60 bg-white/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Net Payroll</span>
+            <div className="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold">
+              <Calculator className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-gray-800 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-gray-500" />
+              {monthlyPayroll.reduce((sum, p) => sum + p.netPay, 0).toLocaleString()}
+            </span>
+            <span className="text-[11px] font-semibold text-gray-500">{monthlyPayroll.length} Staff</span>
+          </div>
+        </div>
+
+        {/* Current Account Paid */}
+        <div className="glass-panel p-4 rounded-2xl border border-blue-200/60 bg-blue-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">Current A/c Paid</span>
+            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base">
+              🏦
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-blue-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-blue-600" />
+              {payrollSummary.currentAccountPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-full border border-blue-200">
+              Commercial
+            </span>
+          </div>
+        </div>
+
+        {/* Savings Account Paid */}
+        <div className="glass-panel p-4 rounded-2xl border border-purple-200/60 bg-purple-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">Savings A/c Paid</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+              💰
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-purple-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-purple-600" />
+              {payrollSummary.savingsAccountPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-purple-700 bg-purple-100/80 px-2 py-0.5 rounded-full border border-purple-200">
+              Personal
+            </span>
+          </div>
+        </div>
+
+        {/* Pending Salary */}
+        <div className="glass-panel p-4 rounded-2xl border border-amber-200/60 bg-amber-50/40 backdrop-blur-md shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Pending Salary</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base">
+              ⏳
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline justify-between">
+            <span className="text-xl font-black text-amber-900 flex items-center">
+              <IndianRupee className="w-4 h-4 mr-0.5 text-amber-600" />
+              {payrollSummary.pendingPaid.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
+              {monthlyPayroll.filter(p => p.status === 'Pending').length} Pending
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Filters Panel */}
+      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
+        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <FilterX className="w-4 h-4 text-gray-500" />
+            Filter Payroll
+          </h3>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 text-sm font-bold text-gray-600 bg-white/40 px-4 py-2 rounded-xl border border-white/60">
+              <div className="flex items-center gap-1.5">
+                <span className="text-gray-400 font-medium">Total Paid:</span>
+                <span className="text-emerald-700 text-lg flex items-center font-black">
+                  <IndianRupee className="w-4 h-4" />
+                  {payrollSummary.totalPaid.toLocaleString()}
+                </span>
+              </div>
+            </div>
+            {(searchTerm !== '' || filterStatus !== 'All') && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
+                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                Clear
+              </button>
+            )}
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="px-4 pb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status & Account</label>
+                <SearchableSelect
+                  value={filterStatus}
+                  onChange={setFilterStatus}
+                  options={[
+                    { value: 'All', label: 'All Status' },
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Paid', label: 'All Paid' },
+                    { value: 'Current', label: 'Paid via Current A/c' },
+                    { value: 'Savings', label: 'Paid via Savings A/c' }
+                  ]}
+                />
+              </div>
+            </div>
+            <div className="mt-3 relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+              <input 
+                type="text" 
+                placeholder="Search staff by name or role..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
+        <div className="overflow-x-auto flex-1 p-1">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
+                <th className="py-4 px-6">Employee</th>
+                <th className="py-4 px-6">Attendance Stats</th>
+                <th className="py-4 px-6 text-right">Basic Salary</th>
+                <th className="py-4 px-6 text-right">Deductions</th>
+                <th className="py-4 px-6 text-right">Net Pay</th>
+                <th className="py-4 px-6 text-center">Status</th>
+                <th className="py-4 px-6 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {monthlyPayroll.length > 0 ? (
+                monthlyPayroll.map((emp) => (
+                  <tr key={emp.id} className="hover:bg-white/60 transition-colors group">
+                    <td className="py-4 px-6">
+                      <span className="font-bold text-gray-800 text-sm block">{emp.name}</span>
+                      <span className="font-semibold text-gray-500 text-[10px] uppercase tracking-wider">{emp.role}</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex gap-2 text-[10px] font-bold">
+                        <span className="bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded" title="Present">{emp.stats.daysPresent} P</span>
+                        <span className="bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded" title="Absent">{emp.stats.daysAbsent} A</span>
+                        <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded" title="Half Day">{emp.stats.daysHalf} H</span>
+                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded" title="Leave">{emp.stats.daysLeave} L</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex items-center justify-end font-bold text-gray-700">
+                        {canManagePayroll ? (
+                          <input 
+                            type="number"
+                            value={emp.basic}
+                            onChange={(e) => updatePayroll(emp.id, { basic: parseFloat(e.target.value) || 0 })}
+                            className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          />
+                        ) : (
+                          <span>₹{emp.basic.toLocaleString()}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex items-center justify-end font-bold text-rose-600">
+                        {canManagePayroll ? (
+                          <input 
+                            type="number"
+                            value={emp.deductions}
+                            onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
+                            className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600"
+                          />
+                        ) : (
+                          <span>₹{emp.deductions.toLocaleString()}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className="font-bold text-emerald-700 text-sm flex items-center justify-end">
+                        <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                        {emp.netPay.toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {canManagePayroll ? (
+                        <select 
+                          value={emp.status}
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            if (newStatus === 'Paid') {
+                              setSelectedAccountType(emp.paymentAccount || 'Current');
+                              setPayAccountModalData({
+                                staffId: emp.id,
+                                name: emp.name,
+                                role: emp.role,
+                                netPay: emp.netPay
+                              });
+                            } else {
+                              updatePayroll(emp.id, { status: newStatus });
+                            }
+                          }}
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${
+                            emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Paid">Paid</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block text-center ${
+                          emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                        }`}>
+                          {emp.status}
+                        </span>
+                      )}
+                      {emp.status === 'Paid' && (
+                        <div className="mt-1.5 flex items-center justify-center">
+                          {canManagePayroll ? (
+                            <select
+                              value={emp.paymentAccount || 'Current'}
+                              onChange={(e) => updatePayroll(emp.id, { paymentAccount: e.target.value })}
+                              className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 outline-none cursor-pointer hover:bg-indigo-100 transition-colors"
+                              title="Salary Payment Account"
+                            >
+                              <option value="Current">🏦 Current A/c</option>
+                              <option value="Savings">💰 Savings A/c</option>
+                            </select>
+                          ) : (
+                            <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+                              {emp.paymentAccount === 'Savings' ? '💰 Savings' : '🏦 Current'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <div className="flex items-center justify-center">
+                        <button 
+                          onClick={() => setSelectedPayslip(emp)}
+                          className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-200 hover:text-gray-700 transition-colors opacity-0 group-hover:opacity-100"
+                          title="View Payslip"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center justify-center">
+                      <Calculator className="w-12 h-12 text-gray-300 mb-4" />
+                      <p>No staff members found.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Payslip Modal */}
+      {selectedPayslip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedPayslip(null)}></div>
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+              <h2 className="text-xl font-bold text-gray-800">Payslip Details</h2>
+              <button onClick={() => setSelectedPayslip(null)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-gray-200/50 pb-6">
+                <div>
+                  <h3 className="text-2xl font-black text-gray-800">{selectedPayslip.name}</h3>
+                  <p className="text-sm font-bold text-primary uppercase tracking-wider mt-1">{selectedPayslip.role}</p>
+                </div>
+                <div className="text-right flex flex-col items-end gap-1">
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
+                    selectedPayslip.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {selectedPayslip.status}
+                  </div>
+                  {selectedPayslip.status === 'Paid' && (
+                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                      Paid via: {selectedPayslip.paymentAccount || 'Current'} Account
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Earnings & Deductions */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 font-semibold">Basic Salary</span>
+                  <span className="text-gray-800 font-bold flex items-center"><IndianRupee className="w-3.5 h-3.5 mr-0.5" />{selectedPayslip.basic.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500 font-semibold">Deductions</span>
+                  <span className="text-rose-600 font-bold flex items-center">-<IndianRupee className="w-3.5 h-3.5 mx-0.5" />{selectedPayslip.deductions.toLocaleString()}</span>
+                </div>
+                
+                <div className="pt-4 mt-2 border-t border-gray-200/50 flex justify-between items-center">
+                  <span className="text-gray-800 font-bold text-lg">Net Pay</span>
+                  <span className="text-emerald-600 font-black text-2xl flex items-center">
+                    <IndianRupee className="w-5 h-5 mr-0.5" />
+                    {selectedPayslip.netPay.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Working Days Breakdown */}
+              {selectedPayslip.workingDays !== undefined && (
+                <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-100 flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2 text-amber-700 font-semibold">
+                    <Umbrella className="w-4 h-4" />
+                    Working Days Basis
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-bold">
+                    <span className="text-gray-500">{selectedPayslip.daysInMonth} total</span>
+                    <span className="text-amber-600">- {selectedPayslip.holidaysInMonth} holidays</span>
+                    <span className="text-gray-800 bg-white px-2 py-0.5 rounded-md border border-gray-200">= {selectedPayslip.workingDays} working</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Attendance Summary */}
+              <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Attendance Summary</p>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="bg-emerald-50 rounded-xl p-2">
+                    <div className="text-emerald-700 font-black text-lg">{selectedPayslip.stats.daysPresent}</div>
+                    <div className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Present</div>
+                  </div>
+                  <div className="bg-rose-50 rounded-xl p-2">
+                    <div className="text-rose-700 font-black text-lg">{selectedPayslip.stats.daysAbsent}</div>
+                    <div className="text-[10px] font-bold text-rose-600 uppercase mt-0.5">Absent</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-2">
+                    <div className="text-amber-700 font-black text-lg">{selectedPayslip.stats.daysHalf}</div>
+                    <div className="text-[10px] font-bold text-amber-600 uppercase mt-0.5">Half Day</div>
+                  </div>
+                  <div className="bg-primary/5 rounded-xl p-2">
+                    <div className="text-primary font-black text-lg">{selectedPayslip.stats.daysLeave}</div>
+                    <div className="text-[10px] font-bold text-primary uppercase mt-0.5">Leave</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3">
+              <button onClick={() => setSelectedPayslip(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-xl transition-all">
+                Close
+              </button>
+              <button onClick={() => { alert('Downloading payslip...'); setSelectedPayslip(null); }} className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salary Payment Account Confirmation Modal */}
+      {payAccountModalData && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={() => setPayAccountModalData(null)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-emerald-50/50">
+              <h3 className="font-bold text-base text-emerald-900 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-600" /> Confirm Salary Payment
+              </h3>
+              <button onClick={() => setPayAccountModalData(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-gray-800 text-sm">{payAccountModalData.name}</p>
+                  <p className="text-xs text-gray-500 uppercase">{payAccountModalData.role}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-500 block">Net Salary</span>
+                  <span className="text-lg font-black text-emerald-700 flex items-center justify-end">
+                    <IndianRupee className="w-4 h-4 mr-0.5" />
+                    {payAccountModalData.netPay.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
+                  Select Account Paid From <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAccountType('Current')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      selectedAccountType === 'Current'
+                        ? 'bg-primary/10 border-primary ring-2 ring-primary/30'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">🏦</span>
+                      {selectedAccountType === 'Current' && <CheckCircle className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">Current Account</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Company Business A/c</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAccountType('Savings')}
+                    className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      selectedAccountType === 'Savings'
+                        ? 'bg-primary/10 border-primary ring-2 ring-primary/30'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-2xl">💰</span>
+                      {selectedAccountType === 'Savings' && <CheckCircle className="w-4 h-4 text-primary" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-800">Savings Account</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Personal / Partner A/c</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setPayAccountModalData(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updatePayroll(payAccountModalData.staffId, {
+                    status: 'Paid',
+                    paymentAccount: selectedAccountType
+                  });
+                  setPayAccountModalData(null);
+                }}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" /> Confirm & Mark Paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
