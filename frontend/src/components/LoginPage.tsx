@@ -10,8 +10,8 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const { staff } = useData();
-  const [email, setEmail] = useState('pradip@alphacreative.com');
-  const [password, setPassword] = useState('secretpassword');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +53,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       if (matchedStaff) {
         if (matchedStaff.status && matchedStaff.status.toLowerCase() === 'inactive') {
           setErrorMsg('Account is inactive. Please contact system administrator.');
-        } else if (matchedStaff.password && matchedStaff.password !== password) {
+        } else if (matchedStaff.password && matchedStaff.password.trim() !== password.trim()) {
           setErrorMsg('Invalid email or password.');
         } else {
           const role = matchedStaff.role || 'Employee';

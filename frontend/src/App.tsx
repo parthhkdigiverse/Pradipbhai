@@ -24,6 +24,7 @@ import { PermissionsPage } from './components/PermissionsPage';
 import { RestrictionsPage } from './components/RestrictionsPage';
 import { HolidaysPage } from './components/HolidaysPage';
 import { LeaveManagementPage } from './components/LeaveManagementPage';
+import { InactivityTimeoutGuard } from './components/InactivityTimeoutGuard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider, useData } from './context/DataContext';
@@ -37,7 +38,9 @@ function AppContent() {
   const isEmployee = !isAdmin && !isManager;
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('isAuthenticated') === 'true';
+    const hasToken = !!localStorage.getItem('authToken');
+    const isAuthFlag = localStorage.getItem('isAuthenticated') === 'true';
+    return hasToken && isAuthFlag;
   });
 
   const handleLogin = (role: string, email: string) => {
@@ -62,6 +65,7 @@ function AppContent() {
 
   return (
     <DashboardLayout currentPage={currentPath} setCurrentPage={handlePageChange}>
+      <InactivityTimeoutGuard />
       <Routes>
         <Route path="/" element={<AdminDashboard setCurrentPage={handlePageChange} />} />
         <Route path="/dashboard" element={<AdminDashboard setCurrentPage={handlePageChange} />} />

@@ -19,6 +19,8 @@ from app.api.worklogs import router as worklogs_router
 from app.api.vendors import router as vendors_router
 from app.api.auth import router as auth_router
 from app.api.permissions import router as permissions_router
+from app.api.restrictions import router as restrictions_router
+from app.api.chat import router as chat_router
 
 # Lifespan event handler for startup/shutdown
 @asynccontextmanager
@@ -46,21 +48,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.deps import get_current_user
+
 # Include Routers under /api
 app.include_router(auth_router, prefix="/api")
-app.include_router(clients_router, prefix="/api")
-app.include_router(jobs_router, prefix="/api")
-app.include_router(invoices_router, prefix="/api")
-app.include_router(payroll_router, prefix="/api")
-app.include_router(daily_progress_router, prefix="/api")
-app.include_router(leads_router, prefix="/api")
-app.include_router(staff_router, prefix="/api")
-app.include_router(attendance_router, prefix="/api")
-app.include_router(leaves_router, prefix="/api")
-app.include_router(holidays_router, prefix="/api")
-app.include_router(worklogs_router, prefix="/api")
-app.include_router(vendors_router, prefix="/api")
-app.include_router(permissions_router, prefix="/api/permissions")
+app.include_router(clients_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(jobs_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(invoices_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(payroll_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(daily_progress_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(leads_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(staff_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(attendance_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(leaves_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(holidays_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(worklogs_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(vendors_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(permissions_router, prefix="/api/permissions", dependencies=[Depends(get_current_user)])
+app.include_router(restrictions_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(chat_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 @app.get("/api/health")
 async def health_check():

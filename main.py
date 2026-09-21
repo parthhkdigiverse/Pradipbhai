@@ -96,9 +96,16 @@ def main():
     try:
         while True:
             time.sleep(1)
-            for proc in processes:
-                if proc.poll() is not None:
-                    pass
+            if backend_proc.poll() is not None:
+                code = backend_proc.poll()
+                print(f"⚠️ [Backend Alert] FastAPI backend process exited unexpectedly with code {code}.")
+                signal_handler(None, None)
+                break
+            if frontend_proc.poll() is not None:
+                code = frontend_proc.poll()
+                print(f"⚠️ [Frontend Alert] Vite frontend process exited unexpectedly with code {code}.")
+                signal_handler(None, None)
+                break
     except KeyboardInterrupt:
         signal_handler(None, None)
 

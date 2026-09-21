@@ -47,3 +47,12 @@ async def update_attendance(att_id: str, att_in: AttendanceUpdate, db: AsyncSess
     await db.commit()
     await db.refresh(att)
     return att
+
+@router.delete("/{att_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_attendance(att_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Attendance).where(Attendance.id == att_id))
+    att = result.scalar_one_or_none()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    await db.delete(att)
+    await db.commit()

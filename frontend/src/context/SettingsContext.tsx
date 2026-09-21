@@ -1,8 +1,7 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'MMM DD, YYYY';
-
 export type TimeFormat = '12h' | '24h';
 
 interface SettingsContextType {
@@ -24,6 +23,10 @@ interface SettingsContextType {
   setSlackIntegration: (val: boolean) => void;
   autoConvertLeads: boolean;
   setAutoConvertLeads: (val: boolean) => void;
+  inactivityTimeoutEnabled: boolean;
+  setInactivityTimeoutEnabled: (val: boolean) => void;
+  inactivityTimeoutMinutes: number;
+  setInactivityTimeoutMinutes: (val: number) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -39,6 +42,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [slackIntegration, setSlackIntegration] = useState<boolean>(false);
   const [autoConvertLeads, setAutoConvertLeads] = useState<boolean>(true);
 
+  // Inactivity Timeout Settings (with localStorage persistence)
+  const [inactivityTimeoutEnabled, setInactivityTimeoutEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('inactivityTimeoutEnabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [inactivityTimeoutMinutes, setInactivityTimeoutMinutes] = useState<number>(() => {
+    const saved = localStorage.getItem('inactivityTimeoutMinutes');
+    return saved !== null ? Number(saved) : 15;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('inactivityTimeoutEnabled', String(inactivityTimeoutEnabled));
+  }, [inactivityTimeoutEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('inactivityTimeoutMinutes', String(inactivityTimeoutMinutes));
+  }, [inactivityTimeoutMinutes]);
+
   return (
     <SettingsContext.Provider value={{ 
       dateFormat, setDateFormat, 
@@ -49,7 +70,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       autoPunchOutHoursLimit, setAutoPunchOutHoursLimit,
       emailNotifications, setEmailNotifications,
       slackIntegration, setSlackIntegration,
-      autoConvertLeads, setAutoConvertLeads
+      autoConvertLeads, setAutoConvertLeads,
+      inactivityTimeoutEnabled, setInactivityTimeoutEnabled,
+      inactivityTimeoutMinutes, setInactivityTimeoutMinutes
     }}>
       {children}
     </SettingsContext.Provider>

@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Shield, MapPin, Clock, Plus, Trash2, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Shield, MapPin, Clock, Plus, Trash2, Save, CheckCircle, Loader2 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 export function RestrictionsPage() {
   const [ipWhitelist, setIpWhitelist] = useState<string[]>(['192.168.1.100', '10.0.0.50']);
@@ -17,6 +19,61 @@ export function RestrictionsPage() {
   ]);
   const [newPincode, setNewPincode] = useState('');
   const [newPincodeArea, setNewPincodeArea] = useState('');
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    const fetchRestrictions = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/restrictions`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ipWhitelist) setIpWhitelist(data.ipWhitelist);
+          if (data.enableTimeRestrictions !== undefined) setEnableTimeRestrictions(data.enableTimeRestrictions);
+          if (data.startTime) setStartTime(data.startTime);
+          if (data.endTime) setEndTime(data.endTime);
+          if (data.enableGeoRestrictions !== undefined) setEnableGeoRestrictions(data.enableGeoRestrictions);
+          if (data.allowedPincodes) setAllowedPincodes(data.allowedPincodes);
+        }
+      } catch (err) {
+        console.error("Failed to load restrictions:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchRestrictions();
+  }, []);
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+    try {
+      const payload = {
+        ipWhitelist,
+        enableTimeRestrictions,
+        startTime,
+        endTime,
+        enableGeoRestrictions,
+        allowedPincodes
+      };
+      const res = await fetch(`${API_BASE_URL}/restrictions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to save restrictions:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleAddIp = () => {
     if (newIp && !ipWhitelist.includes(newIp)) {
@@ -40,11 +97,26 @@ export function RestrictionsPage() {
   return (
     <div className="flex flex-col h-full space-y-6 animate-in fade-in zoom-in-95 duration-300">
       <div className="flex justify-between items-center z-10 relative">
-        <h1 className="text-3xl font-bold text-gray-900 drop-shadow-sm">Access Restrictions</h1>
-        <button className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 cursor-pointer">
-          <Save className="w-4 h-4" />
-          Save Changes
-        </button>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 drop-shadow-sm">Access Restrictions</h1>
+          <p className="text-xs text-gray-500 mt-1 font-medium">Configure IP allowlisting, working hours, and Indian pincode access rules.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {saveSuccess && (
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              Settings Saved!
+            </span>
+          )}
+          <button 
+            onClick={handleSaveChanges}
+            disabled={isSaving || isLoading}
+            className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 z-10 relative">

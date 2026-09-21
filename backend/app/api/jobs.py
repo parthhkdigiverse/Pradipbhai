@@ -12,16 +12,16 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 CACHE_KEY = "cache:jobs:all"
 
 @router.get("", response_model=List[JobOut])
-async def get_jobs(db: AsyncSession = Depends(get_db)):
-    cached = await get_cache(CACHE_KEY)
+async def get_jobs(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(f"{CACHE_KEY}:{skip}:{limit}")
     if cached is not None:
         return cached
 
-    result = await db.execute(select(Job))
+    result = await db.execute(select(Job).offset(skip).limit(limit))
     jobs = result.scalars().all()
     
     jobs_dict = [JobOut.model_validate(j).model_dump() for j in jobs]
-    await set_cache(CACHE_KEY, jobs_dict, expire_seconds=300)
+    await set_cache(f"{CACHE_KEY}:{skip}:{limit}", jobs_dict, expire_seconds=300)
     
     return jobs
 

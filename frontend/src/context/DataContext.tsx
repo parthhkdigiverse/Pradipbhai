@@ -238,6 +238,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return DEFAULT_PERMISSIONS;
   });
 
+  useEffect(() => {
+    // Initial fetch to sync permissions from backend as single source of truth
+    const fetchPerms = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`${API_BASE_URL}/permissions`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && typeof data === 'object') {
+            setRolePermissions(data);
+            localStorage.setItem('rolePermissions', JSON.stringify(data));
+          }
+        }
+      } catch (e) {
+        console.warn("Could not fetch remote permissions defaults:", e);
+      }
+    };
+    fetchPerms();
+  }, []);
+
   const getRoleMap = (role: string): Record<string, boolean> => {
     const defaults = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['Employee'] || {};
     const saved = rolePermissions[role] || {};
@@ -266,7 +287,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_BASE_URL}/permissions/toggle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({ role, action })
       });
       if (res.ok) {
@@ -360,23 +384,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const { autoConvertLeads } = useSettings();
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
   // Fetch live API data from FastAPI backend
   const refreshApiData = async () => {
     try {
+      const headers = getAuthHeaders();
+      const fetchWithAuth = async (url: string) => {
+        const res = await fetch(url, { headers });
+        if (res.status === 401) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('isAuthenticated');
+          window.location.href = '/';
+          throw new Error('Unauthorized');
+        }
+        return res.json();
+      };
+
       const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes] = await Promise.allSettled([
-        fetch(`${API_BASE_URL}/clients`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/jobs`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/invoices`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/payroll`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/daily-progress`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/leads`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/staff`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/attendance`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/holidays`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/leaves/requests`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/worklogs`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/vendors`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/permissions`).then(r => r.json()),
+        fetchWithAuth(`${API_BASE_URL}/clients`),
+        fetchWithAuth(`${API_BASE_URL}/jobs`),
+        fetchWithAuth(`${API_BASE_URL}/invoices`),
+        fetchWithAuth(`${API_BASE_URL}/payroll`),
+        fetchWithAuth(`${API_BASE_URL}/daily-progress`),
+        fetchWithAuth(`${API_BASE_URL}/leads`),
+        fetchWithAuth(`${API_BASE_URL}/staff`),
+        fetchWithAuth(`${API_BASE_URL}/attendance`),
+        fetchWithAuth(`${API_BASE_URL}/holidays`),
+        fetchWithAuth(`${API_BASE_URL}/leaves/requests`),
+        fetchWithAuth(`${API_BASE_URL}/worklogs`),
+        fetchWithAuth(`${API_BASE_URL}/vendors`),
+        fetchWithAuth(`${API_BASE_URL}/permissions`),
       ]);
 
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) setClients(clientsRes.value);

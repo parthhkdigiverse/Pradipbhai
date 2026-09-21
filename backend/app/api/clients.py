@@ -12,16 +12,16 @@ router = APIRouter(prefix="/clients", tags=["Clients"])
 CACHE_KEY = "cache:clients:all"
 
 @router.get("", response_model=List[ClientOut])
-async def get_clients(db: AsyncSession = Depends(get_db)):
-    cached = await get_cache(CACHE_KEY)
+async def get_clients(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(f"{CACHE_KEY}:{skip}:{limit}")
     if cached is not None:
         return cached
 
-    result = await db.execute(select(Client))
+    result = await db.execute(select(Client).offset(skip).limit(limit))
     clients = result.scalars().all()
     
     clients_dict = [ClientOut.model_validate(c).model_dump() for c in clients]
-    await set_cache(CACHE_KEY, clients_dict, expire_seconds=300)
+    await set_cache(f"{CACHE_KEY}:{skip}:{limit}", clients_dict, expire_seconds=300)
     
     return clients
 

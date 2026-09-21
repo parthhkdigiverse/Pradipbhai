@@ -20,6 +20,7 @@ async def get_redis_client() -> Optional[aioredis.Redis]:
     return redis_client
 
 async def get_cache(key: str) -> Optional[Any]:
+    global redis_client
     client = await get_redis_client()
     if not client:
         return None
@@ -28,10 +29,11 @@ async def get_cache(key: str) -> Optional[Any]:
         if data:
             return json.loads(data)
     except Exception:
-        pass
+        redis_client = None
     return None
 
 async def set_cache(key: str, value: Any, expire_seconds: int = 300) -> None:
+    global redis_client
     client = await get_redis_client()
     if not client:
         return
@@ -39,13 +41,14 @@ async def set_cache(key: str, value: Any, expire_seconds: int = 300) -> None:
         json_data = json.dumps(value, default=str)
         await client.set(key, json_data, ex=expire_seconds)
     except Exception:
-        pass
+        redis_client = None
 
 async def invalidate_cache(key: str) -> None:
+    global redis_client
     client = await get_redis_client()
     if not client:
         return
     try:
         await client.delete(key)
     except Exception:
-        pass
+        redis_client = None

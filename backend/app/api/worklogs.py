@@ -5,13 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.worklog import WorkLog
-from app.schemas.worklog import WorkLogCreate, WorkLogOut
+from app.schemas.worklog import WorkLogCreate, WorkLogUpdate, WorkLogOut
 
 router = APIRouter(prefix="/worklogs", tags=["Work Logs"])
 
 @router.get("", response_model=List[WorkLogOut])
-async def get_worklogs(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WorkLog))
+async def get_worklogs(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(WorkLog).offset(skip).limit(limit))
     return result.scalars().all()
 
 @router.post("", response_model=WorkLogOut, status_code=status.HTTP_201_CREATED)
@@ -28,6 +28,20 @@ async def create_worklog(log_in: WorkLogCreate, db: AsyncSession = Depends(get_d
         description=log_in.description
     )
     db.add(wlog)
+    await db.commit()
+    await db.refresh(wlog)
+    return wlog
+
+@router.put("/{log_id}", response_model=WorkLogOut)
+async def update_worklog(log_id: str, log_in: WorkLogUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(WorkLog).where(WorkLog.id == log_id))
+    wlog = result.scalar_one_or_none()
+    if not wlog:
+        raise HTTPException(status_code=404, detail="Work log entry not found")
+    
+    for field, val in log_in.model_dump(exclude_unset=True).items():
+        setattr(wlog, field, val)
+        
     await db.commit()
     await db.refresh(wlog)
     return wlog

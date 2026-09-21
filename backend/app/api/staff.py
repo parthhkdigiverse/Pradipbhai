@@ -12,12 +12,12 @@ router = APIRouter(prefix="/staff", tags=["Staff"])
 CACHE_KEY = "cache:staff:all"
 
 @router.get("", response_model=List[StaffOut])
-async def get_staff(db: AsyncSession = Depends(get_db)):
-    cached = await get_cache(CACHE_KEY)
+async def get_staff(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(f"{CACHE_KEY}:{skip}:{limit}")
     if cached is not None:
         return cached
 
-    result = await db.execute(select(Staff))
+    result = await db.execute(select(Staff).offset(skip).limit(limit))
     staff_members = result.scalars().all()
     
     staff_dict = []
@@ -35,7 +35,7 @@ async def get_staff(db: AsyncSession = Depends(get_db)):
             "permissions": s.permissions
         })
     
-    await set_cache(CACHE_KEY, staff_dict, expire_seconds=300)
+    await set_cache(f"{CACHE_KEY}:{skip}:{limit}", staff_dict, expire_seconds=300)
     return staff_dict
 
 @router.post("", response_model=StaffOut, status_code=status.HTTP_201_CREATED)

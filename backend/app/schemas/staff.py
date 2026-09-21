@@ -1,11 +1,21 @@
+import re
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 class StaffBase(BaseModel):
     name: str
     role: Optional[str] = "Employee"
     email: Optional[str] = None
     phone: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v and v.strip():
+            pattern = r'^\+?[0-9\s\-\(\)]{7,20}$'
+            if not re.match(pattern, v.strip()):
+                raise ValueError("Invalid phone number format")
+        return v
     status: Optional[str] = "Active"
     joinDate: Optional[str] = None
     baseSalary: Optional[float] = 0.0

@@ -12,18 +12,18 @@ router = APIRouter(prefix="/invoices", tags=["Invoices"])
 CACHE_KEY = "cache:invoices:all"
 
 @router.get("", response_model=List[InvoiceOut])
-async def get_invoices(db: AsyncSession = Depends(get_db)):
-    cached = await get_cache(CACHE_KEY)
+async def get_invoices(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(f"{CACHE_KEY}:{skip}:{limit}")
     if cached is not None:
         return cached
 
-    result = await db.execute(select(Invoice))
+    result = await db.execute(select(Invoice).offset(skip).limit(limit))
     invoices = result.scalars().all()
     
     inv_dict = [InvoiceOut.model_validate(inv).model_dump() for inv in invoices]
-    await set_cache(CACHE_KEY, inv_dict, expire_seconds=300)
+    await set_cache(f"{CACHE_KEY}:{skip}:{limit}", inv_dict, expire_seconds=300)
     
-    return invoices
+    return inv_dict
 
 @router.post("", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
 async def create_invoice(invoice_in: InvoiceCreate, db: AsyncSession = Depends(get_db)):

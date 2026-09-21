@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { CalendarDays, Plus, Trash2, X, Flag, Building2, MapPin } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import type { Holiday } from '../context/DataContext';
+import { ConfirmModal } from './ConfirmModal';
 
 const TYPE_CONFIG: Record<Holiday['type'], { label: string; bg: string; text: string; iconName: string }> = {
   National: { label: 'National', bg: 'bg-blue-50', text: 'text-blue-700', iconName: 'flag' },
@@ -256,6 +257,15 @@ export function HolidaysPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        title="Delete Holiday"
+        message="Are you sure you want to delete this holiday record? This action cannot be undone."
+        confirmText="Delete Holiday"
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </div>
   );
 }

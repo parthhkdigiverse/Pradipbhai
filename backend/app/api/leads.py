@@ -10,8 +10,8 @@ from app.schemas.lead import LeadCreate, LeadUpdate, LeadOut
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
 @router.get("", response_model=List[LeadOut])
-async def get_leads(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Lead))
+async def get_leads(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Lead).offset(skip).limit(limit))
     return result.scalars().all()
 
 @router.post("", response_model=LeadOut, status_code=status.HTTP_201_CREATED)

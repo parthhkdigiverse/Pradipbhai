@@ -1,4 +1,4 @@
-import { Settings, Calendar, Clock, AlertCircle, LogOut, Palette, Plus, X } from 'lucide-react';
+import { Settings, Calendar, Clock, AlertCircle, LogOut, Palette, Plus, X, MousePointer, ShieldAlert } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme } from '../context/ThemeProvider';
 import type { DateFormat, TimeFormat } from '../context/SettingsContext';
@@ -16,7 +16,9 @@ export function SettingsPage() {
     overtimeHoursLimit, setOvertimeHoursLimit,
     autoPunchOut, setAutoPunchOut,
     autoPunchOutHoursLimit, setAutoPunchOutHoursLimit,
-    autoConvertLeads, setAutoConvertLeads
+    autoConvertLeads, setAutoConvertLeads,
+    inactivityTimeoutEnabled, setInactivityTimeoutEnabled,
+    inactivityTimeoutMinutes, setInactivityTimeoutMinutes
   } = useSettings();
 
   const {
@@ -350,6 +352,54 @@ export function SettingsPage() {
             <p className="mt-4 text-[11px] text-gray-500 bg-primary/10 p-3 rounded-lg border border-primary/20">
               When enabled, changing a lead's status to "Client Won" will automatically create a new client record.
             </p>
+          </div>
+        </div>
+
+        {/* Session Inactivity Timeout Card */}
+        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-primary/20 p-6 relative overflow-hidden h-fit">
+          <div className="flex items-center gap-3 mb-6">
+            <MousePointer className="w-6 h-6 text-primary" />
+            <h2 className="text-xl font-bold text-gray-800">Session Inactivity Timeout</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between w-full">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only" 
+                      checked={inactivityTimeoutEnabled}
+                      onChange={(e) => setInactivityTimeoutEnabled(e.target.checked)}
+                    />
+                    <div className={`block w-14 h-8 rounded-full transition-colors ${inactivityTimeoutEnabled ? 'bg-primary' : 'bg-gray-300'}`}></div>
+                    <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${inactivityTimeoutEnabled ? 'transform translate-x-6' : ''}`}></div>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-primary" /> Timeout Warning
+                  </span>
+                </label>
+
+                {inactivityTimeoutEnabled && (
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      min="1"
+                      max="180"
+                      value={inactivityTimeoutMinutes}
+                      onChange={(e) => setInactivityTimeoutMinutes(Math.max(1, Number(e.target.value)))}
+                      className="w-16 px-2.5 py-1 text-sm border border-gray-200 rounded-lg font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50 text-center"
+                    />
+                    <span className="text-xs text-gray-500 font-semibold">min</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="mt-4 text-[11px] text-gray-500 bg-primary/10 p-3 rounded-lg border border-primary/20 leading-relaxed">
+                If no <strong>mouse click, cursor movement, or keyboard input</strong> is detected for <strong>{inactivityTimeoutMinutes} minutes</strong>, an interactive timeout warning modal will pop up with a 60-second countdown before auto-logout.
+              </p>
+            </div>
           </div>
         </div>
         

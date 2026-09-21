@@ -14,6 +14,7 @@ from app.models.leave import LeaveRequest, LeaveBalance
 from app.models.worklog import WorkLog
 
 from app.models.permission import RolePermission
+from app.models.restriction import AccessRestriction
 
 __all__ = [
     "Client",
@@ -31,5 +32,6 @@ __all__ = [
     "LeaveRequest",
     "LeaveBalance",
     "WorkLog",
-    "RolePermission"
+    "RolePermission",
+    "AccessRestriction"
 ]

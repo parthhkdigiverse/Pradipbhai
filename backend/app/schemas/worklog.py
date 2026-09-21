@@ -13,6 +13,15 @@ class WorkLogBase(BaseModel):
 class WorkLogCreate(WorkLogBase):
     id: Optional[str] = None
 
+class WorkLogUpdate(BaseModel):
+    staff_id: Optional[str] = None
+    staff_name: Optional[str] = None
+    job_id: Optional[str] = None
+    job_title: Optional[str] = None
+    date: Optional[str] = None
+    hours: Optional[float] = None
+    description: Optional[str] = None
+
 class WorkLogOut(WorkLogBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
