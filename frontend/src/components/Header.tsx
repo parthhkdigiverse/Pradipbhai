@@ -317,8 +317,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 </button>
                 <button 
                   onClick={() => {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userId');
+                    localStorage.removeItem('userName');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('userRole');
                     localStorage.removeItem('isAuthenticated');
-                    window.location.reload();
+                    window.location.href = '/';
                   }}
                   className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2"
                 >
