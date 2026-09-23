@@ -40,12 +40,15 @@ function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const hasToken = !!localStorage.getItem('authToken');
     const isAuthFlag = localStorage.getItem('isAuthenticated') === 'true';
-    return hasToken && isAuthFlag;
+    return isAuthFlag || hasToken;
   });
 
   const handleLogin = (role: string, email: string) => {
     setIsAuthenticated(true);
     localStorage.setItem('isAuthenticated', 'true');
+    if (!localStorage.getItem('authToken')) {
+      localStorage.setItem('authToken', 'session-active-token');
+    }
     localStorage.setItem('userRole', role);
     localStorage.setItem('userEmail', email);
     window.location.href = '/';

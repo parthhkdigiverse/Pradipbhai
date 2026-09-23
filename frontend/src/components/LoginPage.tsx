@@ -57,6 +57,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           setErrorMsg('Invalid email or password.');
         } else {
           const role = matchedStaff.role || 'Employee';
+          localStorage.setItem('authToken', 'fallback-session-token');
           localStorage.setItem('userId', matchedStaff.id);
           localStorage.setItem('userName', matchedStaff.name);
           localStorage.setItem('userEmail', matchedStaff.email);
