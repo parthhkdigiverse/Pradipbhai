@@ -6,9 +6,7 @@ import { fileURLToPath } from 'url'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 
-// https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load environment variables from the root .env file
   const rootDir = path.resolve(currentDir, '..')
   const env = loadEnv(mode, rootDir, '')
   const frontendPort = parseInt(env.FRONTEND_PORT || env.PORT || '5173', 10)
@@ -22,4 +20,3 @@ export default defineConfig(({ mode }) => {
     }
   }
 })
-
