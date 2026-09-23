@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Optional
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Path to single root .env file (/Volumes/Other/PradipBhai/.env)
@@ -14,7 +16,7 @@ class Settings(BaseSettings):
     DB_USER: str = "root"
     DB_PASSWORD: str = ""
     DB_NAME: str = "alpha_creative_db"
-    DATABASE_URL: str = "mysql+aiomysql://root:@127.0.0.1:3306/alpha_creative_db"
+    DATABASE_URL: Optional[str] = None
     
     REDIS_URL: str = "redis://127.0.0.1:6379/0"
 
@@ -24,6 +26,13 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
 
+    @model_validator(mode="after")
+    def assemble_db_connection(self) -> "Settings":
+        if not self.DATABASE_URL or "127.0.0.1" in self.DATABASE_URL and self.DB_HOST != "127.0.0.1":
+            pwd = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+            self.DATABASE_URL = f"mysql+aiomysql://{self.DB_USER}{pwd}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return self
+
     model_config = SettingsConfigDict(
         env_file=str(ROOT_ENV_FILE),
         env_file_encoding="utf-8",
@@ -31,3 +40,4 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
+
