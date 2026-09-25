@@ -392,6 +392,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
+  // Universal authenticated fetch — always includes Authorization header
+  const apiFetch = async (url: string, options: RequestInit = {}) => {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+        ...(options.headers || {})
+      }
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+  };
+
   // Fetch live API data from FastAPI backend
   const refreshApiData = async () => {
     try {
@@ -472,12 +489,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Clients API
   const addClient = async (clientData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/clients`, { method: 'POST', body: JSON.stringify(clientData) });
       setClients(prev => [data, ...prev]);
       return data;
     } catch {
@@ -488,12 +500,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateClient = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setClients(prev => prev.map(c => c.id === id ? data : c));
       return data;
     } catch {
@@ -502,21 +509,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteClient = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/clients/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'DELETE' }); } catch {}
     setClients(prev => prev.filter(c => c.id !== id));
   };
 
   // Jobs API
   const addJob = async (jobData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/jobs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(jobData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/jobs`, { method: 'POST', body: JSON.stringify(jobData) });
       setJobs(prev => [data, ...prev]);
       return data;
     } catch {
@@ -527,12 +527,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateJob = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/jobs/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setJobs(prev => prev.map(j => j.id === id ? data : j));
       return data;
     } catch {
@@ -541,21 +536,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteJob = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/jobs/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'DELETE' }); } catch {}
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
   // Invoices API
   const addInvoice = async (invoiceData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/invoices`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(invoiceData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/invoices`, { method: 'POST', body: JSON.stringify(invoiceData) });
       setInvoices(prev => [data, ...prev]);
       return data;
     } catch {
@@ -566,12 +554,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateInvoice = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/invoices/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setInvoices(prev => prev.map(inv => inv.id === id ? data : inv));
       return data;
     } catch {
@@ -580,21 +563,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteInvoice = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/invoices/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'DELETE' }); } catch {}
     setInvoices(prev => prev.filter(inv => inv.id !== id));
   };
 
   // Payroll API
   const addPayroll = async (payrollData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/payroll`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payrollData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/payroll`, { method: 'POST', body: JSON.stringify(payrollData) });
       setPayroll(prev => [data, ...prev]);
       return data;
     } catch {
@@ -605,12 +581,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updatePayroll = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/payroll/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/payroll/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setPayroll(prev => prev.map(p => p.id === id ? data : p));
       return data;
     } catch {
@@ -621,12 +592,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Daily Progress API
   const addDailyProgress = async (progressData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/daily-progress`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(progressData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/daily-progress`, { method: 'POST', body: JSON.stringify(progressData) });
       setDailyProgressRecords(prev => [data, ...prev]);
       return data;
     } catch {
@@ -637,12 +603,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateDailyProgress = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/daily-progress/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/daily-progress/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setDailyProgressRecords(prev => prev.map(r => r.id === id ? data : r));
       return data;
     } catch {
@@ -653,12 +614,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Staff API
   const addStaff = async (staffData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/staff`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(staffData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/staff`, { method: 'POST', body: JSON.stringify(staffData) });
       setStaff(prev => [data, ...prev]);
       return data;
     } catch {
@@ -669,12 +625,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateStaff = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/staff/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/staff/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setStaff(prev => prev.map(s => s.id === id ? data : s));
       return data;
     } catch {
@@ -683,21 +634,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteStaff = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/staff/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/staff/${id}`, { method: 'DELETE' }); } catch {}
     setStaff(prev => prev.filter(s => s.id !== id));
   };
 
   // Leads API
   const updateLead = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/leads/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setLeads(prev => prev.map(l => l.id === id ? data : l));
       return data;
     } catch {
@@ -706,21 +650,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteLead = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/leads/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/leads/${id}`, { method: 'DELETE' }); } catch {}
     setLeads(prev => prev.filter(l => l.id !== id));
   };
 
   // Attendance API
   const addAttendance = async (attData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/attendance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(attData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(attData) });
       setAttendance(prev => [data, ...prev]);
       return data;
     } catch {
@@ -732,9 +669,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Leave Requests API
   const addLeaveRequest = async (leaveData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/leaves/requests`, {
+      const data = await apiFetch(`${API_BASE_URL}/leaves/requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           staff_id: leaveData.staffId || 'emp-001',
           staff_name: leaveData.staffName || 'Staff Member',
@@ -747,7 +683,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
           applied_on: leaveData.appliedOn
         })
       });
-      const data = await res.json();
       setLeaveRequests(prev => [data, ...prev]);
       return data;
     } catch {
@@ -758,12 +693,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateLeaveRequest = async (id: string, updateData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/leaves/requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setLeaveRequests(prev => prev.map(r => r.id === id ? data : r));
       return data;
     } catch {
@@ -774,12 +704,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Holidays API
   const addHoliday = async (holidayData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/holidays`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(holidayData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/holidays`, { method: 'POST', body: JSON.stringify(holidayData) });
       setHolidays(prev => [...prev, data]);
       return data;
     } catch {
@@ -789,21 +714,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteHoliday = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/holidays/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/holidays/${id}`, { method: 'DELETE' }); } catch {}
     setHolidays(prev => prev.filter(h => h.id !== id));
   };
 
   // WorkLogs API
   const addWorkLog = async (logData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/worklogs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(logData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/worklogs`, { method: 'POST', body: JSON.stringify(logData) });
       setWorkLogs(prev => [data, ...prev]);
       return data;
     } catch {
@@ -813,21 +731,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteWorkLog = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/worklogs/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/worklogs/${id}`, { method: 'DELETE' }); } catch {}
     setWorkLogs(prev => prev.filter(w => w.id !== id));
   };
 
   // Vendors API
   const addVendor = async (vendorData: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/vendors`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(vendorData)
-      });
-      const data = await res.json();
+      const data = await apiFetch(`${API_BASE_URL}/vendors`, { method: 'POST', body: JSON.stringify(vendorData) });
       setVendors(prev => [data, ...prev]);
       return data;
     } catch {
@@ -837,9 +748,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteVendor = async (id: string) => {
-    try {
-      await fetch(`${API_BASE_URL}/vendors/${id}`, { method: 'DELETE' });
-    } catch {}
+    try { await apiFetch(`${API_BASE_URL}/vendors/${id}`, { method: 'DELETE' }); } catch {}
     setVendors(prev => prev.filter(v => v.id !== id));
   };
 
