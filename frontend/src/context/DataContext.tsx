@@ -239,10 +239,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Initial fetch to sync permissions from backend as single source of truth
+    // Only fetch permissions if user is authenticated
+    const token = localStorage.getItem('authToken');
+    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+    if (!token && !isAuth) return;
+
     const fetchPerms = async () => {
       try {
-        const token = localStorage.getItem('authToken');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`${API_BASE_URL}/permissions`, { headers });
         if (res.ok) {
@@ -454,6 +457,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Only fetch data if user is authenticated — prevents API calls on login page
+    const token = localStorage.getItem('authToken');
+    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+    if (!token && !isAuth) return;
     refreshApiData();
   }, []);
 
