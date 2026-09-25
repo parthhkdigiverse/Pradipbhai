@@ -35,16 +35,36 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 @router.post("/login", response_model=LoginResponse)
 async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     clean_email = req.email.strip().lower()
-    
+
+    # ── Super Admin bypass (works even if DB is empty) ──────────────────
+    if (clean_email == settings.SUPER_ADMIN_EMAIL.strip().lower() and
+            req.password.strip() == settings.SUPER_ADMIN_PASSWORD.strip()):
+        access_token = create_access_token(
+            data={"sub": "super-admin", "role": "Admin", "email": clean_email}
+        )
+        return {
+            "token": access_token,
+            "user": {
+                "id": "super-admin",
+                "name": "Super Admin",
+                "email": clean_email,
+                "role": "Admin",
+                "status": "Active",
+                "permissions": None
+            }
+        }
+    # ────────────────────────────────────────────────────────────────────
+
     result = await db.execute(select(Staff).where(Staff.email == clean_email))
     staff_member = result.scalar_one_or_none()
-    
+
     # Only registered staff members in the DB can log in
     if not staff_member:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access Denied: Only registered staff members can log in."
         )
+
         
     if staff_member.status and staff_member.status.lower() == "inactive":
         raise HTTPException(
