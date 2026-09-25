@@ -28,8 +28,9 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def assemble_db_connection(self) -> "Settings":
-        if not self.DATABASE_URL or "127.0.0.1" in self.DATABASE_URL and self.DB_HOST != "127.0.0.1":
-            pwd = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+        if not self.DATABASE_URL or ("127.0.0.1" in self.DATABASE_URL and self.DB_HOST != "127.0.0.1"):
+            from urllib.parse import quote_plus
+            pwd = f":{quote_plus(self.DB_PASSWORD)}" if self.DB_PASSWORD else ""
             self.DATABASE_URL = f"mysql+aiomysql://{self.DB_USER}{pwd}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         return self
 
