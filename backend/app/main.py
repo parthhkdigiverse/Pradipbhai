@@ -38,11 +38,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Configuration - Allow All Origins
+# CORS Configuration - Wildcard (JWT Bearer tokens don't need allow_credentials=True)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

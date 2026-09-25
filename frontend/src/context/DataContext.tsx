@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 export interface Holiday {
   id: string;
@@ -396,14 +396,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const refreshApiData = async () => {
     try {
       const headers = getAuthHeaders();
+      const token = localStorage.getItem('authToken');
+      // Only auto-logout on 401 if we have a real JWT token (not a fallback/offline token)
+      const isRealToken = token && token !== 'fallback-session-token' && token !== 'session-active-token';
+
       const fetchWithAuth = async (url: string) => {
         const res = await fetch(url, { headers });
-        if (res.status === 401) {
+        if (res.status === 401 && isRealToken) {
           localStorage.removeItem('authToken');
           localStorage.removeItem('isAuthenticated');
           window.location.href = '/';
           throw new Error('Unauthorized');
         }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       };
 
