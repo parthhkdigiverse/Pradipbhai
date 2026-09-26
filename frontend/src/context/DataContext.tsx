@@ -404,8 +404,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody?.detail || `HTTP ${res.status}`);
+      const msg = errBody?.detail || `HTTP ${res.status}`;
+      console.error(`[apiFetch] ${options.method || 'GET'} ${url} → ${res.status}:`, msg);
+      throw new Error(msg);
     }
+    // 204 No Content (DELETE) — no body to parse
+    if (res.status === 204) return null;
     return res.json();
   };
 
