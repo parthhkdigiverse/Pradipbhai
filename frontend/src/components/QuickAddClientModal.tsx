@@ -61,7 +61,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative bg-white shadow-2xl rounded-3xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative bg-white shadow-2xl rounded-3xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50/50">
           <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-primary" /> Add New Client
@@ -71,7 +71,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">
               Company / Client Name <span className="text-rose-500">*</span>
@@ -103,7 +103,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">Phone</label>
               <div className="relative">
@@ -134,7 +134,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
 
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">Traffic Light Status</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, trafficLight: 'Green' })}

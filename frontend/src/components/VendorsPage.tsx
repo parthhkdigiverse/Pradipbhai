@@ -228,7 +228,7 @@ export function VendorsPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleCloseModal}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
               <h2 className="text-lg font-bold text-gray-800">{editingVendorId ? 'Edit Vendor' : 'Add New Vendor'}</h2>
               <button onClick={handleCloseModal} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
@@ -236,7 +236,7 @@ export function VendorsPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSaveVendor} className="p-5 space-y-4">
+            <form onSubmit={handleSaveVendor} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Vendor Name <span className="text-rose-500">*</span></label>

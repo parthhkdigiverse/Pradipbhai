@@ -634,7 +634,7 @@ export function InvoicesPage() {
                 )}
 
                 {/* Dates & Tax */}
-                <div className={`grid gap-4 ${formData.invoiceType === 'Tax' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <div className={`grid gap-4 ${formData.invoiceType === 'Tax' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Issue Date <span className="text-rose-500">*</span></label>
                     <input type="date" required value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />

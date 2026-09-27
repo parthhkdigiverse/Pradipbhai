@@ -816,7 +816,7 @@ export function LeadsPage() {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={handleCloseModal}></div>
-          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative glass-panel border border-white/60 shadow-2xl rounded-2xl w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30">
               <h2 className="text-xl font-bold text-gray-800">
                 {editingLeadId ? 'Edit Lead' : 'Add New Lead'}
@@ -826,8 +826,8 @@ export function LeadsPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSaveLead} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSaveLead} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Company Name <span className="text-red-500 ml-0.5">*</span>

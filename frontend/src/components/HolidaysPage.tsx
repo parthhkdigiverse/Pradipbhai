@@ -190,14 +190,14 @@ export function HolidaysPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 flex-shrink-0">
               <h2 className="text-xl font-bold text-gray-800">Add Holiday</h2>
               <button onClick={() => setShowModal(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Date</label>
                 <input
@@ -219,7 +219,7 @@ export function HolidaysPage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Type</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {(['National', 'Regional', 'Company'] as const).map(t => {
                     const cfg = TYPE_CONFIG[t];
                     const isSelected = form.type === t;
@@ -241,7 +241,7 @@ export function HolidaysPage() {
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3">
+            <div className="p-4 sm:p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3 flex-shrink-0">
               <button onClick={() => setShowModal(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-xl transition-all">
                 Cancel
               </button>

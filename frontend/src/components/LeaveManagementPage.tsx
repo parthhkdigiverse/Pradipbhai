@@ -255,7 +255,7 @@ export function LeaveManagementPage() {
       {activeTab === 'my' && (
         <div className="space-y-6">
           {/* Balance cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {balanceCards.map(card => {
               const remaining = card.total - card.used;
               const pct = card.total > 0 ? (card.used / card.total) * 100 : 0;
@@ -617,14 +617,14 @@ export function LeaveManagementPage() {
       {showApply && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowApply(false)} />
-          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 flex-shrink-0">
               <h2 className="text-xl font-bold text-gray-800">Apply for Leave</h2>
               <button onClick={() => setShowApply(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               {/* Leave Type */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Leave Type</label>
@@ -646,7 +646,7 @@ export function LeaveManagementPage() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">From Date</label>
                   <input
@@ -688,7 +688,7 @@ export function LeaveManagementPage() {
                 />
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3">
+            <div className="p-4 sm:p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3 flex-shrink-0">
               <button onClick={() => setShowApply(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-all">
                 Cancel
               </button>
@@ -709,8 +709,8 @@ export function LeaveManagementPage() {
       {rejectTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setRejectTarget(null)} />
-          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-sm max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 flex-shrink-0">
               <h2 className="text-lg font-bold text-gray-800">Reject Leave</h2>
               <button onClick={() => setRejectTarget(null)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
@@ -732,7 +732,7 @@ export function LeaveManagementPage() {
                 />
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3">
+            <div className="p-4 sm:p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3 flex-shrink-0">
               <button onClick={() => setRejectTarget(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-all">
                 Cancel
               </button>
