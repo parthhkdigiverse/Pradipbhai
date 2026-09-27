@@ -13,7 +13,6 @@ const LEAVE_COLORS: Record<LeaveType, { bg: string; text: string; border: string
   Casual:  { bg: 'bg-blue-50',    text: 'text-blue-700',   border: 'border-blue-200' },
   Sick:    { bg: 'bg-rose-50',    text: 'text-rose-700',   border: 'border-rose-200' },
   Earned:  { bg: 'bg-emerald-50', text: 'text-emerald-700',border: 'border-emerald-200' },
-  Unpaid:  { bg: 'bg-gray-100',   text: 'text-gray-600',   border: 'border-gray-200' },
 };
 
 const STATUS_COLORS: Record<LeaveStatus, { bg: string; text: string }> = {
@@ -164,13 +163,11 @@ export function LeaveManagementPage() {
     });
 
     // 3. Deduct from leave balance
-    if (req.type !== 'Unpaid') {
-      setLeaveBalances(prev => prev.map(b => {
-        if (b.staffId !== req.staffId) return b;
-        const key = req.type.toLowerCase() as 'casual' | 'sick' | 'earned';
-        return { ...b, [key]: Math.max(0, b[key] - req.days) };
-      }));
-    }
+    setLeaveBalances(prev => prev.map(b => {
+      if (b.staffId !== req.staffId) return b;
+      const key = req.type.toLowerCase() as 'casual' | 'sick' | 'earned';
+      return { ...b, [key]: Math.max(0, b[key] - req.days) };
+    }));
   };
 
   const handleReject = () => {
@@ -628,8 +625,8 @@ export function LeaveManagementPage() {
               {/* Leave Type */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Leave Type</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['Casual', 'Sick', 'Earned', 'Unpaid'] as LeaveType[]).map(t => {
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Casual', 'Sick', 'Earned'] as LeaveType[]).map(t => {
                     const lc = LEAVE_COLORS[t];
                     const isSelected = form.type === t;
                     return (

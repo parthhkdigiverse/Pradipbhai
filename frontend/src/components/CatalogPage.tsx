@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function CatalogPage() {
-  const { products, setProducts, currentUserRole, hasPermission } = useData();
+  const { products, addProduct, updateProduct, deleteProduct, currentUserRole, hasPermission } = useData();
   const canManageProducts = hasPermission(currentUserRole, 'Manage Products');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -31,8 +31,8 @@ export function CatalogPage() {
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const sLower = searchTerm.toLowerCase();
-      const matchSearch = p.name.toLowerCase().includes(sLower) || 
-                          p.description.toLowerCase().includes(sLower) ||
+      const matchSearch = (p.name && p.name.toLowerCase().includes(sLower)) || 
+                          (p.description && p.description.toLowerCase().includes(sLower)) ||
                           (p.type && p.type.toLowerCase().includes(sLower));
       const matchType = filterType === 'All' || p.type === filterType;
       return matchSearch && matchType;
@@ -47,11 +47,11 @@ export function CatalogPage() {
       setEditingId(product.id);
       setFormData({
         name: product.name,
-        description: product.description,
-        type: product.type,
+        description: product.description || '',
+        type: product.type || 'Designing',
         price: product.price !== undefined && product.price !== null ? String(product.price) : '',
-        estimatedTime: product.estimatedTime !== undefined && product.estimatedTime !== null ? String(product.estimatedTime) : '',
-        estimatedTimeUnit: product.estimatedTimeUnit || 'Hours'
+        estimatedTime: (product.estimated_time || product.estimatedTime) !== undefined && (product.estimated_time || product.estimatedTime) !== null ? String(product.estimated_time || product.estimatedTime) : '',
+        estimatedTimeUnit: product.estimated_time_unit || product.estimatedTimeUnit || 'Hours'
       });
     } else {
       setEditingId(null);
@@ -69,27 +69,30 @@ export function CatalogPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : undefined;
-    const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : undefined;
+    const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : 0;
+    const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0;
     const dataToSave = {
-      ...formData,
+      name: formData.name,
+      description: formData.description,
+      type: formData.type,
       price: parsedPrice,
-      estimatedTime: parsedTime
+      estimated_time: parsedTime,
+      estimated_time_unit: formData.estimatedTimeUnit
     };
     if (editingId) {
-      setProducts(products.map(p => p.id === editingId ? { ...p, ...dataToSave } : p));
+      updateProduct(editingId, dataToSave);
     } else {
-      setProducts([
-        ...products,
-        { ...dataToSave, id: Math.random().toString(36).substr(2, 9) }
-      ]);
+      addProduct({
+        id: `prod-${Date.now()}`,
+        ...dataToSave
+      });
     }
     setIsModalOpen(false);
   };
 
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to delete this product?')) {
-      setProducts(products.filter(p => p.id !== id));
+      deleteProduct(id);
     }
   };
 

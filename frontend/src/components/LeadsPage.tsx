@@ -13,7 +13,7 @@ const DEFAULT_CATEGORIES = ['Hot Lead', 'Warm Lead', 'Cold Lead'];
 
 export function LeadsPage() {
   const { dateFormat } = useSettings();
-  const { leads, setLeads, convertLeadToClient, currentUserRole, hasPermission } = useData();
+  const { leads, setLeads, addLead, updateLead, deleteLead, convertLeadToClient, currentUserRole, hasPermission } = useData();
   const canCreateEditLeads = hasPermission(currentUserRole, 'Create/Edit Leads');
   const canDeleteLeads = hasPermission(currentUserRole, 'Delete Leads');
   const [searchTerm, setSearchTerm] = useState('');
@@ -207,21 +207,9 @@ export function LeadsPage() {
     if (editingLeadId) {
       const originalLead = leads.find(l => l.id === editingLeadId);
       
-      setLeads((prevLeads) => prevLeads.map(l => {
-        if (l.id === editingLeadId) {
-          const updatedLead: any = { ...l, ...formData };
-          if (formData.followUpDate || formData.followUpNote) {
-            updatedLead.followUps = [
-              { date: formData.followUpDate, note: formData.followUpNote },
-              ...(l.followUps || [])
-            ];
-            delete updatedLead.followUpDate;
-            delete updatedLead.followUpNote;
-          }
-          return updatedLead;
-        }
-        return l;
-      }));
+      if (editingLeadId) {
+        updateLead(editingLeadId, formData);
+      }
       
       if (originalLead && originalLead.status !== formData.status && formData.status === 'Client Won') {
         convertLeadToClient({ ...originalLead, ...formData });
@@ -229,7 +217,7 @@ export function LeadsPage() {
     } else {
       const newLead = {
         ...formData,
-        id: Math.random().toString(36).substr(2, 9),
+        id: `lead-${Date.now()}`,
         priority: formData.isHot ? 'High' : 'Medium',
         createdByUserName: 'Admin',
         date: new Date().toISOString().split('T')[0],
@@ -239,13 +227,13 @@ export function LeadsPage() {
       delete newLead.followUpDate;
       // @ts-ignore
       delete newLead.followUpNote;
-      setLeads([newLead, ...leads]);
+      addLead(newLead);
     }
     handleCloseModal();
   };
 
   const handleDeleteLead = (id: string) => {
-    setLeads(leads.filter(l => l.id !== id));
+    deleteLead(id);
     setOpenMenuId(null);
   };
 

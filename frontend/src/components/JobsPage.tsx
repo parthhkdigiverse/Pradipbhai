@@ -5,7 +5,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function JobsPage() {
-  const { jobs, setJobs, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, hasPermission, deleteJob } = useData();
+  const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, hasPermission } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
@@ -215,15 +215,15 @@ export function JobsPage() {
     };
 
     if (editingJobId) {
-      setJobs(prev => prev.map(j => j.id === editingJobId ? { ...j, ...jobData } : j));
+      updateJob(editingJobId, jobData);
     } else {
       const newJob = {
-        id: Math.random().toString(36).substr(2, 9),
-        createdBy: 'Admin', // In a real app, this would be the logged in user
+        id: `job-${Date.now()}`,
+        createdBy: 'Admin',
         createdAt: new Date().toISOString().split('T')[0],
         ...jobData
       };
-      setJobs(prev => [newJob, ...prev]);
+      addJob(newJob);
     }
     handleCloseModal();
   };
@@ -452,22 +452,29 @@ export function JobsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Jobs Dashboard</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {hasPermission(currentUserRole, 'Create Job') && (
             <>
               <button 
                 onClick={() => handleOpenModal('Designing')}
-                className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                className="px-3 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Add New Designing Job
+                <span className="hidden sm:inline">Add New</span> Designing Job
               </button>
               <button 
                 onClick={() => handleOpenModal('Printing')}
-                className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+                className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold shadow-md shadow-amber-400/20 hover:shadow-lg hover:shadow-amber-400/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                Add New Printing Job
+                <span className="hidden sm:inline">Add New</span> Printing Job
+              </button>
+              <button 
+                onClick={() => handleOpenModal('Des+Print')}
+                className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold shadow-md shadow-purple-400/20 hover:shadow-lg hover:shadow-purple-400/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Add New</span> Des+Print Job
               </button>
             </>
           )}
@@ -788,7 +795,7 @@ export function JobsPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-center gap-1.5 transition-opacity">
                         {activeJobTracker?.jobId === job.id ? (
                           <button 
                             onClick={() => handleStopTracker(job.id)}
@@ -1035,17 +1042,24 @@ export function JobsPage() {
                       }));
                     }}
                     options={[
-                      { value: '', label: 'Type to search product...' },
-                      ...products.map(p => {
-                        let labelStr = p.name;
-                        const priceStr = p.price !== undefined && p.price !== null && p.price !== '' ? `₹${Number(p.price).toLocaleString('en-IN')}` : '';
-                        const timeStr = p.estimatedTime ? `${p.estimatedTime} ${p.estimatedTimeUnit || 'Hours'}` : '';
-                        const meta = [priceStr, timeStr].filter(Boolean).join(' • ');
-                        if (meta) labelStr += ` (${meta})`;
-                        return { value: p.id, label: labelStr };
-                      })
+                      { value: '', label: `Search ${newJobType === 'Des+Print' ? '' : newJobType + ' '}products...` },
+                      ...products
+                        .filter(p => {
+                          if (newJobType === 'Des+Print') return true;
+                          if (newJobType === 'Designing') return p.type === 'Designing';
+                          if (newJobType === 'Printing')  return p.type === 'Printing';
+                          return true;
+                        })
+                        .map(p => {
+                          let labelStr = p.name;
+                          const priceStr = p.price !== undefined && p.price !== null && p.price !== '' ? `₹${Number(p.price).toLocaleString('en-IN')}` : '';
+                          const timeStr = p.estimatedTime ? `${p.estimatedTime} ${p.estimatedTimeUnit || 'Hours'}` : '';
+                          const meta = [priceStr, timeStr].filter(Boolean).join(' • ');
+                          if (meta) labelStr += ` (${meta})`;
+                          return { value: p.id, label: labelStr };
+                        })
                     ]}
-                    placeholder="Type to search product..."
+                    placeholder={`Search ${newJobType === 'Des+Print' ? '' : newJobType + ' '}products...`}
                   />
                 </div>
               </div>

@@ -15,7 +15,7 @@ export interface LeaveRequest {
   id: string;
   staffId: string;
   staffName: string;
-  type: 'Casual' | 'Sick' | 'Earned' | 'Unpaid';
+  type: 'Casual' | 'Sick' | 'Earned';
   fromDate: string;
   toDate: string;
   days: number;
@@ -58,6 +58,7 @@ export interface DailyRecord {
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
+  addLead: (leadData: any) => Promise<any>;
   updateLead: (id: string, updateData: any) => Promise<any>;
   deleteLead: (id: string) => Promise<void>;
   
@@ -69,6 +70,9 @@ interface DataContextType {
 
   products: any[];
   setProducts: React.Dispatch<React.SetStateAction<any[]>>;
+  addProduct: (productData: any) => Promise<any>;
+  updateProduct: (id: string, updateData: any) => Promise<any>;
+  deleteProduct: (id: string) => Promise<void>;
   
   staff: any[];
   setStaff: React.Dispatch<React.SetStateAction<any[]>>;
@@ -433,7 +437,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -447,6 +451,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/worklogs`),
         fetchWithAuth(`${API_BASE_URL}/vendors`),
         fetchWithAuth(`${API_BASE_URL}/permissions`),
+        fetchWithAuth(`${API_BASE_URL}/products`),
       ]);
 
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) setClients(clientsRes.value);
@@ -458,6 +463,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
       if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) setAttendance(attRes.value);
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
       if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
         setLeaveRequests(leaveRes.value.map((l: any) => ({
           ...l,
@@ -643,6 +649,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // Leads API
+  const addLead = async (leadData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/leads`, { method: 'POST', body: JSON.stringify(leadData) });
+      setLeads(prev => [data, ...prev]);
+      return data;
+    } catch {
+      setLeads(prev => [leadData, ...prev]);
+      return leadData;
+    }
+  };
+
   const updateLead = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/leads/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
@@ -656,6 +673,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const deleteLead = async (id: string) => {
     try { await apiFetch(`${API_BASE_URL}/leads/${id}`, { method: 'DELETE' }); } catch {}
     setLeads(prev => prev.filter(l => l.id !== id));
+  };
+
+  // Products API
+  const addProduct = async (productData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/products`, { method: 'POST', body: JSON.stringify(productData) });
+      setProducts(prev => [data, ...prev]);
+      return data;
+    } catch {
+      setProducts(prev => [productData, ...prev]);
+      return productData;
+    }
+  };
+
+  const updateProduct = async (id: string, updateData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/products/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      setProducts(prev => prev.map(p => p.id === id ? data : p));
+      return data;
+    } catch {
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    try { await apiFetch(`${API_BASE_URL}/products/${id}`, { method: 'DELETE' }); } catch {}
+    setProducts(prev => prev.filter(p => p.id !== id));
   };
 
   // Attendance API
@@ -801,9 +845,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   return (
     <DataContext.Provider value={{
-      leads, setLeads, updateLead, deleteLead,
+      leads, setLeads, addLead, updateLead, deleteLead,
       clients, setClients, addClient, updateClient, deleteClient,
-      products, setProducts,
+      products, setProducts, addProduct, updateProduct, deleteProduct,
       staff, setStaff, addStaff, updateStaff, deleteStaff,
       attendance, setAttendance, addAttendance,
       payroll, setPayroll, addPayroll, updatePayroll,

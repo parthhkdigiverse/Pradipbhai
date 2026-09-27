@@ -17,6 +17,7 @@ from app.api.leaves import router as leaves_router
 from app.api.holidays import router as holidays_router
 from app.api.worklogs import router as worklogs_router
 from app.api.vendors import router as vendors_router
+from app.api.products import router as products_router
 from app.api.auth import router as auth_router
 from app.api.permissions import router as permissions_router
 from app.api.restrictions import router as restrictions_router
@@ -63,6 +64,7 @@ app.include_router(leaves_router, prefix="/api", dependencies=[Depends(get_curre
 app.include_router(holidays_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(worklogs_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(vendors_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(products_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(permissions_router, prefix="/api/permissions", dependencies=[Depends(get_current_user)])
 app.include_router(restrictions_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(chat_router, prefix="/api", dependencies=[Depends(get_current_user)])
