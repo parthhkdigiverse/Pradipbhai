@@ -19,6 +19,8 @@ export interface LeaveRequest {
   fromDate: string;
   toDate: string;
   days: number;
+  isHalfDay?: boolean;
+  halfDaySession?: 'First Half' | 'Second Half';
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   appliedOn: string;
@@ -32,6 +34,7 @@ export interface LeaveBalance {
   casual: number;
   sick: number;
   earned: number;
+  paid?: number;
 }
 
 export interface DailyTask {
@@ -860,13 +863,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
           from_date: leaveData.fromDate,
           to_date: leaveData.toDate,
           days: leaveData.days,
+          is_half_day: leaveData.isHalfDay,
+          half_day_session: leaveData.halfDaySession,
           reason: leaveData.reason,
           status: leaveData.status || 'Pending',
           applied_on: leaveData.appliedOn
         })
       });
-      setLeaveRequests(prev => [data, ...prev]);
-      return data;
+      const mapped = {
+        ...data,
+        staffId: data.staff_id || data.staffId || leaveData.staffId,
+        staffName: data.staff_name || data.staffName || leaveData.staffName,
+        fromDate: data.from_date || data.fromDate || leaveData.fromDate,
+        toDate: data.to_date || data.toDate || leaveData.toDate,
+        days: data.days !== undefined ? data.days : leaveData.days,
+        isHalfDay: data.is_half_day ?? data.isHalfDay ?? leaveData.isHalfDay ?? false,
+        halfDaySession: data.half_day_session || data.halfDaySession || leaveData.halfDaySession,
+        appliedOn: data.applied_on || data.appliedOn || leaveData.appliedOn,
+        reviewedBy: data.reviewed_by || data.reviewedBy,
+        reviewNote: data.review_note || data.reviewNote,
+        reviewedOn: data.reviewed_on || data.reviewedOn
+      };
+      setLeaveRequests(prev => [mapped, ...prev]);
+      return mapped;
     } catch {
       setLeaveRequests(prev => [leaveData, ...prev]);
       return leaveData;
@@ -881,8 +900,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateLeaveRequest = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setLeaveRequests(prev => prev.map(r => r.id === id ? data : r));
-      return data;
+      const mapped = {
+        ...data,
+        staffId: data.staff_id || data.staffId,
+        staffName: data.staff_name || data.staffName,
+        fromDate: data.from_date || data.fromDate,
+        toDate: data.to_date || data.toDate,
+        appliedOn: data.applied_on || data.appliedOn,
+        reviewedBy: data.reviewed_by || data.reviewedBy,
+        reviewNote: data.review_note || data.reviewNote,
+        reviewedOn: data.reviewed_on || data.reviewedOn
+      };
+      setLeaveRequests(prev => prev.map(r => r.id === id ? mapped : r));
+      return mapped;
     } catch {
       setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, ...updateData } : r));
     }

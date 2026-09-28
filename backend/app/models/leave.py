@@ -1,5 +1,6 @@
-from sqlalchemy import String, Integer, DateTime, func
+from sqlalchemy import String, Integer, Float, Boolean, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
+from typing import Optional
 from app.database import Base
 
 class LeaveRequest(Base):
@@ -11,7 +12,9 @@ class LeaveRequest(Base):
     type: Mapped[str] = mapped_column(String(50), default="Casual")
     from_date: Mapped[str] = mapped_column(String(50), nullable=False)
     to_date: Mapped[str] = mapped_column(String(50), nullable=False)
-    days: Mapped[int] = mapped_column(Integer, default=1)
+    days: Mapped[float] = mapped_column(Float, default=1.0)
+    is_half_day: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
+    half_day_session: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     reason: Mapped[str] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="Pending") # Pending, Approved, Rejected
     applied_on: Mapped[str] = mapped_column(String(50), nullable=True)

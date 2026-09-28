@@ -38,6 +38,8 @@ const emptyForm = () => ({
   fromDate: '',
   toDate: '',
   type: 'Casual' as LeaveType,
+  isHalfDay: false,
+  halfDaySession: 'First Half' as 'First Half' | 'Second Half',
   reason: '',
 });
 
@@ -52,10 +54,10 @@ export function LeaveManagementPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'all' | 'balances'>('my');
 
   // Use authenticated currentUser
-  const currentStaff = staff.find(s => s.id === currentUser.id || s.email?.toLowerCase() === currentUser.email?.toLowerCase()) || {
-    id: currentUser.id || 'emp-001',
-    name: currentUser.name || 'Staff Member',
-    email: currentUser.email
+  const currentStaff = staff.find(s => s.id === currentUser?.id || (s.email && currentUser?.email && s.email.toLowerCase() === currentUser.email.toLowerCase())) || {
+    id: currentUser?.id || 'emp-001',
+    name: currentUser?.name || 'Staff Member',
+    email: currentUser?.email
   };
 
   // Apply modal
@@ -73,8 +75,8 @@ export function LeaveManagementPage() {
   // My leaves
   const myLeaves = useMemo(
     () => leaveRequests
-      .filter(r => r.staffId === currentStaff?.id)
-      .sort((a, b) => b.appliedOn.localeCompare(a.appliedOn)),
+      .filter(r => (r.staffId || (r as any).staff_id) === currentStaff?.id)
+      .sort((a, b) => (b.appliedOn || (b as any).applied_on || '').localeCompare(a.appliedOn || (a as any).applied_on || '')),
     [leaveRequests, currentStaff]
   );
 
@@ -83,10 +85,11 @@ export function LeaveManagementPage() {
     () => leaveRequests
       .filter(r => {
         const matchStatus = filterStatus === 'All' || r.status === filterStatus;
-        const matchSearch = r.staffName.toLowerCase().includes(searchTerm.toLowerCase());
+        const nameStr = r.staffName || (r as any).staff_name || '';
+        const matchSearch = nameStr.toLowerCase().includes((searchTerm || '').toLowerCase());
         return matchStatus && matchSearch;
       })
-      .sort((a, b) => b.appliedOn.localeCompare(a.appliedOn)),
+      .sort((a, b) => (b.appliedOn || (b as any).applied_on || '').localeCompare(a.appliedOn || (a as any).applied_on || '')),
     [leaveRequests, filterStatus, searchTerm]
   );
 
@@ -94,25 +97,32 @@ export function LeaveManagementPage() {
 
   // My balance
   const myBalance = leaveBalances.find(b => b.staffId === currentStaff?.id);
+  const earnedPaidQuota = myBalance?.earned ?? 15;
+
   const myUsed = useMemo(() => {
     const approved = myLeaves.filter(r => r.status === 'Approved');
     return {
-      Casual: approved.filter(r => r.type === 'Casual').reduce((s, r) => s + r.days, 0),
-      Sick:   approved.filter(r => r.type === 'Sick').reduce((s, r) => s + r.days, 0),
-      Earned: approved.filter(r => r.type === 'Earned').reduce((s, r) => s + r.days, 0),
+      Casual: approved.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Sick:   approved.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Earned: approved.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
     };
   }, [myLeaves]);
 
+  const remainingEarnedPaidDays = Math.max(0, earnedPaidQuota - myUsed.Earned);
+
   const handleApply = async () => {
-    if (!form.fromDate || !form.toDate || !form.reason.trim() || !currentStaff) return;
-    const days = calcDays(form.fromDate, form.toDate);
+    if (!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || !currentStaff) return;
+    const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
+    const targetToDate = form.isHalfDay ? form.fromDate : form.toDate;
     await addLeaveRequest({
       staffId: currentStaff.id,
       staffName: currentStaff.name,
       type: form.type,
       fromDate: form.fromDate,
-      toDate: form.toDate,
+      toDate: targetToDate,
       days,
+      isHalfDay: form.isHalfDay,
+      halfDaySession: form.isHalfDay ? form.halfDaySession : undefined,
       reason: form.reason.trim(),
       status: 'Pending',
       appliedOn: new Date().toISOString().slice(0, 10),
@@ -137,19 +147,18 @@ export function LeaveManagementPage() {
     // 2. Auto-create attendance records for each leave day (skip existing)
     const leaveDays: string[] = [];
     const cursor = new Date(req.fromDate + 'T00:00:00');
-    const end = new Date(req.toDate + 'T00:00:00');
+    const end = new Date((req.toDate || req.fromDate) + 'T00:00:00');
     while (cursor <= end) {
       leaveDays.push(cursor.toISOString().slice(0, 10));
       cursor.setDate(cursor.getDate() + 1);
     }
-    const existing = new Set(attendance.filter((a: any) => a.staffId === req.staffId).map((a: any) => a.date));
+    const existing = new Set(attendance.filter((a: any) => (a.staffId || a.staff_id) === req.staffId).map((a: any) => a.date));
+    const attStatus = req.isHalfDay ? `Half Day (${req.halfDaySession || '1st Half'})` : 'Leave';
     for (const d of leaveDays) {
       if (!existing.has(d)) {
-        await addAttendance({ staffId: req.staffId, date: d, status: 'Leave', checkIn: '', checkOut: '' });
+        await addAttendance({ staffId: req.staffId, date: d, status: attStatus, checkIn: '', checkOut: '' });
       }
     }
-
-    
   };
 
   const handleReject = async () => {
@@ -165,9 +174,9 @@ export function LeaveManagementPage() {
   };
 
   const balanceCards = [
-    { label: 'Casual',  total: myBalance?.casual ?? 0, used: myUsed.Casual,  color: LEAVE_COLORS.Casual },
-    { label: 'Sick',    total: myBalance?.sick   ?? 0, used: myUsed.Sick,    color: LEAVE_COLORS.Sick },
-    { label: 'Earned',  total: myBalance?.earned ?? 0, used: myUsed.Earned,  color: LEAVE_COLORS.Earned },
+    { label: 'Earned (Paid)', total: earnedPaidQuota, used: myUsed.Earned, remaining: remainingEarnedPaidDays, color: LEAVE_COLORS.Earned, note: '15 Paid Days / Yr' },
+    { label: 'Casual', total: 'Unlimited', used: myUsed.Casual, remaining: 'Unlimited', color: LEAVE_COLORS.Casual, note: 'Payroll Deductible' },
+    { label: 'Sick', total: 'Unlimited', used: myUsed.Sick, remaining: 'Unlimited', color: LEAVE_COLORS.Sick, note: 'Payroll Deductible' },
   ];
 
   return (
@@ -188,7 +197,7 @@ export function LeaveManagementPage() {
           {activeTab === 'my' && canApply && (
             <button
               onClick={() => { setForm(emptyForm()); setShowApply(true); }}
-              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Apply for Leave
@@ -197,18 +206,31 @@ export function LeaveManagementPage() {
         </div>
       </div>
 
+      {/* Leave Policy Banner */}
+      <div className="mb-6 p-4 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl flex items-center justify-between text-xs text-emerald-900 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
+            🌴
+          </div>
+          <div>
+            <span className="font-bold text-emerald-950">Annual Leave Policy: </span>
+            <span>Every employee gets <strong className="font-extrabold text-emerald-800">15 Paid Earned Leaves</strong> per year. <strong className="font-extrabold text-emerald-800">Casual</strong> and <strong className="font-extrabold text-emerald-800">Sick</strong> leaves are <strong className="font-extrabold text-emerald-800">unlimited</strong> and will be deducted from payroll as unpaid leaves.</span>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div className="flex items-center gap-1 mb-6 bg-white/40 backdrop-blur-md border border-white/60 rounded-2xl p-1 w-fit">
         <button
           onClick={() => setActiveTab('my')}
-          className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'my' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
+          className={`px-5 py-2 rounded-xl text-sm font-bold transition-all cursor-pointer ${activeTab === 'my' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
         >
           My Leaves
         </button>
         {isAdminOrManager && (
           <button
             onClick={() => setActiveTab('all')}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'all' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'all' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
           >
             Leave Requests
             {pendingCount > 0 && (
@@ -219,7 +241,7 @@ export function LeaveManagementPage() {
         {isAdminOrManager && (
           <button
             onClick={() => setActiveTab('balances')}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeTab === 'balances' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'balances' ? 'bg-white/80 text-primary shadow-sm border border-white/80' : 'text-gray-500 hover:text-gray-800'}`}
           >
             <Sliders className="w-3.5 h-3.5" />
             Leave Balances
@@ -233,16 +255,15 @@ export function LeaveManagementPage() {
           {/* Balance cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {balanceCards.map(card => {
-              const remaining = card.total - card.used;
-              const pct = card.total > 0 ? (card.used / card.total) * 100 : 0;
+              const pct = typeof card.total === 'number' && card.total > 0 ? (card.used / card.total) * 100 : 0;
               return (
                 <div key={card.label} className="glass-panel border border-white/60 rounded-2xl p-5 bg-white/40 backdrop-blur-md">
                   <div className="flex items-center justify-between mb-3">
                     <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${card.color.bg} ${card.color.text}`}>{card.label}</span>
-                    <span className="text-xs text-gray-400 font-semibold">{card.total} days/yr</span>
+                    <span className="text-xs text-gray-400 font-semibold">{card.note}</span>
                   </div>
                   <div className="flex items-end gap-2 mb-3">
-                    <span className="text-3xl font-black text-gray-800">{remaining}</span>
+                    <span className="text-3xl font-black text-gray-800">{card.remaining}</span>
                     <span className="text-sm text-gray-400 font-semibold mb-1">remaining</span>
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -289,11 +310,18 @@ export function LeaveManagementPage() {
                       return (
                         <tr key={req.id} className="hover:bg-white/50 transition-colors group">
                           <td className="py-4 px-6">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${lc.bg} ${lc.text} ${lc.border}`}>{req.type}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${lc.bg} ${lc.text} ${lc.border}`}>{req.type}</span>
+                              {req.isHalfDay && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                  ½ Day ({req.halfDaySession || '1st Half'})
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.fromDate}</td>
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.toDate}</td>
-                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days}</td>
+                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days !== undefined ? req.days : 1}</td>
                           <td className="py-4 px-6 text-gray-500 max-w-[180px] truncate">{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
@@ -402,12 +430,19 @@ export function LeaveManagementPage() {
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${lc.bg} ${lc.text} ${lc.border}`}>{req.type}</span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${lc.bg} ${lc.text} ${lc.border}`}>{req.type}</span>
+                              {req.isHalfDay && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                  ½ Day ({req.halfDaySession || '1st Half'})
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-4 px-6 font-semibold text-gray-600">
                             {req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`}
                           </td>
-                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days}</td>
+                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days !== undefined ? req.days : 1}</td>
                           <td className="py-4 px-6 text-gray-500 max-w-[160px] truncate">{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
@@ -461,16 +496,16 @@ export function LeaveManagementPage() {
           {/* Header row with reset button */}
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
-              Edit each employee's annual leave allocation. Changes are saved instantly.
+              Edit each employee's annual Earned Paid Leave allocation (Default: 15 Paid Leaves). Casual & Sick leaves are unlimited and payroll-deductible.
             </p>
             <button
               onClick={() => {
-                setLeaveBalances(prev => prev.map(b => ({ ...b, casual: 12, sick: 10, earned: 15 })));
+                setLeaveBalances(prev => prev.map(b => ({ ...b, casual: 0, sick: 0, earned: 15 })));
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Reset All to Defaults
+              Reset All to 15 Earned Leaves
             </button>
           </div>
 
@@ -480,25 +515,28 @@ export function LeaveManagementPage() {
                 <tr className="border-b border-gray-100 text-gray-400 font-extrabold uppercase tracking-widest bg-gray-50/40">
                   <th className="py-3 px-6">Employee</th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">Casual</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">Earned (Paid Quota)</span>
                   </th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700">Sick</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">Casual (Unpaid)</span>
                   </th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Earned</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold">Sick (Unpaid)</span>
                   </th>
-                  <th className="py-3 px-6 text-center text-gray-400">Used (C/S/E)</th>
-                  <th className="py-3 px-6 text-center text-gray-400">Remaining (C/S/E)</th>
+                  <th className="py-3 px-6 text-center text-gray-400">Used Days (E / C / S)</th>
+                  <th className="py-3 px-6 text-center text-gray-400">Remaining Earned Paid</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100/80">
                 {staff.map(emp => {
-                  const bal = leaveBalances.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 12, sick: 10, earned: 15 };
+                  const bal = leaveBalances.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 0, earned: 15 };
                   const approved = leaveRequests.filter(r => r.staffId === emp.id && r.status === 'Approved');
                   const usedC = approved.filter(r => r.type === 'Casual').reduce((s, r) => s + r.days, 0);
                   const usedS = approved.filter(r => r.type === 'Sick').reduce((s, r) => s + r.days, 0);
                   const usedE = approved.filter(r => r.type === 'Earned').reduce((s, r) => s + r.days, 0);
+
+                  const earnedQuota = bal.earned ?? 15;
+                  const remainingEarned = Math.max(0, earnedQuota - usedE);
 
                   const updateBal = (field: 'casual' | 'sick' | 'earned', value: number) => {
                     setLeaveBalances(prev => {
@@ -508,7 +546,7 @@ export function LeaveManagementPage() {
                         next[idx] = { ...next[idx], [field]: Math.max(0, value) };
                         return next;
                       }
-                      return [...prev, { staffId: emp.id, casual: 12, sick: 10, earned: 15, [field]: Math.max(0, value) }];
+                      return [...prev, { staffId: emp.id, casual: 0, sick: 0, earned: 15, [field]: Math.max(0, value) }];
                     });
                   };
 
@@ -525,55 +563,43 @@ export function LeaveManagementPage() {
                           </div>
                         </div>
                       </td>
-                      {/* Casual */}
+                      {/* Earned Paid Quota Input */}
                       <td className="py-4 px-6 text-center">
                         <input
                           type="number"
                           min={0}
-                          value={bal.casual}
-                          onChange={e => updateBal('casual', parseInt(e.target.value) || 0)}
-                          className="w-16 text-center bg-blue-50/60 border border-blue-100 rounded-lg px-2 py-1 text-sm font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all"
-                        />
-                      </td>
-                      {/* Sick */}
-                      <td className="py-4 px-6 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          value={bal.sick}
-                          onChange={e => updateBal('sick', parseInt(e.target.value) || 0)}
-                          className="w-16 text-center bg-rose-50/60 border border-rose-100 rounded-lg px-2 py-1 text-sm font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 transition-all"
-                        />
-                      </td>
-                      {/* Earned */}
-                      <td className="py-4 px-6 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          value={bal.earned}
+                          value={bal.earned ?? 15}
                           onChange={e => updateBal('earned', parseInt(e.target.value) || 0)}
                           className="w-16 text-center bg-emerald-50/60 border border-emerald-100 rounded-lg px-2 py-1 text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition-all"
                         />
                       </td>
-                      {/* Used */}
+                      {/* Casual */}
+                      <td className="py-4 px-6 text-center">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs">
+                          Unlimited (Deductible)
+                        </span>
+                      </td>
+                      {/* Sick */}
+                      <td className="py-4 px-6 text-center">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold text-xs">
+                          Unlimited (Deductible)
+                        </span>
+                      </td>
+                      {/* Used Days */}
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-2 text-[11px] font-bold">
+                          <span className="text-emerald-600">{usedE}</span>
+                          <span className="text-gray-300">/</span>
                           <span className="text-blue-500">{usedC}</span>
                           <span className="text-gray-300">/</span>
                           <span className="text-rose-500">{usedS}</span>
-                          <span className="text-gray-300">/</span>
-                          <span className="text-emerald-600">{usedE}</span>
                         </div>
                       </td>
-                      {/* Remaining */}
-                      <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center gap-2 text-[11px] font-bold">
-                          <span className={bal.casual - usedC < 3 ? 'text-rose-500' : 'text-blue-600'}>{Math.max(0, bal.casual - usedC)}</span>
-                          <span className="text-gray-300">/</span>
-                          <span className={bal.sick - usedS < 2 ? 'text-rose-500' : 'text-rose-600'}>{Math.max(0, bal.sick - usedS)}</span>
-                          <span className="text-gray-300">/</span>
-                          <span className={bal.earned - usedE < 3 ? 'text-rose-500' : 'text-emerald-600'}>{Math.max(0, bal.earned - usedE)}</span>
-                        </div>
+                      {/* Remaining Paid */}
+                      <td className="py-4 px-6 text-center font-extrabold text-sm">
+                        <span className={remainingEarned < 3 ? 'text-rose-500' : 'text-emerald-600'}>
+                          {remainingEarned} days
+                        </span>
                       </td>
                     </tr>
                   );
@@ -584,7 +610,7 @@ export function LeaveManagementPage() {
 
           {/* Legend */}
           <p className="text-[11px] text-gray-400 text-center">
-            Remaining values shown in <span className="text-rose-500 font-bold">red</span> when running low (Casual &lt; 3, Sick &lt; 2, Earned &lt; 3). Changes auto-save.
+            Standard Annual Paid Quota is set to <strong className="text-gray-700">15 Earned Leaves</strong> per year. Casual & Sick leaves are unlimited and will be deducted from payroll.
           </p>
         </div>
       )}
@@ -612,7 +638,7 @@ export function LeaveManagementPage() {
                       <button
                         key={t}
                         onClick={() => setForm(f => ({ ...f, type: t }))}
-                        className={`py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${isSelected ? `${lc.bg} ${lc.text} ${lc.border} shadow-sm` : 'border-gray-100 text-gray-500 hover:border-gray-200 hover:bg-gray-50'}`}
+                        className={`py-2.5 rounded-xl border-2 text-xs font-bold transition-all cursor-pointer ${isSelected ? `${lc.bg} ${lc.text} ${lc.border} shadow-sm` : 'border-gray-100 text-gray-500 hover:border-gray-200 hover:bg-gray-50'}`}
                       >
                         {t}
                       </button>
@@ -621,34 +647,82 @@ export function LeaveManagementPage() {
                 </div>
               </div>
 
-              {/* Dates */}
-              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">From Date</label>
-                  <input
-                    type="date"
-                    value={form.fromDate}
-                    onChange={e => setForm(f => ({ ...f, fromDate: e.target.value, toDate: f.toDate < e.target.value ? e.target.value : f.toDate }))}
-                    className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">To Date</label>
-                  <input
-                    type="date"
-                    value={form.toDate}
-                    min={form.fromDate}
-                    onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))}
-                    className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
-                  />
+              {/* Leave Duration Mode: Full Day vs Half Day */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Duration Mode</label>
+                <div className="grid grid-cols-2 gap-2 bg-gray-100/70 p-1 rounded-xl border border-gray-200/60">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, isHalfDay: false }))}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${!form.isHalfDay ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Full Day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, isHalfDay: true, toDate: f.fromDate }))}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${form.isHalfDay ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    ½ Half Day (0.5)
+                  </button>
                 </div>
               </div>
 
+              {/* Half Day Session Selection */}
+              {form.isHalfDay && (
+                <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2 animate-in fade-in duration-200">
+                  <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider">Select Half Day Session</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, halfDaySession: 'First Half' }))}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${form.halfDaySession === 'First Half' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-purple-700 border-purple-200 hover:bg-purple-100/50'}`}
+                    >
+                      🌅 First Half (Morning)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, halfDaySession: 'Second Half' }))}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${form.halfDaySession === 'Second Half' ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white text-purple-700 border-purple-200 hover:bg-purple-100/50'}`}
+                    >
+                      🌇 Second Half (Afternoon)
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">{form.isHalfDay ? 'Leave Date' : 'From Date'}</label>
+                  <input
+                    type="date"
+                    value={form.fromDate}
+                    onChange={e => setForm(f => ({ ...f, fromDate: e.target.value, toDate: f.isHalfDay ? e.target.value : (f.toDate < e.target.value ? e.target.value : f.toDate) }))}
+                    className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 font-medium"
+                  />
+                </div>
+                {!form.isHalfDay && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">To Date</label>
+                    <input
+                      type="date"
+                      value={form.toDate}
+                      min={form.fromDate}
+                      onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))}
+                      className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 font-medium"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Days preview */}
-              {form.fromDate && form.toDate && (
+              {form.fromDate && (form.isHalfDay || form.toDate) && (
                 <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-500">Total Days</span>
-                  <span className="text-sm font-black text-primary">{calcDays(form.fromDate, form.toDate)} day{calcDays(form.fromDate, form.toDate) > 1 ? 's' : ''}</span>
+                  <span className="text-xs font-semibold text-gray-500">Total Duration</span>
+                  <span className="text-sm font-black text-primary">
+                    {form.isHalfDay ? `0.5 Day (${form.halfDaySession})` : `${calcDays(form.fromDate, form.toDate)} Day${calcDays(form.fromDate, form.toDate) > 1 ? 's' : ''}`}
+                  </span>
                 </div>
               )}
 
