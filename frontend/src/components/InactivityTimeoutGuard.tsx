@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AlertTriangle, Clock, LogOut, RefreshCw } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { useData } from '../context/DataContext';
 
 const WARNING_COUNTDOWN_SECONDS = 60;
 
 export function InactivityTimeoutGuard() {
   const { inactivityTimeoutEnabled, inactivityTimeoutMinutes } = useSettings();
+  const { isPunchedIn, activeJobTracker, performAutoPunchOut, currentUserRole } = useData();
   const [showWarning, setShowWarning] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(WARNING_COUNTDOWN_SECONDS);
   
   const lastActiveRef = useRef<number>(Date.now());
   const warningActiveRef = useRef<boolean>(false);
+  const isAutoLoggingOutRef = useRef<boolean>(false);
+
+  const isFieldDutyActive = isPunchedIn && activeJobTracker?.jobId?.startsWith('activity-');
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('authToken');
@@ -31,6 +36,17 @@ export function InactivityTimeoutGuard() {
     }
   }, []);
 
+  // Continuously refresh activity timestamp if user is on field duty / courier duty
+  useEffect(() => {
+    if (isFieldDutyActive) {
+      lastActiveRef.current = Date.now();
+      if (warningActiveRef.current) {
+        warningActiveRef.current = false;
+        setShowWarning(false);
+      }
+    }
+  }, [isFieldDutyActive]);
+
   // Listen to mouse clicks, mouse movements, keyboard presses, scroll & touch
   useEffect(() => {
     if (!inactivityTimeoutEnabled) return;
@@ -50,7 +66,45 @@ export function InactivityTimeoutGuard() {
     };
   }, [inactivityTimeoutEnabled]);
 
-  // Periodic check loop
+  // Allowed End Time check loop (Only for Courier / Field Duty activities)
+  useEffect(() => {
+    const checkEndTimeRestrictions = async () => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (!isAuth || isAutoLoggingOutRef.current) return;
+
+      // Auto logout at allowed end time ONLY applies to field/courier duties, NOT general jobs
+      if (!isFieldDutyActive) return;
+
+      const cachedRestrictions = localStorage.getItem('accessRestrictions');
+      let endTime = '18:00';
+
+      if (cachedRestrictions) {
+        try {
+          const parsed = JSON.parse(cachedRestrictions);
+          endTime = parsed.endTime || '18:00';
+        } catch {}
+      }
+
+      const now = new Date();
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+
+      const [endH, endM] = endTime.split(':').map(Number);
+      const endMins = (endH || 18) * 60 + (endM || 0);
+
+      if (currentMins >= endMins && currentUserRole !== 'Admin') {
+        isAutoLoggingOutRef.current = true;
+        if (isPunchedIn) {
+          await performAutoPunchOut();
+        }
+        handleLogout();
+      }
+    };
+
+    const interval = setInterval(checkEndTimeRestrictions, 3000);
+    return () => clearInterval(interval);
+  }, [isPunchedIn, isFieldDutyActive, currentUserRole, performAutoPunchOut, handleLogout]);
+
+  // Periodic check loop for idle inactivity
   useEffect(() => {
     if (!inactivityTimeoutEnabled) {
       setShowWarning(false);
@@ -60,7 +114,7 @@ export function InactivityTimeoutGuard() {
 
     const interval = setInterval(() => {
       const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-      if (!isAuth) return;
+      if (!isAuth || isFieldDutyActive) return;
 
       const elapsed = Date.now() - lastActiveRef.current;
       const timeoutMs = inactivityTimeoutMinutes * 60 * 1000;
@@ -73,7 +127,7 @@ export function InactivityTimeoutGuard() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [inactivityTimeoutEnabled, inactivityTimeoutMinutes]);
+  }, [inactivityTimeoutEnabled, inactivityTimeoutMinutes, isFieldDutyActive]);
 
   // Warning countdown timer
   useEffect(() => {

@@ -41,9 +41,18 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       if (activeJobTracker) {
         finalJobId = activeJobTracker.jobId;
         const job = jobs.find(j => j.id === finalJobId);
-        finalJobTitle = job?.title || 'Unknown Job';
-        const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-        if (job) await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+        if (job) {
+          finalJobTitle = job.title;
+          const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
+          await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+        } else if (finalJobId.startsWith('activity-')) {
+          if (finalJobId === 'activity-courier-drop') finalJobTitle = '📦 Courier Drop-off';
+          else if (finalJobId === 'activity-courier-collect') finalJobTitle = '📦 Courier Collection / Pickup';
+          else if (finalJobId === 'activity-outdoor-visit') finalJobTitle = '🚗 Client Visit / Outdoor Duty';
+          else finalJobTitle = 'Field Duty';
+        } else {
+          finalJobTitle = 'General Work';
+        }
         setActiveJobTracker(null);
       }
 
@@ -161,7 +170,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     if (!selectedJobId) return;
     const now = Date.now();
 
-    // Save time for previous tracked job
+    // Save time for previous tracked job / activity
     if (activeJobTracker) {
       const elapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
       const prevJob = jobs.find(j => j.id === activeJobTracker.jobId);
@@ -170,12 +179,36 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           trackedTime: (prevJob.trackedTime || 0) + elapsed,
           status: 'Pending'
         });
+      } else if (activeJobTracker.jobId.startsWith('activity-')) {
+        let prevTitle = 'Field Duty';
+        if (activeJobTracker.jobId === 'activity-courier-drop') prevTitle = '📦 Courier Drop-off';
+        else if (activeJobTracker.jobId === 'activity-courier-collect') prevTitle = '📦 Courier Collection / Pickup';
+        else if (activeJobTracker.jobId === 'activity-outdoor-visit') prevTitle = '🚗 Client Visit / Outdoor Duty';
+
+        const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+        const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+        const todayStr = new Date(now).toISOString().split('T')[0];
+
+        await addWorkLog({
+          staff_id: loggedStaffId,
+          staff_name: loggedStaffName,
+          job_id: activeJobTracker.jobId,
+          job_title: prevTitle,
+          date: todayStr,
+          start_time: activeJobTracker.startTime,
+          end_time: now,
+          duration: elapsed,
+          hours: elapsed / 3600
+        });
       }
     }
 
-    // Switch to new job
+    // Switch to new job / activity
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
-    await updateJob(selectedJobId, { status: 'Progress' });
+    const nextJob = jobs.find(j => j.id === selectedJobId);
+    if (nextJob) {
+      await updateJob(selectedJobId, { status: 'Progress' });
+    }
     
     setShowJobModal(false);
     setSelectedJobId('');
@@ -204,11 +237,18 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         {/* Active Job Tracker */}
         {activeJobTracker && (() => {
           const activeJob = jobs.find(j => j.id === activeJobTracker.jobId);
+          let title = activeJob?.title;
+          if (!title && activeJobTracker.jobId.startsWith('activity-')) {
+            if (activeJobTracker.jobId === 'activity-courier-drop') title = '📦 Courier Drop-off';
+            else if (activeJobTracker.jobId === 'activity-courier-collect') title = '📦 Courier Collection';
+            else if (activeJobTracker.jobId === 'activity-outdoor-visit') title = '🚗 Client Visit';
+            else title = 'Field Duty';
+          }
           return (
             <div className="flex items-center gap-2 bg-primary/10 border border-primary/40 px-3 py-1.5 rounded-full shadow-sm max-w-sm">
               <Clock className="w-3.5 h-3.5 text-primary animate-pulse shrink-0" />
-              <span className="text-xs font-semibold text-gray-700 truncate max-w-[120px]" title={activeJob?.title}>
-                {activeJob?.title || 'Job'}
+              <span className="text-xs font-semibold text-gray-700 truncate max-w-[130px]" title={title || 'Job'}>
+                {title || 'Active Duty'}
               </span>
               <span className="text-xs font-bold font-mono text-primary shrink-0">{formatTime(elapsedJobTime)}</span>
               
@@ -218,7 +258,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                   setShowJobModal(true);
                 }}
                 className="flex items-center gap-1 text-[11px] font-bold text-primary bg-white/90 hover:bg-white border border-primary/30 px-2 py-0.5 rounded-full transition-all shrink-0 shadow-2xs hover:scale-105"
-                title="Switch / Change Active Job"
+                title="Switch / Change Active Activity"
               >
                 <ArrowRightLeft className="w-3 h-3 text-primary" />
                 <span>Switch</span>
@@ -338,26 +378,40 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
               <h3 className="font-bold text-base text-gray-800 flex items-center gap-2">
                 <ArrowRightLeft className="w-4 h-4 text-primary" />
-                {activeJobTracker ? 'Switch Active Job' : 'Select Job for Punch In'}
+                {activeJobTracker ? 'Switch Active Job / Field Duty' : 'Select Job or Activity for Punch In'}
               </h3>
               <button onClick={() => setShowJobModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4">
-              <label className="block text-sm font-semibold text-gray-600 mb-2">
-                {activeJobTracker ? 'Select New Job to Switch To:' : 'Assigned Jobs'}
+            <div className="p-4 space-y-3">
+              <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">
+                {activeJobTracker ? 'Select New Job or Duty:' : 'Select Assigned Job or Field Duty'}
               </label>
               <select 
                 value={selectedJobId} 
                 onChange={(e) => setSelectedJobId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 bg-white cursor-pointer"
               >
-                <option value="" disabled>Select a job...</option>
-                {jobs.filter(j => j.status !== 'Done' && j.id !== activeJobTracker?.jobId).map(job => (
-                  <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
-                ))}
+                <option value="" disabled>Select Job or Duty...</option>
+                <optgroup label="🚚 Out-of-Office / Courier Duty">
+                  <option value="activity-courier-drop">📦 Courier Drop-off (Field Duty)</option>
+                  <option value="activity-courier-collect">📦 Courier Collection / Pickup</option>
+                  <option value="activity-outdoor-visit">🚗 Client Visit / Outdoor Duty</option>
+                </optgroup>
+                <optgroup label="📋 Assigned In-Office Jobs">
+                  {jobs.filter(j => j.status !== 'Done' && j.id !== activeJobTracker?.jobId).map(job => (
+                    <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
+                  ))}
+                </optgroup>
               </select>
+              
+              <div className="p-3 bg-amber-50/80 border border-amber-200/70 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                <span className="shrink-0 text-base">💡</span>
+                <p className="leading-relaxed">
+                  Selecting <strong>Courier Drop/Pickup</strong> or <strong>Outdoor Duty</strong> keeps your working hours calculating continuously even while you are away from your computer, and logs the duty in your work logs.
+                </p>
+              </div>
             </div>
             <div className="flex gap-2 p-4 bg-gray-50 border-t border-gray-100 justify-end">
               <button 
@@ -369,10 +423,10 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
               <button 
                 onClick={activeJobTracker ? handleSwitchJob : confirmPunchIn}
                 disabled={!selectedJobId}
-                className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowRightLeft className="w-4 h-4" />
-                {activeJobTracker ? 'Switch Job' : 'Confirm Punch In'}
+                {activeJobTracker ? 'Switch Duty' : 'Confirm Punch In'}
               </button>
             </div>
           </div>

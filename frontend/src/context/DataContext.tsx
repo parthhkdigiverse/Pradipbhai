@@ -159,6 +159,7 @@ interface DataContextType {
   currentUserRole: string;
   setCurrentUserRole: React.Dispatch<React.SetStateAction<string>>;
   currentUser: { id: string; name: string; email: string; role: string };
+  performAutoPunchOut: (overrideEndTime?: number) => Promise<void>;
   refreshApiData: () => Promise<void>;
 }
 
@@ -1024,6 +1025,90 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const performAutoPunchOut = async (overrideEndTime?: number) => {
+    if (!isPunchedIn) return;
+    const endTime = overrideEndTime || Date.now();
+    const duration = punchInTime ? Math.max(0, Math.floor((endTime - punchInTime) / 1000)) : 0;
+
+    let finalJobId = 'N/A';
+    let finalJobTitle = 'N/A';
+
+    if (activeJobTracker) {
+      finalJobId = activeJobTracker.jobId;
+      const job = jobs.find(j => j.id === finalJobId);
+      if (job) {
+        finalJobTitle = job.title;
+        const jobDuration = Math.max(0, Math.floor((endTime - activeJobTracker.startTime) / 1000));
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+      } else if (finalJobId.startsWith('activity-')) {
+        if (finalJobId === 'activity-courier-drop') finalJobTitle = '📦 Courier Drop-off';
+        else if (finalJobId === 'activity-courier-collect') finalJobTitle = '📦 Courier Collection / Pickup';
+        else if (finalJobId === 'activity-outdoor-visit') finalJobTitle = '🚗 Client Visit / Outdoor Duty';
+        else finalJobTitle = 'Field Duty';
+      } else {
+        finalJobTitle = 'General Work';
+      }
+      setActiveJobTracker(null);
+      localStorage.removeItem('activeJobTracker');
+    }
+
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+
+    const todayStr = new Date(endTime).toISOString().split('T')[0];
+    const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
+    const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
+
+    await addWorkLog({
+      staff_id: loggedStaffId,
+      staff_name: loggedStaffName,
+      job_id: finalJobId,
+      job_title: finalJobTitle,
+      date: todayStr,
+      start_time: punchInTime || endTime,
+      end_time: endTime,
+      duration,
+      hours: duration / 3600
+    });
+
+    const newPunchSession = { in: checkInStr, out: checkOutStr };
+    const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
+    if (existingRecord) {
+      const existingPunches = existingRecord.punches || [];
+      let hasClosedActive = false;
+      const newPunches = existingPunches.map((p: any) => {
+        if (!p.out) {
+          hasClosedActive = true;
+          return { ...p, out: checkOutStr };
+        }
+        return p;
+      });
+      if (!hasClosedActive) {
+        newPunches.push(newPunchSession);
+      }
+      await updateAttendance(existingRecord.id, {
+        status: 'Present',
+        check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
+        check_out: checkOutStr,
+        punches: newPunches
+      });
+    } else {
+      await addAttendance({
+        staff_id: loggedStaffId,
+        staff_name: loggedStaffName,
+        date: todayStr,
+        status: 'Present',
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        punches: [newPunchSession]
+      });
+    }
+
+    setIsPunchedIn(false);
+    setPunchInTime(null);
+  };
+
   return (
     <DataContext.Provider value={{
       leads, setLeads, addLead, updateLead, deleteLead,
@@ -1067,6 +1152,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       currentUserRole,
       setCurrentUserRole,
       currentUser,
+      performAutoPunchOut,
       refreshApiData
     }}>
       {children}
