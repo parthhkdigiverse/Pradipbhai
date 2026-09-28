@@ -699,12 +699,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Products API
   const addProduct = async (productData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/products`, { method: 'POST', body: JSON.stringify(productData) });
+      const payload = { ...productData, id: productData.id || `PROD-${Date.now()}` };
+      const data = await apiFetch(`${API_BASE_URL}/products`, { method: 'POST', body: JSON.stringify(payload) });
       setProducts(prev => [data, ...prev]);
       return data;
     } catch {
-      setProducts(prev => [productData, ...prev]);
-      return productData;
+      const fallbackPayload = { ...productData, id: productData.id || `PROD-${Date.now()}` };
+      setProducts(prev => [fallbackPayload, ...prev]);
+      return fallbackPayload;
     }
   };
 

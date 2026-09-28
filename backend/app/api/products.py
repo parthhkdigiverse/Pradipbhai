@@ -33,10 +33,14 @@ class ProductOut(ProductBase):
     class Config:
         from_attributes = True
 
+
 @router.get("", response_model=List[ProductOut])
 async def get_products(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Product))
-    return result.scalars().all()
+    products = result.scalars().all()
+    print(f"FETCHED PRODUCTS: {len(products)}")
+    return products
+
 
 @router.post("", response_model=ProductOut, status_code=201)
 async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_db)):

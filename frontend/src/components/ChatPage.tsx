@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useData } from '../context/DataContext';
 import { 
   Search, MessageSquare, Paperclip, Smile, Send, Check, CheckCheck, 
   Reply, Forward, Copy, Download, Trash2, Edit3, Star, MoreVertical, 
@@ -32,23 +33,7 @@ interface Message {
   isEdited?: boolean;
 }
 
-interface Contact {
-  id: number;
-  name: string;
-  type: string;
-  status: string;
-  lastMessage: string;
-  time: string;
-  unread: number;
-  avatar: string;
-}
 
-const MOCK_CONTACTS: Contact[] = [
-  { id: 1, name: "Pradip Bhai", type: "team", status: "online", lastMessage: "Can we review the latest designs?", time: "10:30 AM", unread: 2, avatar: "https://i.pravatar.cc/150?u=1" },
-  { id: 2, name: "Sarah Smith", type: "team", status: "online", lastMessage: "I've uploaded the assets to the drive.", time: "09:15 AM", unread: 0, avatar: "https://i.pravatar.cc/150?u=3" },
-  { id: 3, name: "Mike Johnson", type: "team", status: "offline", lastMessage: "Got it, thanks!", time: "Yesterday", unread: 0, avatar: "https://i.pravatar.cc/150?u=5" },
-  { id: 4, name: "Alex Turner", type: "client", status: "online", lastMessage: "When can we expect the final invoice?", time: "2 days ago", unread: 1, avatar: "https://i.pravatar.cc/150?u=4" }
-];
 
 const INITIAL_MESSAGES: Record<number, Message[]> = {
   1: [
@@ -98,9 +83,13 @@ const INITIAL_MESSAGES: Record<number, Message[]> = {
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉", "👏", "✅"];
 
 export function ChatPage() {
-  const [activeContactId, setActiveContactId] = useState<number | null>(1);
+  const { staff, currentUser } = useData();
+  const MOCK_CONTACTS = [
+    ...staff.filter(s => s.id !== currentUser?.id).map((s: any) => ({ id: s.id, name: s.name, type: 'team', status: 'online', lastMessage: 'No messages yet', time: '', unread: 0, avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random` }))
+  ];
+  const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
-  const [messages, setMessages] = useState<Record<number, Message[]>>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<Record<string | number, Message[]>>(INITIAL_MESSAGES);
   const [searchQuery, setSearchQuery] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [showSearchInChat, setShowSearchInChat] = useState(false);
@@ -232,7 +221,7 @@ export function ChatPage() {
       setMessages(prev => ({
         ...prev,
         [activeContactId]: (prev[activeContactId] || []).map(m => 
-          newMsgs.some(nm => nm.id === m.id) ? { ...m, status: "read" } : m
+          newMsgs.some(nm => nm.id === m.id) ? { ...m, status: "read" as const } : m
         )
       }));
     }, 1500);

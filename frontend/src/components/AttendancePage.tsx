@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function AttendancePage() {
-  const { staff, attendance, setAttendance, currentUserRole, currentUser, hasPermission } = useData();
+  const { staff, attendance, setAttendance, updateAttendance, addAttendance, currentUserRole, currentUser, hasPermission } = useData();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [activeTab, setActiveTab] = useState<'daily' | 'employee' | 'history'>('daily');

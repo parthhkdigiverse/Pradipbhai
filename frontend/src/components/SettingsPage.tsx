@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Settings, Calendar, Clock, AlertCircle, LogOut, Palette, Plus, X, MousePointer, ShieldAlert } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useTheme } from '../context/ThemeProvider';
@@ -353,6 +354,21 @@ export function SettingsPage() {
               When enabled, changing a lead's status to "Client Won" will automatically create a new client record.
             </p>
           </div>
+        </div>
+
+        
+        {/* Access Restrictions Card */}
+        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-primary/20 p-6 relative overflow-hidden h-fit">
+          <div className="flex items-center gap-3 mb-6">
+            <ShieldAlert className="w-6 h-6 text-red-500" />
+            <h2 className="text-xl font-bold text-gray-800">Access Restrictions</h2>
+          </div>
+          <p className="text-sm text-gray-600 mb-6 font-medium leading-relaxed">
+            Configure IP allowlisting, working hours, and Indian pincode access rules to secure your workspace.
+          </p>
+          <Link to="/restrictions" className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl font-bold transition-colors">
+            Manage Access Restrictions
+          </Link>
         </div>
 
         {/* Session Inactivity Timeout Card */}

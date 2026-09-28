@@ -31,6 +31,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [coords, setCoords] = useState<{ top: number; left: number; width: number; showAbove: boolean }>({
     top: 0,
     left: 0,
@@ -40,6 +41,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const optionsContainerRef = useRef<HTMLDivElement>(null);
 
   const updateCoords = () => {
     if (buttonRef.current) {
@@ -92,19 +94,76 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
+      setHighlightedIndex(0);
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
     }
   }, [isOpen]);
 
+  
+  useEffect(() => {
+    if (isOpen && optionsContainerRef.current) {
+      const container = optionsContainerRef.current;
+      const highlightedEl = container.children[highlightedIndex] as HTMLElement;
+      if (highlightedEl) {
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+        const elTop = highlightedEl.offsetTop;
+        const elBottom = elTop + highlightedEl.offsetHeight;
+
+        if (elBottom > containerBottom) {
+          container.scrollTop = elBottom - container.clientHeight;
+        } else if (elTop < containerTop) {
+          container.scrollTop = elTop;
+        }
+      }
+    }
+  }, [highlightedIndex, isOpen]);
+
   const selectedOption = options.find((opt) => opt.value === value);
 
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchQuery]);
+
   const filteredOptions = options.filter((opt) =>
-    opt.label.toLowerCase().includes(searchQuery.toLowerCase())
+    (opt.label || '').toString().toLowerCase().includes((searchQuery || '').toLowerCase())
   );
 
+  
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const totalOptions = filteredOptions.length + (onCreateOption ? 1 : 0);
+    
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+      return;
+    }
+
+    if (totalOptions === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1) % totalOptions);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev - 1 + totalOptions) % totalOptions);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredOptions.length === 0 && onCreateOption) {
+        handleCreate();
+      } else if (highlightedIndex < filteredOptions.length) {
+        handleSelect(filteredOptions[highlightedIndex].value);
+      } else if (onCreateOption) {
+        handleCreate();
+      }
+    }
+  };
+
   const handleSelect = (val: string) => {
+
     onChange(val);
     setIsOpen(false);
   };
@@ -133,6 +192,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={handleToggle}
+        onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); if (!isOpen) handleToggle(); } }}
         className={`w-full px-2.5 h-[38px] bg-white/50 hover:bg-white/70 border border-white/60 rounded-xl text-xs font-medium transition-all text-left flex items-center justify-between gap-1 focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         }`}
@@ -160,6 +220,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Search..."
                 className="w-full text-xs bg-transparent border-none focus:outline-none text-gray-800 placeholder-gray-400"
               />
@@ -174,10 +235,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               )}
             </div>
 
-            <div className="max-h-52 overflow-y-auto py-1 custom-scrollbar">
+            <div ref={optionsContainerRef}
+            className="max-h-52 overflow-y-auto py-1 custom-scrollbar relative">
               {filteredOptions.length > 0 ? (
                 <>
-                  {filteredOptions.map((opt) => {
+                  {filteredOptions.map((opt, index) => {
                     const isSelected = opt.value === value;
                     return (
                       <button
@@ -185,9 +247,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                         type="button"
                         onClick={() => handleSelect(opt.value)}
                         className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
-                          isSelected
+                          highlightedIndex === index
+                            ? 'bg-primary/20 font-bold text-primary ring-1 ring-primary/30'
+                            : isSelected
                             ? 'bg-primary/10 font-bold text-primary'
-                            : 'hover:bg-gray-100/80 text-gray-700'
+                            : 'text-gray-700 hover:bg-gray-100/80'
                         }`}
                       >
                         <span className="truncate">{opt.label}</span>
@@ -199,7 +263,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     <button
                       type="button"
                       onClick={handleCreate}
-                      className="w-full text-left px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50/80 hover:bg-indigo-100 transition-colors border-t border-indigo-100 flex items-center gap-1.5 mt-1"
+                      className={`w-full text-left px-3 py-2 text-xs font-bold text-indigo-700 transition-colors border-t border-indigo-100 flex items-center gap-1.5 mt-1 ${highlightedIndex === filteredOptions.length ? 'bg-indigo-100' : 'bg-indigo-50/80 hover:bg-indigo-100'}`}
                     >
                       <Plus className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                       <span>{searchQuery ? `${createOptionLabel} "${searchQuery}"` : createOptionLabel}</span>

@@ -109,16 +109,17 @@ export function JobsPage() {
       const staffName = staff.find(s => s.id === job.teamId)?.name || '';
       const productName = products.find(p => p.id === job.productId)?.name || '';
       const printerName = vendors.find(v => v.id === job.printerId)?.name || '';
-      const matchSearch = job.title.toLowerCase().includes(sLower) || 
-                          job.description.toLowerCase().includes(sLower) ||
-                          job.status.toLowerCase().includes(sLower) ||
-                          job.paymentStatus.toLowerCase().includes(sLower) ||
-                          (job.type && job.type.toLowerCase().includes(sLower)) ||
+      
+      const matchSearch = (job.title || '').toLowerCase().includes(sLower) || 
+                          (job.description || '').toLowerCase().includes(sLower) ||
+                          (job.status || '').toLowerCase().includes(sLower) ||
+                          (job.paymentStatus || '').toLowerCase().includes(sLower) ||
+                          (job.type || '').toLowerCase().includes(sLower) ||
                           clientName.toLowerCase().includes(sLower) ||
                           staffName.toLowerCase().includes(sLower) ||
                           productName.toLowerCase().includes(sLower) ||
                           printerName.toLowerCase().includes(sLower) ||
-                          (job.delayReason && job.delayReason.toLowerCase().includes(sLower)) ||
+                          (job.delayReason || '').toLowerCase().includes(sLower) ||
                           (job.totalAmount && job.totalAmount.toString().includes(sLower));
       const matchStatus = filterStatus === 'All' || job.status === filterStatus;
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
@@ -210,6 +211,7 @@ export function JobsPage() {
       vendorEmailSent: newJobType === 'Designing' ? false : formData.vendorEmailSent,
       totalAmount: parseFloat(formData.totalAmount) || 0,
       paidAmount: parseFloat(formData.paidAmount) || 0,
+      estimatedTime: formData.estimatedTime ? parseFloat(formData.estimatedTime) : null,
       type: newJobType,
       paymentStatus: (parseFloat(formData.paidAmount) || 0) >= (parseFloat(formData.totalAmount) || 0) ? 'Paid' : 'Unpaid',
     };

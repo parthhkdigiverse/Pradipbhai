@@ -67,21 +67,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           return;
         }
       } else {
-        // Allow offline demo login with proper role resolution
-        const userName = cleanEmail.split('@')[0].replace('.', ' ').replace(/^./, c => c.toUpperCase());
-        const role = (cleanEmail.includes('admin') || cleanEmail.includes('pradip') || cleanEmail.includes('owner')) ? 'Admin' : 'Employee';
-        const offlineUser = {
-          id: `offline-${Date.now()}`,
-          name: userName || 'Staff User',
-          email: cleanEmail,
-          role: role
-        };
-        localStorage.setItem('authToken', 'fallback-session-token');
-        localStorage.setItem('userId', offlineUser.id);
-        localStorage.setItem('userName', offlineUser.name);
-        localStorage.setItem('userEmail', offlineUser.email);
-        localStorage.setItem('userRole', role);
-        onLogin(role, cleanEmail, offlineUser);
+        setErrorMsg('Invalid email or password, or server is unreachable.');
         return;
       }
     } finally {
