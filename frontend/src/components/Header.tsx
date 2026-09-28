@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, setJobs, updateJob, setWorkLogs, currentUserRole, staff, setAttendance, hasPermission } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission } = useData();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
@@ -13,9 +13,8 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   const [selectedJobId, setSelectedJobId] = useState<string>('');
 
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
-  const currentUser = staff.find(s => s.email?.toLowerCase() === userEmail.toLowerCase());
-  const displayUserName = currentUser ? currentUser.name : 'System Admin';
-  const displayUserEmail = currentUser ? currentUser.email : userEmail;
+  const displayUserName = currentUser?.name || 'System Admin';
+  const displayUserEmail = currentUser?.email || userEmail;
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -43,74 +42,61 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         finalJobId = activeJobTracker.jobId;
         const job = jobs.find(j => j.id === finalJobId);
         finalJobTitle = job?.title || 'Unknown Job';
-        
-        // Save time to job
         const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-        if(job) await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+        if (job) await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
         setActiveJobTracker(null);
       }
 
-      // Add to work logs
-      setWorkLogs(prev => [...prev, {
-        id: Math.random().toString(36).substr(2, 9),
-        date: new Date().toISOString().split('T')[0],
-        userName: 'Alice Smith',
-        jobId: finalJobId,
-        jobTitle: finalJobTitle,
-        startTime: punchInTime || endTime,
-        endTime,
-        duration
-      }]);
+      // Resolve current user
+      const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+      const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-      // Auto-record Attendance Check-Out & Punch Session
+      // Save work log to DB via API
       const todayStr = new Date().toISOString().split('T')[0];
-      const checkOutStr = new Date(endTime).toTimeString().slice(0, 5); // "HH:MM"
+      const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
       const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
-      const loggedStaffId = staff[0]?.id || '1'; // Currently logged in user (Alice Smith)
 
-      const newPunchSession = {
-        in: checkInStr,
-        out: checkOutStr
-      };
-
-      setAttendance(prev => {
-        const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          const existingRecord = updated[existingIdx];
-          const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
-          
-          // If the last punch in existingPunches has no 'out', update it
-          let newPunches = [...existingPunches];
-          if (newPunches.length > 0 && !newPunches[newPunches.length - 1].out) {
-            newPunches[newPunches.length - 1] = {
-              ...newPunches[newPunches.length - 1],
-              out: checkOutStr
-            };
-          } else {
-            newPunches.push(newPunchSession);
-          }
-
-          updated[existingIdx] = {
-            ...existingRecord,
-            status: 'Present',
-            checkIn: existingRecord.checkIn || checkInStr,
-            checkOut: checkOutStr,
-            punches: newPunches
-          };
-          return updated;
-        } else {
-          return [...prev, {
-            id: Math.random().toString(36).substr(2, 9),
-            staffId: loggedStaffId,
-            date: todayStr,
-            status: 'Present',
-            checkIn: checkInStr,
-            checkOut: checkOutStr,
-            punches: [newPunchSession]
-          }];
-        }
+      await addWorkLog({
+        staff_id: loggedStaffId,
+        staff_name: loggedStaffName,
+        job_id: finalJobId,
+        job_title: finalJobTitle,
+        date: todayStr,
+        start_time: punchInTime || endTime,
+        end_time: endTime,
+        duration,
+        hours: duration / 3600
       });
+
+      // Save attendance check-out to DB via API
+      const newPunchSession = { in: checkInStr, out: checkOutStr };
+      const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
+      if (existingRecord) {
+        const existingPunches = existingRecord.punches || [];
+        let newPunches = [...existingPunches];
+        if (newPunches.length > 0 && !newPunches[newPunches.length - 1].out) {
+          newPunches[newPunches.length - 1] = { ...newPunches[newPunches.length - 1], out: checkOutStr };
+        } else {
+          newPunches.push(newPunchSession);
+        }
+        await updateAttendance(existingRecord.id, {
+          status: 'Present',
+          check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
+          check_out: checkOutStr,
+          punches: newPunches
+        });
+      } else {
+        await addAttendance({
+          staff_id: loggedStaffId,
+          staff_name: loggedStaffName,
+          date: todayStr,
+          status: 'Present',
+          check_in: checkInStr,
+          check_out: checkOutStr,
+          punches: [newPunchSession]
+        });
+      }
 
       setPunchInTime(null);
     } else {
@@ -129,37 +115,33 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setShowJobModal(false);
     setSelectedJobId('');
 
-    // Auto-record Attendance Check-In & Punch Session
-    const todayStr = new Date(now).toISOString().split('T')[0];
-    const checkInStr = new Date(now).toTimeString().slice(0, 5); // "HH:MM"
-    const loggedStaffId = staff[0]?.id || '1'; // Currently logged in user (Alice Smith)
+    // Resolve current user
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-    setAttendance(prev => {
-      const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        const existingRecord = updated[existingIdx];
-        const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
-        
-        updated[existingIdx] = {
-          ...existingRecord,
-          status: 'Present',
-          checkIn: existingRecord.checkIn || checkInStr,
-          punches: [...existingPunches, { in: checkInStr, out: '' }]
-        };
-        return updated;
-      } else {
-        return [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
-          staffId: loggedStaffId,
-          date: todayStr,
-          status: 'Present',
-          checkIn: checkInStr,
-          checkOut: '',
-          punches: [{ in: checkInStr, out: '' }]
-        }];
-      }
-    });
+    // Save attendance check-in to DB via API
+    const todayStr = new Date(now).toISOString().split('T')[0];
+    const checkInStr = new Date(now).toTimeString().slice(0, 5);
+
+    const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+    if (existingRecord) {
+      const existingPunches = existingRecord.punches || [];
+      await updateAttendance(existingRecord.id, {
+        status: 'Present',
+        check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
+        punches: [...existingPunches, { in: checkInStr, out: '' }]
+      });
+    } else {
+      await addAttendance({
+        staff_id: loggedStaffId,
+        staff_name: loggedStaffName,
+        date: todayStr,
+        status: 'Present',
+        check_in: checkInStr,
+        check_out: '',
+        punches: [{ in: checkInStr, out: '' }]
+      });
+    }
   };
 
   const handleSwitchJob = async () => {
@@ -169,12 +151,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     // Save time for previous tracked job
     if (activeJobTracker) {
       const elapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => {
-        if (j.id === activeJobTracker.jobId) {
-          return { ...j, trackedTime: (j.trackedTime || 0) + elapsed, status: 'Pending' };
-        }
-        return j;
-      }));
+      const prevJob = jobs.find(j => j.id === activeJobTracker.jobId);
+      if (prevJob) {
+        await updateJob(activeJobTracker.jobId, {
+          trackedTime: (prevJob.trackedTime || 0) + elapsed,
+          status: 'Pending'
+        });
+      }
     }
 
     // Switch to new job

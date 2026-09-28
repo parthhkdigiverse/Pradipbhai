@@ -58,7 +58,7 @@ export function AttendancePage() {
 
   // Merge staff with attendance for the selected date (Daily Entry View)
   const dailyAttendance = useMemo(() => {
-    return staff.map(emp => {
+    return displayStaff.map(emp => {
       const record = attendance.find(a => a.staffId === emp.id && a.date === selectedDate);
       return {
         ...emp,
@@ -106,9 +106,10 @@ export function AttendancePage() {
   const allHistoryRecords = useMemo(() => {
     return attendance
       .filter(record => {
-        const emp = staff.find(s => s.id === record.staffId);
-        const empName = emp ? emp.name.toLowerCase() : '';
-        const empRole = emp ? emp.role.toLowerCase() : '';
+        const emp = displayStaff.find(s => s.id === record.staffId);
+        if (!emp) return false;
+        const empName = emp.name.toLowerCase();
+        const empRole = emp.role.toLowerCase();
         const matchSearch = empName.includes(searchTerm.toLowerCase()) || empRole.includes(searchTerm.toLowerCase());
 
         const matchStaff = historyStaffId === 'All' || record.staffId === historyStaffId;
@@ -120,8 +121,8 @@ export function AttendancePage() {
       })
       .map(record => ({
         ...record,
-        staffName: staff.find(s => s.id === record.staffId)?.name || 'Unknown Staff',
-        staffRole: staff.find(s => s.id === record.staffId)?.role || '-'
+        staffName: displayStaff.find(s => s.id === record.staffId)?.name || 'Unknown Staff',
+        staffRole: displayStaff.find(s => s.id === record.staffId)?.role || '-'
       }))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [attendance, staff, searchTerm, historyStaffId, filterStatus, historyDateFrom, historyDateTo]);
@@ -152,21 +153,17 @@ export function AttendancePage() {
     }
   };
 
-  const markAllPresent = () => {
+  const markAllPresent = async () => {
     const missing = dailyAttendance.filter(a => a.status === 'Unmarked');
     if (missing.length === 0) return;
 
-    setAttendance(prev => {
-      const additions = missing.map(m => ({
-        id: Math.random().toString(36).substr(2, 9),
-        staffId: m.id,
-        date: selectedDate,
+    for (const m of missing) {
+      await handleUpdateAttendance(m.id, {
         status: 'Present',
         checkIn: '09:00',
         checkOut: '18:00'
-      }));
-      return [...prev, ...additions];
-    });
+      });
+    }
   };
 
   return (
@@ -267,7 +264,7 @@ export function AttendancePage() {
                       onChange={setHistoryStaffId}
                       options={[
                         { value: 'All', label: 'All Employees' },
-                        ...staff.map(s => ({ value: s.id, label: s.name }))
+                        ...displayStaff.map(s => ({ value: s.id, label: s.name }))
                       ]}
                     />
                   </div>
@@ -320,7 +317,7 @@ export function AttendancePage() {
                 className="px-4 py-1.5 bg-white/80 border border-white/80 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-sm text-gray-800 cursor-pointer"
               />
             </div>
-            {canPunch && (
+            {isAdminOrManager && (
               <button 
                 onClick={markAllPresent}
                 className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
@@ -360,7 +357,7 @@ export function AttendancePage() {
                             type="time"
                             value={record.checkIn}
                             onChange={(e) => updateAttendance(record.id, { checkIn: e.target.value })}
-                            disabled={!canPunch || record.status === 'Absent' || record.status === 'Leave'}
+                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave'}
                             className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                           />
                         </td>
@@ -369,7 +366,7 @@ export function AttendancePage() {
                             type="time"
                             value={record.checkOut}
                             onChange={(e) => updateAttendance(record.id, { checkOut: e.target.value })}
-                            disabled={!canPunch || record.status === 'Absent' || record.status === 'Leave'}
+                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave'}
                             className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                           />
                         </td>
@@ -412,7 +409,7 @@ export function AttendancePage() {
                               status: e.target.value,
                               ...(e.target.value === 'Absent' || e.target.value === 'Leave' ? { checkIn: '', checkOut: '' } : {})
                             })}
-                            disabled={!canPunch}
+                            disabled={!isAdminOrManager}
                             className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${getStatusBadge(record.status)} disabled:opacity-75 disabled:cursor-not-allowed`}
                           >
                             <option value="Unmarked">Unmarked</option>
@@ -423,7 +420,7 @@ export function AttendancePage() {
                           </select>
                         </td>
                         <td className="py-4 px-6 text-center">
-                          {canPunch && (
+                          {isAdminOrManager && (
                             <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => updateAttendance(record.id, { status: 'Present', checkIn: '09:00', checkOut: '18:00' })}
@@ -473,7 +470,7 @@ export function AttendancePage() {
               <SearchableSelect
                 value={selectedStaffId}
                 onChange={setSelectedStaffId}
-                options={staff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))}
+                options={displayStaff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))}
               />
             </div>
             

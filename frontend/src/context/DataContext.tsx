@@ -123,8 +123,8 @@ interface DataContextType {
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
   
   convertLeadToClient: (lead: any) => void;
-  addProject: (clientId: string, projectData: any) => void;
-  updateProject: (clientId: string, projectIndex: number, projectData: any) => void;
+  addProject: (clientId: string, projectData: any) => Promise<any> | void;
+  updateProject: (clientId: string, projectIndex: number, projectData: any) => Promise<any> | void;
   
   activeFilterIntent: { page: string, filterKey: string, filterValue: string, jobId?: string } | null;
   setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>>;
@@ -478,7 +478,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) setDailyProgressRecords(progressRes.value);
       if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
-      if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) setAttendance(attRes.value);
+      if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {
+        setAttendance(attRes.value.map((a: any) => ({
+          ...a,
+          staffId: a.staff_id || a.staffId,
+          staffName: a.staff_name || a.staffName,
+          checkIn: a.check_in || a.checkIn,
+          checkOut: a.check_out || a.checkOut
+        })));
+      }
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
       if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
@@ -494,7 +502,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
           reviewedOn: l.reviewed_on || l.reviewedOn
         })));
       }
-      if (workRes.status === 'fulfilled' && Array.isArray(workRes.value)) setWorkLogs(workRes.value);
+      if (workRes.status === 'fulfilled' && Array.isArray(workRes.value)) {
+        setWorkLogs(workRes.value.map((w: any) => ({
+          ...w,
+          userName: w.staff_name || w.userName,
+          jobId: w.job_id || w.jobId,
+          jobTitle: w.job_title || w.jobTitle,
+          startTime: w.start_time || w.startTime,
+          endTime: w.end_time || w.endTime
+        })));
+      }
       if (venRes.status === 'fulfilled' && Array.isArray(venRes.value)) setVendors(venRes.value);
       if (permRes.status === 'fulfilled' && permRes.value && typeof permRes.value === 'object') {
         setRolePermissions(permRes.value);
@@ -729,8 +746,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addAttendance = async (attData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(attData) });
-      setAttendance(prev => [data, ...prev]);
-      return data;
+      const mapped = { ...data, staffId: data.staff_id, staffName: data.staff_name, checkIn: data.check_in, checkOut: data.check_out };
+      setAttendance(prev => [mapped, ...prev]);
+      return mapped;
     } catch {
       setAttendance(prev => [attData, ...prev]);
       return attData;
@@ -740,8 +758,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateAttendance = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setAttendance(prev => prev.map(a => a.id === id ? data : a));
-      return data;
+      const mapped = { ...data, staffId: data.staff_id, staffName: data.staff_name, checkIn: data.check_in, checkOut: data.check_out };
+      setAttendance(prev => prev.map(a => a.id === id ? mapped : a));
+      return mapped;
     } catch {
       setAttendance(prev => prev.map(a => a.id === id ? { ...a, ...updateData } : a));
     }
@@ -807,9 +826,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // WorkLogs API
   const addWorkLog = async (logData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/worklogs`, { method: 'POST', body: JSON.stringify(logData) });
-      setWorkLogs(prev => [data, ...prev]);
-      return data;
+      const payload = {
+        ...logData,
+        staff_name: logData.userName,
+        job_id: logData.jobId,
+        job_title: logData.jobTitle,
+        start_time: logData.startTime,
+        end_time: logData.endTime,
+        duration: logData.duration,
+        hours: (logData.duration || 0) / 3600
+      };
+      const data = await apiFetch(`${API_BASE_URL}/worklogs`, { method: 'POST', body: JSON.stringify(payload) });
+      const mappedData = {
+        ...data,
+        userName: data.staff_name,
+        jobId: data.job_id,
+        jobTitle: data.job_title,
+        startTime: data.start_time,
+        endTime: data.end_time
+      };
+      setWorkLogs(prev => [mappedData, ...prev]);
+      return mappedData;
     } catch {
       setWorkLogs(prev => [logData, ...prev]);
       return logData;
@@ -861,27 +898,42 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addClient(newClient);
   };
 
-  const addProject = (clientId: string, projectData: any) => {
-    setClients((prevClients) => prevClients.map(c => {
-      if (c.id === clientId) {
-        const newProjects = [...(c.projects || []), { ...projectData }];
-        return { ...c, projects: newProjects };
-      }
-      return c;
-    }));
+  const addProject = async (clientId: string, projectData: any) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      const newProjects = [...(client.projects || []), { ...projectData }];
+      await updateClient(clientId, { projects: newProjects });
+    } else {
+      setClients((prevClients) => prevClients.map(c => {
+        if (c.id === clientId) {
+          const newProjects = [...(c.projects || []), { ...projectData }];
+          return { ...c, projects: newProjects };
+        }
+        return c;
+      }));
+    }
   };
 
-  const updateProject = (clientId: string, projectIndex: number, projectData: any) => {
-    setClients((prevClients) => prevClients.map(c => {
-      if (c.id === clientId) {
-        const newProjects = [...(c.projects || [])];
-        if (projectIndex >= 0 && projectIndex < newProjects.length) {
-          newProjects[projectIndex] = { ...projectData };
-        }
-        return { ...c, projects: newProjects };
+  const updateProject = async (clientId: string, projectIndex: number, projectData: any) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      const newProjects = [...(client.projects || [])];
+      if (projectIndex >= 0 && projectIndex < newProjects.length) {
+        newProjects[projectIndex] = { ...projectData };
+        await updateClient(clientId, { projects: newProjects });
       }
-      return c;
-    }));
+    } else {
+      setClients((prevClients) => prevClients.map(c => {
+        if (c.id === clientId) {
+          const newProjects = [...(c.projects || [])];
+          if (projectIndex >= 0 && projectIndex < newProjects.length) {
+            newProjects[projectIndex] = { ...projectData };
+          }
+          return { ...c, projects: newProjects };
+        }
+        return c;
+      }));
+    }
   };
 
   const updateDailyRating = (userName: string, date: string, rating: number) => {

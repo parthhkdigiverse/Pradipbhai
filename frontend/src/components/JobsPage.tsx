@@ -5,7 +5,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function JobsPage() {
-  const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, hasPermission } = useData();
+  const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, attendance, addAttendance, updateAttendance, hasPermission } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
@@ -230,7 +230,7 @@ export function JobsPage() {
     handleCloseModal();
   };
 
-  const ensurePunchedIn = () => {
+  const ensurePunchedIn = async () => {
     if (!isPunchedIn) {
       const now = Date.now();
       setIsPunchedIn(true);
@@ -238,34 +238,28 @@ export function JobsPage() {
 
       const todayStr = new Date(now).toISOString().split('T')[0];
       const checkInStr = new Date(now).toTimeString().slice(0, 5);
-      const loggedStaffId = staff[0]?.id || '1';
+      const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+      const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-      setAttendance(prev => {
-        const existingIdx = prev.findIndex(a => a.staffId === loggedStaffId && a.date === todayStr);
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          const existingRecord = updated[existingIdx];
-          const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
-          
-          updated[existingIdx] = {
-            ...existingRecord,
-            status: 'Present',
-            checkIn: existingRecord.checkIn || checkInStr,
-            punches: [...existingPunches, { in: checkInStr, out: '' }]
-          };
-          return updated;
-        } else {
-          return [...prev, {
-            id: Math.random().toString(36).substr(2, 9),
-            staffId: loggedStaffId,
-            date: todayStr,
-            status: 'Present',
-            checkIn: checkInStr,
-            checkOut: '',
-            punches: [{ in: checkInStr, out: '' }]
-          }];
-        }
-      });
+      const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+      if (existingRecord) {
+        const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
+        await updateAttendance(existingRecord.id, {
+          status: 'Present',
+          check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
+          punches: [...existingPunches, { in: checkInStr, out: '' }]
+        });
+      } else {
+        await addAttendance({
+          staff_id: loggedStaffId,
+          staff_name: loggedStaffName,
+          date: todayStr,
+          status: 'Present',
+          check_in: checkInStr,
+          check_out: '',
+          punches: [{ in: checkInStr, out: '' }]
+        });
+      }
     }
   };
 
@@ -340,12 +334,11 @@ export function JobsPage() {
     if (completionModalJobId) {
       const completedJob = jobs.find(j => j.id === completionModalJobId);
       
-      setJobs(prev => prev.map(j => j.id === completionModalJobId ? {
-        ...j,
+      await updateJob(completionModalJobId, {
         status: 'Done',
         workLink: completionWorkLink.trim(),
         workLocation: completionWorkLocation.trim()
-      } : j));
+      });
 
       // Auto-create Printing job when a Designing job of a Des+Print project is completed
       if (completedJob && completedJob.type === 'Designing' && completedJob.projectId) {
@@ -389,21 +382,15 @@ export function JobsPage() {
     }
   };
 
-  const handleStopTracker = (jobId: string) => {
+  const handleStopTracker = async (jobId: string) => {
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      let updatedJob: any = null;
-      setJobs(prev => prev.map(j => {
-        if (j.id === jobId) {
-          const newTracked = (j.trackedTime || 0) + elapsed;
-          updatedJob = { ...j, trackedTime: newTracked };
-          return updatedJob;
-        }
-        return j;
-      }));
+      const targetJob = jobs.find(j => j.id === jobId);
+      const newTracked = (targetJob?.trackedTime || 0) + elapsed;
       setActiveJobTracker(null);
-      updateJobStatus(jobId, 'Pending');
+      await updateJob(jobId, { trackedTime: newTracked, status: 'Pending' });
 
+      const updatedJob = targetJob ? { ...targetJob, trackedTime: newTracked, status: 'Pending' } : null;
       if (updatedJob) {
         const info = getJobTimelineInfo(updatedJob);
         if (info.isExceeded && !updatedJob.delayReason) {

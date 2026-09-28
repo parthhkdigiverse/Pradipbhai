@@ -27,7 +27,8 @@ async def create_attendance(att_in: AttendanceCreate, db: AsyncSession = Depends
         work_hours=att_in.work_hours or 0.0,
         overtime_hours=att_in.overtime_hours or 0.0,
         status=att_in.status or "Present",
-        location=att_in.location
+        location=att_in.location,
+        punches=att_in.punches
     )
     db.add(att)
     await db.commit()

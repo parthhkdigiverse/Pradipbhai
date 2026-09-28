@@ -25,6 +25,9 @@ async def create_worklog(log_in: WorkLogCreate, db: AsyncSession = Depends(get_d
         job_title=log_in.job_title,
         date=log_in.date,
         hours=log_in.hours or 0.0,
+        start_time=log_in.start_time,
+        end_time=log_in.end_time,
+        duration=log_in.duration,
         description=log_in.description
     )
     db.add(wlog)

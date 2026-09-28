@@ -1,4 +1,4 @@
-from sqlalchemy import String, Float, DateTime, func
+from sqlalchemy import String, Float, DateTime, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -15,4 +15,5 @@ class Attendance(Base):
     overtime_hours: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(50), default="Present")
     location: Mapped[str] = mapped_column(String(255), nullable=True)
+    punches = mapped_column(JSON, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

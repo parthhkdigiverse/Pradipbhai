@@ -8,6 +8,9 @@ class WorkLogBase(BaseModel):
     job_title: Optional[str] = None
     date: str
     hours: Optional[float] = 0.0
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    duration: Optional[float] = None
     description: Optional[str] = None
 
 class WorkLogCreate(WorkLogBase):
@@ -20,6 +23,9 @@ class WorkLogUpdate(BaseModel):
     job_title: Optional[str] = None
     date: Optional[str] = None
     hours: Optional[float] = None
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    duration: Optional[float] = None
     description: Optional[str] = None
 
 class WorkLogOut(WorkLogBase):

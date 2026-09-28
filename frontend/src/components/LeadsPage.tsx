@@ -88,26 +88,22 @@ export function LeadsPage() {
     setOpenMenuId(null);
   };
 
-  const handleSaveInlineEdit = () => {
+  const handleSaveInlineEdit = async () => {
     if (editingRowId && editRowData) {
       // Find the original lead to see if status changed
       const originalLead = leads.find(l => l.id === editingRowId);
       
-      setLeads((prevLeads) => prevLeads.map(l => {
-        if (l.id === editingRowId) {
-          const updatedLead: any = { ...l, ...editRowData };
-          if (editRowData.followUpDate || editRowData.followUpNote) {
-            updatedLead.followUps = [
-              { date: editRowData.followUpDate, note: editRowData.followUpNote },
-              ...(l.followUps || [])
-            ];
-            delete updatedLead.followUpDate;
-            delete updatedLead.followUpNote;
-          }
-          return updatedLead;
-        }
-        return l;
-      }));
+      const updatedLead: any = { ...editRowData };
+      if (editRowData.followUpDate || editRowData.followUpNote) {
+        updatedLead.followUps = [
+          { date: editRowData.followUpDate, note: editRowData.followUpNote },
+          ...(originalLead?.followUps || [])
+        ];
+        delete updatedLead.followUpDate;
+        delete updatedLead.followUpNote;
+      }
+
+      await updateLead(editingRowId, updatedLead);
 
       // Call convertLeadToClient if the status changed to 'Client Won'
       if (originalLead && originalLead.status !== editRowData.status && editRowData.status === 'Client Won') {

@@ -304,9 +304,9 @@ export function ClientsPage() {
     return (
       <select 
         value={status} 
-        onChange={(e) => {
+        onChange={async (e) => {
           const newStatus = e.target.value;
-          setClients((prev) => prev.map(c => c.id === client.id ? { ...c, status: newStatus } : c));
+          await updateClient(client.id, { status: newStatus });
         }}
         onClick={(e) => e.stopPropagation()}
         className={`${colorClass} px-2.5 py-1 rounded-md text-xs font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none pr-5 relative`}

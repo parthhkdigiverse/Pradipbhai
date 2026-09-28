@@ -12,5 +12,8 @@ class WorkLog(Base):
     job_title: Mapped[str] = mapped_column(String(255), nullable=True)
     date: Mapped[str] = mapped_column(String(50), nullable=False)
     hours: Mapped[float] = mapped_column(Float, default=0.0)
+    start_time: Mapped[float] = mapped_column(Float, nullable=True)
+    end_time: Mapped[float] = mapped_column(Float, nullable=True)
+    duration: Mapped[float] = mapped_column(Float, nullable=True)
     description: Mapped[str] = mapped_column(String(500), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

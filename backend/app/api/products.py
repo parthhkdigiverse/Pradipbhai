@@ -38,7 +38,6 @@ class ProductOut(ProductBase):
 async def get_products(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Product))
     products = result.scalars().all()
-    print(f"FETCHED PRODUCTS: {len(products)}")
     return products
 
 
