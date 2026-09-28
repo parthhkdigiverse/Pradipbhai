@@ -244,10 +244,17 @@ export function JobsPage() {
       const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
       if (existingRecord) {
         const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
+        // Auto-close any previous active punch sessions using checkInStr
+        const closedPunches = existingPunches.map((p: any) => {
+          if (!p.out) {
+            return { ...p, out: checkInStr };
+          }
+          return p;
+        });
         await updateAttendance(existingRecord.id, {
           status: 'Present',
           check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-          punches: [...existingPunches, { in: checkInStr, out: '' }]
+          punches: [...closedPunches, { in: checkInStr, out: '' }]
         });
       } else {
         await addAttendance({

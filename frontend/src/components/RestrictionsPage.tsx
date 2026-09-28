@@ -1,17 +1,29 @@
 import { useState, useEffect } from 'react';
 import { Shield, MapPin, Clock, Plus, Trash2, Save, CheckCircle, Loader2 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL = '/api';
 
 export function RestrictionsPage() {
   const [ipWhitelist, setIpWhitelist] = useState<string[]>(['192.168.1.100', '10.0.0.50']);
   const [newIp, setNewIp] = useState('');
   
-  const [enableTimeRestrictions, setEnableTimeRestrictions] = useState(true);
+  const [enableTimeRestrictions, setEnableTimeRestrictions] = useState<boolean>(() => {
+    const cached = localStorage.getItem('accessRestrictions');
+    if (cached) {
+      try { return JSON.parse(cached).enableTimeRestrictions ?? false; } catch {}
+    }
+    return false;
+  });
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('18:00');
   
-  const [enableGeoRestrictions, setEnableGeoRestrictions] = useState(true);
+  const [enableGeoRestrictions, setEnableGeoRestrictions] = useState<boolean>(() => {
+    const cached = localStorage.getItem('accessRestrictions');
+    if (cached) {
+      try { return JSON.parse(cached).enableGeoRestrictions ?? false; } catch {}
+    }
+    return false;
+  });
   const [allowedPincodes, setAllowedPincodes] = useState<Array<{ code: string; area: string }>>([
     { code: '380009', area: 'Ahmedabad (Navrangpura)' },
     { code: '400001', area: 'Mumbai (Fort / South Mumbai)' },
@@ -28,7 +40,11 @@ export function RestrictionsPage() {
     const fetchRestrictions = async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/restrictions`);
+        const token = localStorage.getItem('authToken');
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${API_BASE_URL}/restrictions`, { headers });
         if (res.ok) {
           const data = await res.json();
           if (data.ipWhitelist) setIpWhitelist(data.ipWhitelist);
@@ -37,6 +53,7 @@ export function RestrictionsPage() {
           if (data.endTime) setEndTime(data.endTime);
           if (data.enableGeoRestrictions !== undefined) setEnableGeoRestrictions(data.enableGeoRestrictions);
           if (data.allowedPincodes) setAllowedPincodes(data.allowedPincodes);
+          localStorage.setItem('accessRestrictions', JSON.stringify(data));
         }
       } catch (err) {
         console.error("Failed to load restrictions:", err);
@@ -51,6 +68,10 @@ export function RestrictionsPage() {
     setIsSaving(true);
     setSaveSuccess(false);
     try {
+      const token = localStorage.getItem('authToken');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const payload = {
         ipWhitelist,
         enableTimeRestrictions,
@@ -61,10 +82,12 @@ export function RestrictionsPage() {
       };
       const res = await fetch(`${API_BASE_URL}/restrictions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('accessRestrictions', JSON.stringify(data));
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
       }

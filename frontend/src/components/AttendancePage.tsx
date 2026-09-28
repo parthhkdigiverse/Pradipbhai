@@ -371,12 +371,14 @@ export function AttendancePage() {
                           />
                         </td>
                         <td className="py-4 px-6 text-center">
-                          {record.punches && record.punches.length > 0 ? (
-                            <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
-                              {/* Show first session */}
-                              <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-mono text-gray-700 whitespace-nowrap">
-                                {record.punches[0].in} - {record.punches[0].out || 'Active'}
-                              </span>
+                          {record.punches && record.punches.length > 0 ? (() => {
+                            const displayPunch = record.punches.find((p: any) => !p.out) || record.punches[record.punches.length - 1];
+                            return (
+                              <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
+                                {/* Show active or latest session */}
+                                <span className={`px-2 py-0.5 border rounded text-[10px] font-mono whitespace-nowrap ${!displayPunch.out ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                  {displayPunch.in} - {displayPunch.out || 'Active'}
+                                </span>
                               
                               {/* +N more badge if multiple sessions */}
                               {record.punches.length > 1 && (
@@ -398,7 +400,8 @@ export function AttendancePage() {
                                 ))}
                               </div>
                             </div>
-                          ) : (
+                          );
+                        })() : (
                             <span className="text-[11px] text-gray-400 italic">No punches</span>
                           )}
                         </td>
@@ -573,11 +576,13 @@ export function AttendancePage() {
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkIn || '--:--'}</td>
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkOut || '--:--'}</td>
                           <td className="py-4 px-6 text-center">
-                            {punches.length > 0 ? (
-                              <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
-                                <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-mono text-gray-700 whitespace-nowrap">
-                                  {punches[0].in} - {punches[0].out || 'Active'}
-                                </span>
+                            {punches.length > 0 ? (() => {
+                              const displayPunch = punches.find((p: any) => !p.out) || punches[punches.length - 1];
+                              return (
+                                <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
+                                  <span className={`px-2 py-0.5 border rounded text-[10px] font-mono whitespace-nowrap ${!displayPunch.out ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                    {displayPunch.in} - {displayPunch.out || 'Active'}
+                                  </span>
                                 {punches.length > 1 && (
                                   <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold cursor-pointer whitespace-nowrap">
                                     +{punches.length - 1} more
@@ -595,7 +600,8 @@ export function AttendancePage() {
                                   ))}
                                 </div>
                               </div>
-                            ) : (
+                            );
+                          })() : (
                               <span className="text-[11px] text-gray-400 italic">No punches</span>
                             )}
                           </td>
@@ -664,11 +670,13 @@ export function AttendancePage() {
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkIn || '--:--'}</td>
                           <td className="py-4 px-6 text-center font-semibold text-gray-700">{rec.checkOut || '--:--'}</td>
                           <td className="py-4 px-6 text-center">
-                            {punches.length > 0 ? (
-                              <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
-                                <span className="px-2 py-0.5 bg-gray-100 border border-gray-200 rounded text-[10px] font-mono text-gray-700 whitespace-nowrap">
-                                  {punches[0].in} - {punches[0].out || 'Active'}
-                                </span>
+                            {punches.length > 0 ? (() => {
+                              const displayPunch = punches.find((p: any) => !p.out) || punches[punches.length - 1];
+                              return (
+                                <div className="flex items-center justify-center gap-1.5 max-w-[200px] mx-auto relative group/popover">
+                                  <span className={`px-2 py-0.5 border rounded text-[10px] font-mono whitespace-nowrap ${!displayPunch.out ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                                    {displayPunch.in} - {displayPunch.out || 'Active'}
+                                  </span>
                                 {punches.length > 1 && (
                                   <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold cursor-pointer whitespace-nowrap">
                                     +{punches.length - 1} more
@@ -686,7 +694,8 @@ export function AttendancePage() {
                                   ))}
                                 </div>
                               </div>
-                            ) : (
+                            );
+                          })() : (
                               <span className="text-[11px] text-gray-400 italic">No punches</span>
                             )}
                           </td>

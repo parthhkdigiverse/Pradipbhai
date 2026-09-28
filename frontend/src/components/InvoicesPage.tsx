@@ -6,7 +6,7 @@ import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function InvoicesPage() {
-  const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
+  const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, products, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
   const canCreateEditInvoices = hasPermission(currentUserRole, 'Create/Edit Invoices');
   const canDeleteInvoices = hasPermission(currentUserRole, 'Delete Invoices');
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,11 +42,11 @@ export function InvoicesPage() {
         setFilterStatus(filterValue);
       } else if (filterKey === 'openJobInvoice') {
         const targetJobId = jobId || filterValue;
-        const matchedInvoice = invoices.find(inv => inv.jobIds && inv.jobIds.includes(targetJobId));
+        const matchedInvoice = (invoices || []).find(inv => inv && inv.jobIds && inv.jobIds.includes(targetJobId));
         if (matchedInvoice) {
           setSelectedPreviewInvoice(matchedInvoice);
         } else {
-          const targetJob = jobs.find(j => j.id === targetJobId);
+          const targetJob = (jobs || []).find(j => j && j.id === targetJobId);
           if (targetJob) {
             setSelectedClientId(targetJob.clientId);
             setSelectedJobIds([targetJob.id]);
@@ -80,9 +80,18 @@ export function InvoicesPage() {
   };
 
   const handleUpdateCustomItem = (id: string, field: 'description' | 'quantity' | 'rate', value: any) => {
-    setCustomItems(prev => prev.map(item => {
+    setCustomItems(prev => (prev || []).map(item => {
       if (item.id === id) {
-        return { ...item, [field]: value };
+        const updated = { ...item, [field]: value };
+        if (field === 'description' && typeof value === 'string' && value.trim()) {
+          const matchedProduct = (products || []).find(p => p && p.name && p.name.toLowerCase().trim() === value.toLowerCase().trim());
+          if (matchedProduct && matchedProduct.price !== undefined && matchedProduct.price !== null) {
+            if (!item.rate || item.rate === 0) {
+              updated.rate = Number(matchedProduct.price) || 0;
+            }
+          }
+        }
+        return updated;
       }
       return item;
     }));
@@ -94,20 +103,21 @@ export function InvoicesPage() {
 
   // Calculate totals
   const totalOutstanding = useMemo(() => {
-    return invoices.filter(i => i.status !== 'Paid').reduce((sum, inv) => sum + inv.total, 0);
+    return (invoices || []).filter(i => i && i.status !== 'Paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
   }, [invoices]);
 
   const totalOverdue = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    return invoices.filter(i => i.status !== 'Paid' && i.dueDate < today).reduce((sum, inv) => sum + inv.total, 0);
+    return (invoices || []).filter(i => i && i.status !== 'Paid' && i.dueDate < today).reduce((sum, inv) => sum + (inv.total || 0), 0);
   }, [invoices]);
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
+    return (invoices || []).filter(inv => {
+      if (!inv) return false;
       const sLower = searchTerm.toLowerCase();
-      const clientName = clients.find(c => c.id === inv.clientId)?.company || '';
-      const matchSearch = inv.invoiceNumber.toLowerCase().includes(sLower) ||
-                          inv.status.toLowerCase().includes(sLower) ||
+      const clientName = (clients || []).find(c => c && c.id === inv.clientId)?.company || '';
+      const matchSearch = (inv.invoiceNumber || '').toLowerCase().includes(sLower) ||
+                          (inv.status || '').toLowerCase().includes(sLower) ||
                           clientName.toLowerCase().includes(sLower) ||
                           (inv.total && inv.total.toString().includes(sLower)) ||
                           (inv.issueDate && inv.issueDate.includes(sLower)) ||
@@ -120,21 +130,21 @@ export function InvoicesPage() {
       
       return matchSearch && matchStatus && matchClient && matchDateFrom && matchDateTo;
     });
-  }, [invoices, searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo]);
+  }, [invoices, searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo, clients]);
 
   // Derived calculations for the modal
   const availableJobs = useMemo(() => {
     if (!selectedClientId) return [];
-    return jobs.filter(j => j.clientId === selectedClientId && j.paymentStatus !== 'Paid');
+    return (jobs || []).filter(j => j && j.clientId === selectedClientId && j.paymentStatus !== 'Paid');
   }, [selectedClientId, jobs]);
 
   const modalSubtotal = useMemo(() => {
-    const jobsSum = selectedJobIds.reduce((sum, jobId) => {
-      const job = jobs.find(j => j.id === jobId);
+    const jobsSum = (selectedJobIds || []).reduce((sum, jobId) => {
+      const job = (jobs || []).find(j => j && j.id === jobId);
       return sum + (job ? (job.totalAmount - (job.paidAmount || 0)) : 0);
     }, 0);
 
-    const customSum = customItems.reduce((sum, item) => {
+    const customSum = (customItems || []).reduce((sum, item) => {
       const qty = Number(item.quantity) || 0;
       const rate = Number(item.rate) || 0;
       return sum + (qty * rate);
@@ -260,7 +270,7 @@ export function InvoicesPage() {
     }
   };
 
-  const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
+  const getClientName = (id: string) => (clients || []).find(c => c && c.id === id)?.company || 'Unknown Client';
 
   return (
     <div className="w-full relative">
@@ -570,15 +580,44 @@ export function InvoicesPage() {
                 {/* Custom Invoice Items */}
                 {selectedClientId && (
                   <div className="border border-gray-200 rounded-xl overflow-hidden bg-white/40">
-                    <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                    <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Custom Items (Optional)</span>
-                      <button
-                        type="button"
-                        onClick={handleAddCustomItem}
-                        className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-indigo-600" /> Add Custom Item
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {products && products.length > 0 && (
+                          <div className="w-44">
+                            <SearchableSelect
+                              value=""
+                              onChange={(prodId) => {
+                                const prod = products.find(p => p.id === prodId);
+                                if (prod) {
+                                  setCustomItems(prev => [
+                                    ...prev,
+                                    {
+                                      id: Math.random().toString(36).substr(2, 9),
+                                      description: prod.name,
+                                      quantity: 1,
+                                      rate: Number(prod.price) || 0
+                                    }
+                                  ]);
+                                }
+                              }}
+                              options={products.map(p => ({
+                                value: p.id,
+                                label: `${p.name} ${p.price ? `(₹${p.price})` : ''}`,
+                                displayLabel: `+ Catalog Product`
+                              }))}
+                              placeholder="+ Add Product..."
+                            />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleAddCustomItem}
+                          className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs shrink-0"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-indigo-600" /> Custom Item
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="p-3 space-y-2">
@@ -589,6 +628,7 @@ export function InvoicesPage() {
                             <div key={item.id} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-gray-100 shadow-2xs">
                               <input
                                 type="text"
+                                list="invoice-product-suggestions"
                                 placeholder="Item Description (e.g. Logo Design, Consultation)"
                                 value={item.description}
                                 onChange={e => handleUpdateCustomItem(item.id, 'description', e.target.value)}
@@ -626,10 +666,20 @@ export function InvoicesPage() {
                         })
                       ) : (
                         <div className="py-2 text-center text-xs text-gray-400">
-                          No custom items added. Click "+ Add Custom Item" to add non-project charges.
+                          No custom items added. Pick a catalog product or click "+ Custom Item".
                         </div>
                       )}
                     </div>
+                    {/* Datalist for Product Auto-suggestions */}
+                    {products && products.length > 0 && (
+                      <datalist id="invoice-product-suggestions">
+                        {products.map(p => (
+                          <option key={p.id} value={p.name}>
+                            {p.name} {p.price ? `— ₹${p.price}` : ''} {p.type ? `(${p.type})` : ''}
+                          </option>
+                        ))}
+                      </datalist>
+                    )}
                   </div>
                 )}
 

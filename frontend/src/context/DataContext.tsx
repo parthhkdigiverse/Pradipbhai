@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 
@@ -376,6 +376,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
+
+  const currentUser = useMemo(() => {
+    const email = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
+    const found = staff.find(s => s.email?.toLowerCase() === email.trim().toLowerCase());
+    if (found) {
+      return {
+        id: found.id,
+        name: found.name,
+        email: found.email,
+        role: found.role || currentUserRole
+      };
+    }
+    return {
+      id: 'emp-admin',
+      name: 'Admin',
+      email,
+      role: currentUserRole
+    };
+  }, [staff, currentUserRole]);
   const [attendance, setAttendance] = useState<any[]>([]);
   const [payroll, setPayroll] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -389,7 +408,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
-  const [activeJobTracker, setActiveJobTracker] = useState<{ jobId: string, startTime: number } | null>(null);
+  const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(() => {
+    const saved = localStorage.getItem('activeJobTracker');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return null;
+  });
+
+  const setActiveJobTracker = (val: { jobId: string, startTime: number } | null | ((prev: { jobId: string, startTime: number } | null) => { jobId: string, startTime: number } | null)) => {
+    setActiveJobTrackerState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      if (next) {
+        localStorage.setItem('activeJobTracker', JSON.stringify(next));
+      } else {
+        localStorage.removeItem('activeJobTracker');
+      }
+      return next;
+    });
+  };
+  const activeJobTracker = activeJobTrackerState;
   const [workLogs, setWorkLogs] = useState<any[]>([]);
 
   const { autoConvertLeads } = useSettings();
@@ -479,13 +517,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
       if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {
-        setAttendance(attRes.value.map((a: any) => ({
-          ...a,
-          staffId: a.staff_id || a.staffId,
-          staffName: a.staff_name || a.staffName,
-          checkIn: a.check_in || a.checkIn,
-          checkOut: a.check_out || a.checkOut
-        })));
+        setAttendance(attRes.value.map((a: any) => {
+          const rawPunches = a.punches || (a.check_in || a.checkIn ? [{ in: a.check_in || a.checkIn, out: a.check_out || a.checkOut }] : []);
+          const cleanPunches = Array.isArray(rawPunches) ? rawPunches.map((p: any, idx: number) => {
+            if (!p.out && idx < rawPunches.length - 1) {
+              return { ...p, out: rawPunches[idx + 1]?.in || p.in };
+            }
+            return p;
+          }) : [];
+          return {
+            ...a,
+            staffId: a.staff_id || a.staffId,
+            staffName: a.staff_name || a.staffName,
+            checkIn: a.check_in || a.checkIn,
+            checkOut: a.check_out || a.checkOut,
+            punches: cleanPunches
+          };
+        }));
       }
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
@@ -529,6 +577,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!token && !isAuth) return;
     refreshApiData();
   }, []);
+
+  useEffect(() => {
+    if (!attendance || attendance.length === 0) return;
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
+    if (todayAtt && todayAtt.punches && todayAtt.punches.length > 0) {
+      const activePunch = todayAtt.punches.find((p: any) => !p.out);
+      if (activePunch) {
+        setIsPunchedIn(true);
+        let calculatedTime = Date.now();
+        if (activePunch.in) {
+          const [h, m] = activePunch.in.split(':');
+          const pDate = new Date();
+          pDate.setHours(parseInt(h) || 0, parseInt(m) || 0, 0, 0);
+          calculatedTime = pDate.getTime();
+          setPunchInTime(calculatedTime);
+        }
+
+        // Auto-restore activeJobTracker if null but there is a job in Progress
+        if (!activeJobTrackerState && jobs && jobs.length > 0) {
+          const progressJob = jobs.find((j: any) => j.status === 'Progress');
+          if (progressJob) {
+            setActiveJobTracker({ jobId: progressJob.id, startTime: calculatedTime });
+          }
+        }
+      } else {
+        setIsPunchedIn(false);
+        setActiveJobTracker(null);
+      }
+    }
+  }, [attendance, currentUser, staff, jobs, activeJobTrackerState]);
 
   // Clients API
   const addClient = async (clientData: any) => {
@@ -985,24 +1066,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       hasTabPermission,
       currentUserRole,
       setCurrentUserRole,
-      currentUser: (() => {
-        const email = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
-        const found = staff.find(s => s.email?.toLowerCase() === email.trim().toLowerCase());
-        if (found) {
-          return {
-            id: found.id,
-            name: found.name,
-            email: found.email,
-            role: found.role || currentUserRole
-          };
-        }
-        return {
-          id: 'emp-admin',
-          name: 'Admin',
-          email,
-          role: currentUserRole
-        };
-      })(),
+      currentUser,
       refreshApiData
     }}>
       {children}

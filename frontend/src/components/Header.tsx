@@ -74,10 +74,15 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
       if (existingRecord) {
         const existingPunches = existingRecord.punches || [];
-        let newPunches = [...existingPunches];
-        if (newPunches.length > 0 && !newPunches[newPunches.length - 1].out) {
-          newPunches[newPunches.length - 1] = { ...newPunches[newPunches.length - 1], out: checkOutStr };
-        } else {
+        let hasClosedActive = false;
+        const newPunches = existingPunches.map((p: any) => {
+          if (!p.out) {
+            hasClosedActive = true;
+            return { ...p, out: checkOutStr };
+          }
+          return p;
+        });
+        if (!hasClosedActive) {
           newPunches.push(newPunchSession);
         }
         await updateAttendance(existingRecord.id, {
@@ -126,10 +131,18 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
     if (existingRecord) {
       const existingPunches = existingRecord.punches || [];
+      // Auto-turn off / close any previous active sessions using checkInStr
+      const closedPunches = existingPunches.map((p: any) => {
+        if (!p.out) {
+          return { ...p, out: checkInStr };
+        }
+        return p;
+      });
+      const newPunches = [...closedPunches, { in: checkInStr, out: '' }];
       await updateAttendance(existingRecord.id, {
         status: 'Present',
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-        punches: [...existingPunches, { in: checkInStr, out: '' }]
+        punches: newPunches
       });
     } else {
       await addAttendance({
