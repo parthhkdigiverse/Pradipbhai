@@ -83,6 +83,7 @@ interface DataContextType {
   attendance: any[];
   setAttendance: React.Dispatch<React.SetStateAction<any[]>>;
   addAttendance: (attData: any) => Promise<any>;
+  updateAttendance: (id: string, updateData: any) => Promise<any>;
 
   payroll: any[];
   setPayroll: React.Dispatch<React.SetStateAction<any[]>>;
@@ -92,6 +93,7 @@ interface DataContextType {
   vendors: any[];
   setVendors: React.Dispatch<React.SetStateAction<any[]>>;
   addVendor: (vendorData: any) => Promise<any>;
+  updateVendor: (id: string, updateData: any) => Promise<any>;
   deleteVendor: (id: string) => Promise<void>;
 
   jobs: any[];
@@ -115,6 +117,7 @@ interface DataContextType {
   setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
   addLeaveRequest: (leaveData: any) => Promise<any>;
   updateLeaveRequest: (id: string, updateData: any) => Promise<any>;
+  deleteLeaveRequest: (id: string) => Promise<void>;
 
   leaveBalances: LeaveBalance[];
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
@@ -427,12 +430,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       const fetchWithAuth = async (url: string) => {
         const res = await fetch(url, { headers });
-        if (res.status === 401 && isRealToken) {
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('isAuthenticated');
-          window.location.href = '/';
-          throw new Error('Unauthorized');
-        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       };
@@ -454,8 +451,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/products`),
       ]);
 
-      if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) setClients(clientsRes.value);
-      if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) setJobs(jobsRes.value);
+      if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) {
+        setClients(clientsRes.value.map((c: any) => ({
+          ...c,
+          contact: c.contact || c.name || '',
+          clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
+          projects: c.projects || []
+        })));
+      }
+      if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
+        setJobs(jobsRes.value.map((j: any) => ({
+          ...j,
+          clientId: j.clientId || j.client_id || '',
+          projectId: j.projectId || j.project_id || '',
+          assignedStaffId: j.assignedStaffId || j.assigned_staff_id || '',
+          teamId: j.teamId || j.assigned_staff_id || j.assignedStaffId || '',
+          totalAmount: j.totalAmount !== undefined ? j.totalAmount : (j.total_amount || 0),
+          paidAmount: j.paidAmount !== undefined ? j.paidAmount : 0,
+          status: j.status || 'Pending',
+          title: j.title || 'Untitled Job',
+          type: j.type || 'Designing'
+        })));
+      }
       if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) setInvoices(invoicesRes.value);
       if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
       if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) setDailyProgressRecords(progressRes.value);
@@ -499,7 +516,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Clients API
   const addClient = async (clientData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/clients`, { method: 'POST', body: JSON.stringify(clientData) });
+      const payload = {
+        ...clientData,
+        name: clientData.contact || clientData.company || 'Unknown'
+      };
+      const data = await apiFetch(`${API_BASE_URL}/clients`, { method: 'POST', body: JSON.stringify(payload) });
       setClients(prev => [data, ...prev]);
       return data;
     } catch {
@@ -714,6 +735,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateAttendance = async (id: string, updateData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      setAttendance(prev => prev.map(a => a.id === id ? data : a));
+      return data;
+    } catch {
+      setAttendance(prev => prev.map(a => a.id === id ? { ...a, ...updateData } : a));
+    }
+  };
+
   // Leave Requests API
   const addLeaveRequest = async (leaveData: any) => {
     try {
@@ -737,6 +768,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setLeaveRequests(prev => [leaveData, ...prev]);
       return leaveData;
     }
+  };
+
+  const deleteLeaveRequest = async (id: string) => {
+    try { await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'DELETE' }); } catch {}
+    setLeaveRequests(prev => prev.filter(r => r.id !== id));
   };
 
   const updateLeaveRequest = async (id: string, updateData: any) => {
@@ -795,6 +831,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateVendor = async (id: string, updateData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/vendors/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      setVendors(prev => prev.map(v => v.id === id ? data : v));
+      return data;
+    } catch {
+      setVendors(prev => prev.map(v => v.id === id ? { ...v, ...updateData } : v));
+    }
+  };
+
   const deleteVendor = async (id: string) => {
     try { await apiFetch(`${API_BASE_URL}/vendors/${id}`, { method: 'DELETE' }); } catch {}
     setVendors(prev => prev.filter(v => v.id !== id));
@@ -849,13 +895,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       clients, setClients, addClient, updateClient, deleteClient,
       products, setProducts, addProduct, updateProduct, deleteProduct,
       staff, setStaff, addStaff, updateStaff, deleteStaff,
-      attendance, setAttendance, addAttendance,
+      attendance, setAttendance, addAttendance, updateAttendance,
       payroll, setPayroll, addPayroll, updatePayroll,
-      vendors, setVendors, addVendor, deleteVendor,
+      vendors, setVendors, addVendor, updateVendor, deleteVendor,
       jobs, setJobs, addJob, updateJob, deleteJob,
       invoices, setInvoices, addInvoice, updateInvoice, deleteInvoice,
       holidays, setHolidays, addHoliday, deleteHoliday,
-      leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest,
+      leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
       leaveBalances, setLeaveBalances,
       convertLeadToClient,
       addProject,

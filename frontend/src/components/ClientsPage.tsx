@@ -26,7 +26,11 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
-  const { clients, setClients, currentUserRole, addProject, updateProject, hasPermission } = useData();
+  const { 
+    clients, setClients, 
+    addClient, updateClient, deleteClient,
+    currentUserRole, addProject, updateProject, hasPermission 
+  } = useData();
   const canCreateEditClients = hasPermission(currentUserRole, 'Create/Edit Clients');
   const canDeleteClients = hasPermission(currentUserRole, 'Delete Clients');
   const [searchTerm, setSearchTerm] = useState('');
@@ -202,7 +206,7 @@ export function ClientsPage() {
     handleCloseProjectModal();
   };
 
-  const handleSaveClient = (e: React.FormEvent) => {
+  const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
     const fullPhone = `${countryCode} ${formData.phone.trim()}`;
     const payload = {
@@ -211,24 +215,20 @@ export function ClientsPage() {
     };
 
     if (editingClientId) {
-      setClients(clients.map(c => c.id === editingClientId ? { ...c, ...payload } : c));
+      await updateClient(editingClientId, payload);
     } else {
-      setClients([
-        {
-          ...payload,
-          id: Math.random().toString(36).substr(2, 9),
-          projects: [],
-          clientSince: new Date().toISOString().split('T')[0]
-        },
-        ...clients
-      ]);
+      await addClient({
+        ...payload,
+        projects: [],
+        clientSince: new Date().toISOString().split('T')[0]
+      });
     }
     handleCloseModal();
   };
 
-  const handleDeleteClient = (id: string) => {
+  const handleDeleteClient = async (id: string) => {
     if (confirm('Are you sure you want to delete this client? This cannot be undone.')) {
-      setClients(clients.filter(c => c.id !== id));
+      await deleteClient(id);
       setOpenMenuId(null);
     }
   };
@@ -239,9 +239,9 @@ export function ClientsPage() {
     setOpenMenuId(null);
   };
 
-  const handleSaveInlineEdit = () => {
+  const handleSaveInlineEdit = async () => {
     if (editingRowId && editRowData) {
-      setClients(clients.map(c => c.id === editingRowId ? { ...c, ...editRowData } : c));
+      await updateClient(editingRowId, editRowData);
     }
     setEditingRowId(null);
     setEditRowData(null);

@@ -15,7 +15,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
   onClose,
   onClientCreated
 }) => {
-  const { setClients } = useData();
+  const { setClients, addClient } = useData();
   const [formData, setFormData] = useState({
     company: '',
     contact: '',
@@ -38,12 +38,11 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.company.trim()) return;
 
-    const newClient = {
-      id: Math.random().toString(36).substr(2, 9),
+    const newClient = await addClient({
       company: formData.company.trim(),
       contact: formData.contact.trim() || formData.company.trim(),
       email: formData.email.trim(),
@@ -51,9 +50,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
       trafficLight: formData.trafficLight,
       projects: [],
       clientSince: new Date().toISOString().split('T')[0]
-    };
-
-    setClients(prev => [newClient, ...prev]);
+    });
     onClientCreated(newClient);
     onClose();
   };

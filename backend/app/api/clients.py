@@ -28,13 +28,10 @@ async def get_clients(skip: int = 0, limit: int = 100, db: AsyncSession = Depend
 @router.post("", response_model=ClientOut, status_code=status.HTTP_201_CREATED)
 async def create_client(client_in: ClientCreate, db: AsyncSession = Depends(get_db)):
     client_id = client_in.id or f"client-{uuid.uuid4().hex[:8]}"
+    client_data = client_in.model_dump(exclude={"id"})
     client = Client(
         id=client_id,
-        name=client_in.name,
-        company=client_in.company,
-        email=client_in.email,
-        phone=client_in.phone,
-        status=client_in.status or "Active"
+        **client_data
     )
     db.add(client)
     await db.commit()

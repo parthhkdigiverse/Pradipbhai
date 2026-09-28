@@ -29,7 +29,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     return () => clearInterval(interval);
   }, [activeJobTracker]);
 
-  const handlePunchToggle = () => {
+  const handlePunchToggle = async () => {
     if (isPunchedIn) {
       // Punch Out
       setIsPunchedIn(false);
@@ -46,7 +46,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         
         // Save time to job
         const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-        setJobs(prev => prev.map(j => j.id === finalJobId ? { ...j, trackedTime: (j.trackedTime || 0) + jobDuration, status: 'Pending' } : j));
+        if(job) await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
         setActiveJobTracker(null);
       }
 
@@ -119,13 +119,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     }
   };
 
-  const confirmPunchIn = () => {
+  const confirmPunchIn = async () => {
     if (!selectedJobId) return;
     const now = Date.now();
     setIsPunchedIn(true);
     setPunchInTime(now);
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
-    setJobs(prev => prev.map(j => j.id === selectedJobId ? { ...j, status: 'Progress' } : j));
+    await updateJob(selectedJobId, { status: 'Progress' });
     setShowJobModal(false);
     setSelectedJobId('');
 
@@ -162,7 +162,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     });
   };
 
-  const handleSwitchJob = () => {
+  const handleSwitchJob = async () => {
     if (!selectedJobId) return;
     const now = Date.now();
 
@@ -179,7 +179,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
     // Switch to new job
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
-    setJobs(prev => prev.map(j => j.id === selectedJobId ? { ...j, status: 'Progress' } : j));
+    await updateJob(selectedJobId, { status: 'Progress' });
     
     setShowJobModal(false);
     setSelectedJobId('');

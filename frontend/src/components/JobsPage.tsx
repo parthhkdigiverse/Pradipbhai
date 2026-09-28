@@ -75,10 +75,10 @@ export function JobsPage() {
     setDelayReasonInput(job.delayReason || '');
   };
 
-  const handleSaveDelayReason = (e: React.FormEvent) => {
+  const handleSaveDelayReason = async (e: React.FormEvent) => {
     e.preventDefault();
     if (delayModalJob) {
-      setJobs(prev => prev.map(j => j.id === delayModalJob.id ? { ...j, delayReason: delayReasonInput.trim() } : j));
+      await updateJob(delayModalJob.id, { delayReason: delayReasonInput.trim() });
       setDelayModalJob(null);
       setDelayReasonInput('');
     }
@@ -88,15 +88,15 @@ export function JobsPage() {
     if (!job.estimatedTime) return { isExceeded: false, expectedText: '', diffText: '' };
     const val = parseFloat(job.estimatedTime) || 0;
     const unit = job.estimatedTimeUnit || 'Hours';
-    const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : val * 3600;
+    const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : unit === 'Minutes' ? val * 60 : val * 3600;
     const tracked = job.trackedTime || 0;
     const isExceeded = tracked > expectedSeconds;
     const diffSecs = tracked - expectedSeconds;
-    const diffHours = (diffSecs / 3600).toFixed(1);
+    const diffText = diffSecs >= 3600 ? `${(diffSecs / 3600).toFixed(1)} hrs` : `${Math.ceil(diffSecs / 60)} mins`;
     return {
       isExceeded,
       expectedText: `${val} ${unit}`,
-      diffText: `${diffHours} hrs`,
+      diffText,
       tracked,
       expectedSeconds
     };
@@ -201,7 +201,7 @@ export function JobsPage() {
     setEditingJobId(null);
   };
 
-  const handleSaveJob = (e: React.FormEvent) => {
+  const handleSaveJob = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const jobData = {
@@ -267,7 +267,7 @@ export function JobsPage() {
     }
   };
 
-  const handleStartTracker = (jobId: string) => {
+  const handleStartTracker = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
     
@@ -282,13 +282,14 @@ export function JobsPage() {
     if (activeJobTracker && activeJobTracker.jobId !== jobId) {
       // Stop previous tracker
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => j.id === activeJobTracker.jobId ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+      const job = jobs.find((j: any) => j.id === activeJobTracker.jobId);
+      if (job) await updateJob(activeJobTracker.jobId, { trackedTime: (job.trackedTime || 0) + elapsed });
     }
     setActiveJobTracker({ jobId, startTime: Date.now() });
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'Progress' } : j));
+    await updateJob(jobId, { status: 'Progress' });
   };
 
-  const updateJobStatus = (id: string, status: string) => {
+  const updateJobStatus = async (id: string, status: string) => {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
 
@@ -313,7 +314,8 @@ export function JobsPage() {
 
     if (status !== 'Progress' && activeJobTracker?.jobId === id) {
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setJobs(prev => prev.map(j => j.id === id ? { ...j, trackedTime: (j.trackedTime || 0) + elapsed } : j));
+      const job = jobs.find((j: any) => j.id === id);
+      if (job) await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed });
       setActiveJobTracker(null);
     }
 
@@ -324,10 +326,10 @@ export function JobsPage() {
       return;
     }
 
-    setJobs(prev => prev.map(j => j.id === id ? { ...j, status } : j));
+    await updateJob(id, { status });
   };
 
-  const handleSaveCompletionModal = (e: React.FormEvent) => {
+  const handleSaveCompletionModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!completionWorkLink.trim() && !completionWorkLocation.trim()) {
       alert('⚠️ At least ONE field is required: Please provide either a Work Output Link OR a Storage Location/Notes to complete this job.');
@@ -376,7 +378,7 @@ export function JobsPage() {
               workLink: '',
               workLocation: ''
             };
-            setJobs(prev => [newPrintingJob, ...prev]);
+            await addJob(newPrintingJob);
           }
         }
       }
@@ -409,8 +411,9 @@ export function JobsPage() {
     }
   };
 
-  const toggleVendorEmailSent = (jobId: string) => {
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, vendorEmailSent: !j.vendorEmailSent } : j));
+  const toggleVendorEmailSent = async (jobId: string) => {
+    const job = jobs.find((j: any) => j.id === jobId);
+    if (job) await updateJob(jobId, { vendorEmailSent: !job.vendorEmailSent });
   };
 
   const formatTime = (seconds: number) => {
@@ -1082,6 +1085,7 @@ export function JobsPage() {
                       onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})} 
                       className="w-1/2 px-2 py-2 bg-white/50 border border-white/60 rounded-xl text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
+                      <option value="Minutes">Minutes</option>
                       <option value="Hours">Hours</option>
                       <option value="Days">Days</option>
                     </select>

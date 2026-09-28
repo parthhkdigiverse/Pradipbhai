@@ -4,15 +4,18 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 
-from sqlalchemy.pool import NullPool
-
 # Create async engine for MySQL via aiomysql
-# NullPool: fresh connection per request — prevents stale connection errors
-# with hosted remote DBs (Hostinger closes idle connections server-side)
+# Using QueuePool with pool_recycle and pool_pre_ping:
+# Prevents creating a new TCP connection on every single request,
+# avoiding Hostinger's max_connections_per_hour (500) limit while
+# automatically refreshing stale connections.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    poolclass=NullPool,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=300,
+    pool_pre_ping=True
 )
 
 # Async session factory
@@ -49,6 +52,60 @@ async def init_db():
                 sync_conn.execute(text("ALTER TABLE staff ADD COLUMN password VARCHAR(255) NULL"))
             if "permissions" not in columns:
                 sync_conn.execute(text("ALTER TABLE staff ADD COLUMN permissions JSON NULL"))
+        if "jobs" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("jobs")]
+            needed_cols = [
+                ("description", "VARCHAR(1000) NULL"),
+                ("type", "VARCHAR(50) DEFAULT 'Designing'"),
+                ("clientId", "VARCHAR(50) NULL"),
+                ("projectId", "VARCHAR(50) NULL"),
+                ("productId", "VARCHAR(50) NULL"),
+                ("printerId", "VARCHAR(50) NULL"),
+                ("teamId", "VARCHAR(50) NULL"),
+                ("dueDate", "VARCHAR(50) NULL"),
+                ("totalAmount", "FLOAT DEFAULT 0.0"),
+                ("paidAmount", "FLOAT DEFAULT 0.0"),
+                ("paymentStatus", "VARCHAR(50) DEFAULT 'Unpaid'"),
+                ("vendorEmailSent", "BOOLEAN DEFAULT FALSE"),
+                ("workLink", "VARCHAR(500) NULL"),
+                ("workLocation", "VARCHAR(500) NULL"),
+                ("estimatedTime", "FLOAT NULL"),
+                ("estimatedTimeUnit", "VARCHAR(50) DEFAULT 'Hours'"),
+                ("trackedTime", "FLOAT DEFAULT 0.0"),
+                ("delayReason", "VARCHAR(500) NULL"),
+                ("createdBy", "VARCHAR(100) DEFAULT 'Admin'"),
+                ("createdAt", "VARCHAR(50) NULL")
+            ]
+            for col_name, col_type in needed_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE jobs ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for jobs.{col_name}: {e}")
+                        
+        if "clients" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("clients")]
+            needed_cols = [
+                ("contact", "VARCHAR(255) NULL"),
+                ("trafficLight", "VARCHAR(50) DEFAULT 'Green'"),
+                ("advanceRequired", "INT DEFAULT 0"),
+                ("billingType", "VARCHAR(50) DEFAULT 'Monthly Billing'"),
+                ("workStartAllowed", "BOOLEAN DEFAULT TRUE"),
+                ("deliveryAllowed", "BOOLEAN DEFAULT TRUE"),
+                ("clientSince", "VARCHAR(50) NULL")
+            ]
+            for col_name, col_type in needed_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE clients ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for clients.{col_name}: {e}")
+                        
+            # Ensure name can be null
+            try:
+                sync_conn.execute(text("ALTER TABLE clients MODIFY COLUMN `name` VARCHAR(255) NULL"))
+            except Exception as e:
+                pass
 
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)

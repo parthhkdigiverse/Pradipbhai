@@ -24,7 +24,7 @@ function TypeIcon({ type }: { type: Holiday['type'] }) {
 const emptyForm = () => ({ date: '', name: '', type: 'National' as Holiday['type'] });
 
 export function HolidaysPage() {
-  const { holidays, setHolidays, currentUserRole, hasPermission } = useData();
+  const { holidays, setHolidays, addHoliday, deleteHoliday, currentUserRole, hasPermission } = useData();
   const canManageHolidays = hasPermission(currentUserRole, 'Manage Holidays');
 
   const currentYear = new Date().getFullYear();
@@ -50,21 +50,19 @@ export function HolidaysPage() {
     return map;
   }, [yearHolidays]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!form.date || !form.name.trim()) return;
-    const newHoliday: Holiday = {
-      id: Math.random().toString(36).substr(2, 9),
+    await addHoliday({
       date: form.date,
       name: form.name.trim(),
       type: form.type,
-    };
-    setHolidays(prev => [...prev, newHoliday]);
+    });
     setForm(emptyForm());
     setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    setHolidays(prev => prev.filter(h => h.id !== id));
+  const handleDelete = async (id: string) => {
+    await deleteHoliday(id);
     setDeleteConfirm(null);
   };
 

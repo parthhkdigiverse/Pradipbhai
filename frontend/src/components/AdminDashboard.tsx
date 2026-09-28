@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   Briefcase, 
-  CircleDollarSign, 
   Clock, 
   CheckCircle2, 
   AlertCircle,
@@ -87,14 +86,17 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
     const overdue = jobs.filter(j => {
       if (j.status === 'Completed' || !j.dueDate) return false;
       const due = new Date(j.dueDate);
+      if (isNaN(due.getTime())) return false;
       due.setHours(0,0,0,0);
       return due < todayDate;
     }).length;
 
     const clientFollowUpPending = leads.filter(l => {
-      if (l.status === 'Client Won' || !l.followUps) return false;
+      if (l.status === 'Client Won' || !l.followUps || !Array.isArray(l.followUps)) return false;
       return l.followUps.some((f: any) => {
+        if (!f || !f.date) return false;
         const fDate = new Date(f.date);
+        if (isNaN(fDate.getTime())) return false;
         fDate.setHours(0,0,0,0);
         return fDate <= todayDate;
       });
@@ -119,7 +121,9 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
   const thisMonthRevenue = useMemo(() => {
     const now = new Date();
     return jobs.filter(j => {
+      if (!j.createdAt) return false;
       const d = new Date(j.createdAt);
+      if (isNaN(d.getTime())) return false;
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
   }, [jobs]);
@@ -278,7 +282,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Financial Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <DetailedMetricCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={IndianRupee} bgClass="bg-emerald-100" colorClass="text-emerald-600" />
-          <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={CircleDollarSign} bgClass="bg-rose-100" colorClass="text-rose-600" />
+          <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={IndianRupee} bgClass="bg-rose-100" colorClass="text-rose-600" />
           <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-primary/10" colorClass="text-primary" subtext="6.3% vs last month" />
         </div>
       </div>
@@ -351,7 +355,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
 
         <div className="glass-panel rounded-2xl relative overflow-hidden">
           <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
-            <CircleDollarSign className="w-5 h-5 text-emerald-600" />
+            <IndianRupee className="w-5 h-5 text-emerald-600" />
             Invoice Revenue
           </div>
           <div className="p-5 h-[300px]">

@@ -3,10 +3,18 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 class ClientBase(BaseModel):
-    name: str
+    name: Optional[str] = None
+    contact: Optional[str] = None
     company: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    status: Optional[str] = "Onboarding"
+    trafficLight: Optional[str] = "Green"
+    advanceRequired: Optional[int] = 0
+    billingType: Optional[str] = "Monthly Billing"
+    workStartAllowed: Optional[bool] = True
+    deliveryAllowed: Optional[bool] = True
+    clientSince: Optional[str] = None
 
     @field_validator('phone')
     @classmethod
@@ -16,17 +24,23 @@ class ClientBase(BaseModel):
             if not re.match(pattern, v.strip()):
                 raise ValueError("Invalid phone number format")
         return v
-    status: Optional[str] = "Active"
 
 class ClientCreate(ClientBase):
     id: Optional[str] = None
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
+    contact: Optional[str] = None
     company: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     status: Optional[str] = None
+    trafficLight: Optional[str] = None
+    advanceRequired: Optional[int] = None
+    billingType: Optional[str] = None
+    workStartAllowed: Optional[bool] = None
+    deliveryAllowed: Optional[bool] = None
+    clientSince: Optional[str] = None
 
 class ClientOut(ClientBase):
     id: str

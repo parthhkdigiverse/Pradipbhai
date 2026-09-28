@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function VendorsPage() {
-  const { vendors, setVendors, currentUserRole, hasPermission } = useData();
+  const { vendors, setVendors, addVendor, updateVendor, deleteVendor, currentUserRole, hasPermission } = useData();
   const canManageVendors = hasPermission(currentUserRole, 'Manage Vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -62,23 +62,19 @@ export function VendorsPage() {
     setEditingVendorId(null);
   };
 
-  const handleSaveVendor = (e: React.FormEvent) => {
+  const handleSaveVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingVendorId) {
-      setVendors(prev => prev.map(v => v.id === editingVendorId ? { ...v, ...formData } : v));
+      await updateVendor(editingVendorId, formData);
     } else {
-      const newVendor = {
-        id: Math.random().toString(36).substr(2, 9),
-        ...formData
-      };
-      setVendors(prev => [...prev, newVendor]);
+      await addVendor(formData);
     }
     handleCloseModal();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this vendor?")) {
-      setVendors(prev => prev.filter(v => v.id !== id));
+      await deleteVendor(id);
     }
   };
 

@@ -42,7 +42,7 @@ const emptyForm = () => ({
 });
 
 export function LeaveManagementPage() {
-  const { staff, leaveRequests, setLeaveRequests, leaveBalances, setLeaveBalances, currentUserRole, currentUser, setAttendance, hasPermission } = useData();
+  const { staff, leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest, leaveBalances, setLeaveBalances, currentUserRole, currentUser, setAttendance, hasPermission, attendance, addAttendance } = useData();
 
   const canApply = hasPermission(currentUserRole, 'Apply Leave');
   const canApproveReject = hasPermission(currentUserRole, 'Approve/Reject Leaves');
@@ -103,11 +103,10 @@ export function LeaveManagementPage() {
     };
   }, [myLeaves]);
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!form.fromDate || !form.toDate || !form.reason.trim() || !currentStaff) return;
     const days = calcDays(form.fromDate, form.toDate);
-    const newReq: LeaveRequest = {
-      id: Math.random().toString(36).substr(2, 9),
+    await addLeaveRequest({
       staffId: currentStaff.id,
       staffName: currentStaff.name,
       type: form.type,
@@ -117,27 +116,23 @@ export function LeaveManagementPage() {
       reason: form.reason.trim(),
       status: 'Pending',
       appliedOn: new Date().toISOString().slice(0, 10),
-    };
-    setLeaveRequests(prev => [newReq, ...prev]);
+    });
     setForm(emptyForm());
     setShowApply(false);
   };
 
-  const handleCancel = (id: string) => {
-    setLeaveRequests(prev => prev.filter(r => r.id !== id));
+  const handleCancel = async (id: string) => {
+    await deleteLeaveRequest(id);
   };
 
-  const handleApprove = (req: LeaveRequest) => {
+  const handleApprove = async (req: LeaveRequest) => {
     // 1. Update leave status
-    setLeaveRequests(prev =>
-      prev.map(r => r.id === req.id ? {
-        ...r,
-        status: 'Approved',
-        reviewedBy: 'Admin',
-        reviewedOn: new Date().toISOString().slice(0, 10),
-        reviewNote: '',
-      } : r)
-    );
+    await updateLeaveRequest(req.id, {
+      status: 'Approved',
+      reviewedBy: 'Admin',
+      reviewedOn: new Date().toISOString().slice(0, 10),
+      reviewNote: '',
+    });
 
     // 2. Auto-create attendance records for each leave day (skip existing)
     const leaveDays: string[] = [];
@@ -147,40 +142,24 @@ export function LeaveManagementPage() {
       leaveDays.push(cursor.toISOString().slice(0, 10));
       cursor.setDate(cursor.getDate() + 1);
     }
-    setAttendance(prev => {
-      const existing = new Set(prev.filter(a => a.staffId === req.staffId).map(a => a.date));
-      const newRecords = leaveDays
-        .filter(d => !existing.has(d))
-        .map(d => ({
-          id: Math.random().toString(36).substr(2, 9),
-          staffId: req.staffId,
-          date: d,
-          status: 'Leave',
-          checkIn: '',
-          checkOut: '',
-        }));
-      return [...prev, ...newRecords];
-    });
+    const existing = new Set(attendance.filter((a: any) => a.staffId === req.staffId).map((a: any) => a.date));
+    for (const d of leaveDays) {
+      if (!existing.has(d)) {
+        await addAttendance({ staffId: req.staffId, date: d, status: 'Leave', checkIn: '', checkOut: '' });
+      }
+    }
 
-    // 3. Deduct from leave balance
-    setLeaveBalances(prev => prev.map(b => {
-      if (b.staffId !== req.staffId) return b;
-      const key = req.type.toLowerCase() as 'casual' | 'sick' | 'earned';
-      return { ...b, [key]: Math.max(0, b[key] - req.days) };
-    }));
+    
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectTarget) return;
-    setLeaveRequests(prev =>
-      prev.map(r => r.id === rejectTarget.id ? {
-        ...r,
-        status: 'Rejected',
-        reviewedBy: 'Admin',
-        reviewedOn: new Date().toISOString().slice(0, 10),
-        reviewNote: rejectNote.trim(),
-      } : r)
-    );
+    await updateLeaveRequest(rejectTarget.id, {
+      status: 'Rejected',
+      reviewedBy: 'Admin',
+      reviewedOn: new Date().toISOString().slice(0, 10),
+      reviewNote: rejectNote.trim(),
+    });
     setRejectTarget(null);
     setRejectNote('');
   };

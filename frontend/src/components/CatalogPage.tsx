@@ -355,6 +355,7 @@ export function CatalogPage() {
                       onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})}
                       className="w-1/2 px-2 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
+                      <option value="Minutes">Minutes</option>
                       <option value="Hours">Hours</option>
                       <option value="Days">Days</option>
                     </select>

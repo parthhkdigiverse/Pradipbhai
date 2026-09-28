@@ -126,25 +126,20 @@ export function AttendancePage() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [attendance, staff, searchTerm, historyStaffId, filterStatus, historyDateFrom, historyDateTo]);
 
-  const updateAttendance = (staffId: string, updates: any) => {
-    setAttendance(prev => {
-      const existingIdx = prev.findIndex(a => a.staffId === staffId && a.date === selectedDate);
-      if (existingIdx >= 0) {
-        const newArr = [...prev];
-        newArr[existingIdx] = { ...newArr[existingIdx], ...updates };
-        return newArr;
-      } else {
-        return [...prev, {
-          id: Math.random().toString(36).substr(2, 9),
-          staffId,
-          date: selectedDate,
-          status: 'Present',
-          checkIn: '',
-          checkOut: '',
-          ...updates
-        }];
-      }
-    });
+  const handleUpdateAttendance = async (staffId: string, updates: any) => {
+    const existing = attendance.find(a => a.staffId === staffId && a.date === selectedDate);
+    if (existing) {
+      await updateAttendance(existing.id, updates);
+    } else {
+      await addAttendance({
+        staffId,
+        date: selectedDate,
+        status: 'Present',
+        checkIn: '',
+        checkOut: '',
+        ...updates
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {

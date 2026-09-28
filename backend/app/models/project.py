@@ -15,4 +15,3 @@ class Project(Base):
 
     # Relationships
     client = relationship("Client", back_populates="projects")
-    jobs = relationship("Job", back_populates="project", cascade="all, delete-orphan")
