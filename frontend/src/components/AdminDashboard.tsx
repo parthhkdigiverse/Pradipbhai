@@ -52,7 +52,9 @@ function DetailedMetricCard({ title, value, icon: Icon, colorClass, bgClass, sub
 }
 
 export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: string) => void }) {
-  const { clients, jobs, invoices, leads, workLogs, setActiveFilterIntent } = useData();
+  const { clients, jobs, invoices, leads, workLogs, setActiveFilterIntent, currentUserRole } = useData();
+
+  const isEmployee = currentUserRole === 'Employee' || (!['Admin', 'Manager'].includes(currentUserRole || ''));
 
   const handleCardClick = (page: string, filterKey: string, filterValue: string) => {
     setActiveFilterIntent({ page, filterKey, filterValue });
@@ -278,14 +280,16 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       </div>
 
       {/* 1. Financial Overview */}
-      <div>
-        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Financial Overview</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DetailedMetricCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={IndianRupee} bgClass="bg-emerald-100" colorClass="text-emerald-600" />
-          <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={IndianRupee} bgClass="bg-rose-100" colorClass="text-rose-600" />
-          <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-primary/10" colorClass="text-primary" subtext="6.3% vs last month" />
+      {!isEmployee && (
+        <div>
+          <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Financial Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <DetailedMetricCard title="Total Revenue" value={formatCurrency(totalRevenue)} icon={IndianRupee} bgClass="bg-emerald-100" colorClass="text-emerald-600" />
+            <DetailedMetricCard title="Pending Payments" value={formatCurrency(pendingPayments)} icon={IndianRupee} bgClass="bg-rose-100" colorClass="text-rose-600" />
+            <DetailedMetricCard title="This Month Revenue" value={formatCurrency(thisMonthRevenue)} icon={TrendingUp} bgClass="bg-primary/10" colorClass="text-primary" subtext="6.3% vs last month" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 2. Overall Job Summary */}
       <div>
@@ -306,16 +310,18 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       </div>
 
       {/* 3. Printing Jobs Status */}
-      <div>
-        <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Printing Jobs Status Overview</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-primary/10" colorClass="text-primary" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
-          <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
-          <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
-          <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
-          <DetailedMetricCard title="Completed" value={printingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+      {!isEmployee && (
+        <div>
+          <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Printing Jobs Status Overview</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-primary/10" colorClass="text-primary" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
+            <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
+            <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
+            <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
+            <DetailedMetricCard title="Completed" value={printingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 4. Designing Jobs Status */}
       <div>
@@ -353,25 +359,27 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
           </div>
         </div>
 
-        <div className="glass-panel rounded-2xl relative overflow-hidden">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
-            <IndianRupee className="w-5 h-5 text-emerald-600" />
-            Invoice Revenue
+        {!isEmployee && (
+          <div className="glass-panel rounded-2xl relative overflow-hidden">
+            <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 flex items-center gap-2">
+              <IndianRupee className="w-5 h-5 text-emerald-600" />
+              Invoice Revenue
+            </div>
+            <div className="p-5 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={invoiceData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.6)" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12, fontWeight: 600 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} tickFormatter={(val) => `₹${val}`} />
+                  <Tooltip cursor={{fill: 'rgba(255,255,255,0.4)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: any) => [formatCurrency(Number(value) || 0), '']} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                  <Bar dataKey="Paid" fill="#10b981" radius={[4, 4, 0, 0]} barSize={60} />
+                  <Bar dataKey="Unpaid" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={60} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="p-5 h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={invoiceData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.6)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12, fontWeight: 600 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#4b5563', fontSize: 12 }} tickFormatter={(val) => `₹${val}`} />
-                <Tooltip cursor={{fill: 'rgba(255,255,255,0.4)'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: any) => [formatCurrency(Number(value) || 0), '']} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
-                <Bar dataKey="Paid" fill="#10b981" radius={[4, 4, 0, 0]} barSize={60} />
-                <Bar dataKey="Unpaid" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={60} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Quick Lists */}
@@ -417,37 +425,39 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
           </div>
         </div>
 
-        <div className="glass-panel rounded-2xl relative">
-          <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-500" />
-            Pending Invoices
-          </div>
-          <div className="p-2">
-            {pendingInvoices.length === 0 ? (
-              <div className="p-6 text-center text-gray-500 font-medium">No pending invoices found. Great job!</div>
-            ) : (
-              pendingInvoices.map((inv) => (
-                <div key={inv.id} className="p-3 hover:bg-white/40 rounded-xl transition-colors flex items-center justify-between border-b border-white/20 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
-                      <FileText className="w-5 h-5" />
+        {!isEmployee && (
+          <div className="glass-panel rounded-2xl relative">
+            <div className="p-5 border-b border-white/40 font-bold text-lg text-gray-800 bg-white/20 rounded-t-2xl flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-rose-500" />
+              Pending Invoices
+            </div>
+            <div className="p-2">
+              {pendingInvoices.length === 0 ? (
+                <div className="p-6 text-center text-gray-500 font-medium">No pending invoices found. Great job!</div>
+              ) : (
+                pendingInvoices.map((inv) => (
+                  <div key={inv.id} className="p-3 hover:bg-white/40 rounded-xl transition-colors flex items-center justify-between border-b border-white/20 last:border-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-gray-800">{inv.invoiceNumber}</span>
+                        <span className="text-xs text-gray-500 font-medium mt-0.5">{getClientName(inv.clientId)}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-sm text-gray-800">{inv.invoiceNumber}</span>
-                      <span className="text-xs text-gray-500 font-medium mt-0.5">{getClientName(inv.clientId)}</span>
+                    <div className="flex flex-col items-end">
+                      <span className="font-bold text-gray-800">{formatCurrency(inv.total)}</span>
+                      <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mt-1 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                        Due: {new Date(inv.dueDate).toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="font-bold text-gray-800">{formatCurrency(inv.total)}</span>
-                    <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider mt-1 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
-                      Due: {new Date(inv.dueDate).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
