@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'MMM DD, YYYY';
 export type TimeFormat = '12h' | '24h';
+export type PenaltyAction = 'warning' | 'deduction' | 'half_day';
 
 interface SettingsContextType {
   dateFormat: DateFormat;
@@ -27,6 +28,16 @@ interface SettingsContextType {
   setInactivityTimeoutEnabled: (val: boolean) => void;
   inactivityTimeoutMinutes: number;
   setInactivityTimeoutMinutes: (val: number) => void;
+  officeStartTime: string;
+  setOfficeStartTime: (val: string) => void;
+  lateBufferMinutes: number;
+  setLateBufferMinutes: (val: number) => void;
+  enableLatePenalty: boolean;
+  setEnableLatePenalty: (val: boolean) => void;
+  latePenaltyAction: PenaltyAction;
+  setLatePenaltyAction: (val: PenaltyAction) => void;
+  latePenaltyAmount: number;
+  setLatePenaltyAmount: (val: number) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -52,6 +63,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return saved !== null ? Number(saved) : 15;
   });
 
+  // Late Punch-In Penalty Settings (with localStorage persistence)
+  const [officeStartTime, setOfficeStartTime] = useState<string>(() => {
+    return localStorage.getItem('officeStartTime') || '09:00';
+  });
+  const [lateBufferMinutes, setLateBufferMinutes] = useState<number>(() => {
+    const saved = localStorage.getItem('lateBufferMinutes');
+    return saved !== null ? Number(saved) : 15;
+  });
+  const [enableLatePenalty, setEnableLatePenalty] = useState<boolean>(() => {
+    const saved = localStorage.getItem('enableLatePenalty');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [latePenaltyAction, setLatePenaltyAction] = useState<PenaltyAction>(() => {
+    return (localStorage.getItem('latePenaltyAction') as PenaltyAction) || 'warning';
+  });
+  const [latePenaltyAmount, setLatePenaltyAmount] = useState<number>(() => {
+    const saved = localStorage.getItem('latePenaltyAmount');
+    return saved !== null ? Number(saved) : 50;
+  });
+
   useEffect(() => {
     localStorage.setItem('inactivityTimeoutEnabled', String(inactivityTimeoutEnabled));
   }, [inactivityTimeoutEnabled]);
@@ -59,6 +90,26 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('inactivityTimeoutMinutes', String(inactivityTimeoutMinutes));
   }, [inactivityTimeoutMinutes]);
+
+  useEffect(() => {
+    localStorage.setItem('officeStartTime', officeStartTime);
+  }, [officeStartTime]);
+
+  useEffect(() => {
+    localStorage.setItem('lateBufferMinutes', String(lateBufferMinutes));
+  }, [lateBufferMinutes]);
+
+  useEffect(() => {
+    localStorage.setItem('enableLatePenalty', String(enableLatePenalty));
+  }, [enableLatePenalty]);
+
+  useEffect(() => {
+    localStorage.setItem('latePenaltyAction', latePenaltyAction);
+  }, [latePenaltyAction]);
+
+  useEffect(() => {
+    localStorage.setItem('latePenaltyAmount', String(latePenaltyAmount));
+  }, [latePenaltyAmount]);
 
   return (
     <SettingsContext.Provider value={{ 
@@ -72,7 +123,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       slackIntegration, setSlackIntegration,
       autoConvertLeads, setAutoConvertLeads,
       inactivityTimeoutEnabled, setInactivityTimeoutEnabled,
-      inactivityTimeoutMinutes, setInactivityTimeoutMinutes
+      inactivityTimeoutMinutes, setInactivityTimeoutMinutes,
+      officeStartTime, setOfficeStartTime,
+      lateBufferMinutes, setLateBufferMinutes,
+      enableLatePenalty, setEnableLatePenalty,
+      latePenaltyAction, setLatePenaltyAction,
+      latePenaltyAmount, setLatePenaltyAmount
     }}>
       {children}
     </SettingsContext.Provider>

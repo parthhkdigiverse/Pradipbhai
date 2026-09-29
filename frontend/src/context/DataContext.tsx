@@ -540,7 +540,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
             staffName: a.staff_name || a.staffName,
             checkIn: a.check_in || a.checkIn,
             checkOut: a.check_out || a.checkOut,
-            punches: cleanPunches
+            punches: cleanPunches,
+            isLate: a.is_late !== undefined ? a.is_late : a.isLate,
+            lateMinutes: a.late_minutes !== undefined ? a.late_minutes : a.lateMinutes,
+            penaltyAmount: a.penalty_amount !== undefined ? a.penalty_amount : a.penaltyAmount,
+            warningNote: a.warning_note || a.warningNote
           };
         }));
       }
@@ -836,7 +840,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addAttendance = async (attData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(attData) });
-      const mapped = { ...data, staffId: data.staff_id, staffName: data.staff_name, checkIn: data.check_in, checkOut: data.check_out };
+      const mapped = {
+        ...data,
+        staffId: data.staff_id || data.staffId,
+        staffName: data.staff_name || data.staffName,
+        checkIn: data.check_in || data.checkIn,
+        checkOut: data.check_out || data.checkOut,
+        isLate: data.is_late !== undefined ? data.is_late : (data.isLate || attData.isLate),
+        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes || attData.lateMinutes),
+        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount || attData.penaltyAmount),
+        warningNote: data.warning_note || data.warningNote || attData.warningNote
+      };
       setAttendance(prev => [mapped, ...prev]);
       return mapped;
     } catch {
@@ -848,7 +862,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateAttendance = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      const mapped = { ...data, staffId: data.staff_id, staffName: data.staff_name, checkIn: data.check_in, checkOut: data.check_out };
+      const mapped = {
+        ...data,
+        staffId: data.staff_id || data.staffId,
+        staffName: data.staff_name || data.staffName,
+        checkIn: data.check_in || data.checkIn,
+        checkOut: data.check_out || data.checkOut,
+        isLate: data.is_late !== undefined ? data.is_late : (data.isLate || updateData.isLate),
+        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes || updateData.lateMinutes),
+        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount || updateData.penaltyAmount),
+        warningNote: data.warning_note || data.warningNote || updateData.warningNote
+      };
       setAttendance(prev => prev.map(a => a.id === id ? mapped : a));
       return mapped;
     } catch {

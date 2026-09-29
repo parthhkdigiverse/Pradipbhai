@@ -107,6 +107,21 @@ async def init_db():
             except Exception as e:
                 pass
 
+        if "attendance" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("attendance")]
+            needed_att_cols = [
+                ("is_late", "BOOLEAN DEFAULT FALSE"),
+                ("late_minutes", "INT DEFAULT 0"),
+                ("penalty_amount", "FLOAT DEFAULT 0.0"),
+                ("warning_note", "VARCHAR(255) NULL")
+            ]
+            for col_name, col_type in needed_att_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE attendance ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for attendance.{col_name}: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
 

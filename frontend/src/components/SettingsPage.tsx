@@ -19,7 +19,12 @@ export function SettingsPage() {
     autoPunchOutHoursLimit, setAutoPunchOutHoursLimit,
     autoConvertLeads, setAutoConvertLeads,
     inactivityTimeoutEnabled, setInactivityTimeoutEnabled,
-    inactivityTimeoutMinutes, setInactivityTimeoutMinutes
+    inactivityTimeoutMinutes, setInactivityTimeoutMinutes,
+    officeStartTime, setOfficeStartTime,
+    lateBufferMinutes, setLateBufferMinutes,
+    enableLatePenalty, setEnableLatePenalty,
+    latePenaltyAction, setLatePenaltyAction,
+    latePenaltyAmount, setLatePenaltyAmount
   } = useSettings();
 
   const {
@@ -324,6 +329,99 @@ export function SettingsPage() {
                 Automatically punch out employees if they remain active for more than {autoPunchOutHoursLimit} consecutive hours.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* Late Punch-In Penalty System Card */}
+        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-primary/20 p-6 relative overflow-hidden h-fit">
+          <div className="flex items-center gap-3 mb-6">
+            <ShieldAlert className="w-6 h-6 text-amber-500" />
+            <h2 className="text-xl font-bold text-gray-800">Late Punch-In & Penalty</h2>
+          </div>
+
+          <div className="space-y-5">
+            <div className="flex items-center justify-between w-full">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only" 
+                    checked={enableLatePenalty}
+                    onChange={(e) => setEnableLatePenalty(e.target.checked)}
+                  />
+                  <div className={`block w-14 h-8 rounded-full transition-colors ${enableLatePenalty ? 'bg-amber-500' : 'bg-gray-300'}`}></div>
+                  <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${enableLatePenalty ? 'transform translate-x-6' : ''}`}></div>
+                </div>
+                <span className="text-sm font-semibold text-gray-700">
+                  Enable Penalty / Warning System
+                </span>
+              </label>
+            </div>
+
+            {enableLatePenalty && (
+              <div className="space-y-4 pt-2 border-t border-gray-200/60">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                      Office Start Time
+                    </label>
+                    <input 
+                      type="time" 
+                      value={officeStartTime}
+                      onChange={(e) => setOfficeStartTime(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                      Grace Buffer (min)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      max="120"
+                      value={lateBufferMinutes}
+                      onChange={(e) => setLateBufferMinutes(Math.max(0, Number(e.target.value)))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                    Late Action / Penalty Type
+                  </label>
+                  <select
+                    value={latePenaltyAction}
+                    onChange={(e) => setLatePenaltyAction(e.target.value as any)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  >
+                    <option value="warning">⚠️ Warning Alert Only</option>
+                    <option value="deduction">💰 Financial Deduction (₹)</option>
+                    <option value="half_day">⏳ Mark Attendance as Half Day</option>
+                  </select>
+                </div>
+
+                {latePenaltyAction === 'deduction' && (
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">
+                      Deduction Amount Per Late Punch-In (₹)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      value={latePenaltyAmount}
+                      onChange={(e) => setLatePenaltyAmount(Math.max(0, Number(e.target.value)))}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                    />
+                  </div>
+                )}
+
+                <p className="text-[11px] text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200/80 leading-relaxed font-medium">
+                  Staff punching in after <strong>{officeStartTime} + {lateBufferMinutes} mins buffer</strong> will receive an interactive late warning alert, and their attendance record will log the penalty.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

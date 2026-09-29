@@ -43,14 +43,18 @@ export function PayrollPage() {
       let daysAbsent = 0;
       let daysHalf = 0;
       let daysLeave = 0;
+      let latePenalties = 0;
 
-      const monthRecords = attendance.filter(a => a.staffId === emp.id && a.date.startsWith(selectedMonth));
+      const monthRecords = attendance.filter(a => (a.staffId || a.staff_id) === emp.id && a.date.startsWith(selectedMonth));
       
       monthRecords.forEach(r => {
         if (r.status === 'Present') daysPresent++;
         if (r.status === 'Absent') daysAbsent++;
         if (r.status === 'Half Day') daysHalf++;
         if (r.status === 'Leave') daysLeave++;
+        if (r.penaltyAmount || r.penalty_amount) {
+          latePenalties += (r.penaltyAmount || r.penalty_amount || 0);
+        }
       });
 
       // Working days = total calendar days minus holidays (holidays are paid days off)
@@ -58,9 +62,9 @@ export function PayrollPage() {
       const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
       const perDaySalary = emp.baseSalary / workingDays;
       
-      // Deduct full pay for Absent, half pay for Half Day. Leaves are considered paid.
-      const calculatedDeductions = Math.round((daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)));
-      const calculatedNet = emp.baseSalary - calculatedDeductions;
+      // Deduct full pay for Absent, half pay for Half Day, plus late punch-in penalties. Leaves are considered paid.
+      const calculatedDeductions = Math.round((daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties);
+      const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
 
       return {
         ...emp,

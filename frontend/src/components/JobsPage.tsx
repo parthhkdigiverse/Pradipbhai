@@ -1,11 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useSettings } from '../context/SettingsContext';
+import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function JobsPage() {
   const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, attendance, addAttendance, updateAttendance, hasPermission } = useData();
+  const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
@@ -241,6 +244,15 @@ export function JobsPage() {
       const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
       const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
+      const lateCalc = calculateLatePunchIn(
+        checkInStr,
+        officeStartTime,
+        lateBufferMinutes,
+        enableLatePenalty,
+        latePenaltyAction,
+        latePenaltyAmount
+      );
+
       const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
       if (existingRecord) {
         const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
@@ -252,19 +264,27 @@ export function JobsPage() {
           return p;
         });
         await updateAttendance(existingRecord.id, {
-          status: 'Present',
+          status: lateCalc.isLate && latePenaltyAction === 'half_day' ? 'Half Day' : (existingRecord.status || 'Present'),
           check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-          punches: [...closedPunches, { in: checkInStr, out: '' }]
+          punches: [...closedPunches, { in: checkInStr, out: '' }],
+          is_late: existingRecord.isLate || lateCalc.isLate,
+          late_minutes: existingRecord.lateMinutes || lateCalc.lateMinutes,
+          penalty_amount: (existingRecord.penaltyAmount || 0) + lateCalc.penaltyAmount,
+          warning_note: existingRecord.warningNote || lateCalc.warningNote
         });
       } else {
         await addAttendance({
           staff_id: loggedStaffId,
           staff_name: loggedStaffName,
           date: todayStr,
-          status: 'Present',
+          status: lateCalc.status || 'Present',
           check_in: checkInStr,
           check_out: '',
-          punches: [{ in: checkInStr, out: '' }]
+          punches: [{ in: checkInStr, out: '' }],
+          is_late: lateCalc.isLate,
+          late_minutes: lateCalc.lateMinutes,
+          penalty_amount: lateCalc.penaltyAmount,
+          warning_note: lateCalc.warningNote
         });
       }
     }

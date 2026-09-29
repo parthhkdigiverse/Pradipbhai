@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Calendar, Search, CheckCircle, Check, X, FilterX, ChevronDown, User, Clock, History } from 'lucide-react';
+import { Calendar, Search, CheckCircle, Check, X, FilterX, ChevronDown, User, Clock, History, AlertTriangle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -59,14 +59,18 @@ export function AttendancePage() {
   // Merge staff with attendance for the selected date (Daily Entry View)
   const dailyAttendance = useMemo(() => {
     return displayStaff.map(emp => {
-      const record = attendance.find(a => a.staffId === emp.id && a.date === selectedDate);
+      const record = attendance.find(a => (a.staffId || a.staff_id) === emp.id && a.date === selectedDate);
       return {
         ...emp,
         attendanceId: record?.id || null,
         status: record?.status || 'Unmarked',
-        checkIn: record?.checkIn || '',
-        checkOut: record?.checkOut || '',
-        punches: record?.punches || (record?.checkIn ? [{ in: record.checkIn, out: record.checkOut }] : [])
+        checkIn: record?.checkIn || record?.check_in || '',
+        checkOut: record?.checkOut || record?.check_out || '',
+        punches: record?.punches || (record?.checkIn ? [{ in: record.checkIn, out: record.checkOut }] : []),
+        isLate: record?.isLate || record?.is_late || false,
+        lateMinutes: record?.lateMinutes || record?.late_minutes || 0,
+        penaltyAmount: record?.penaltyAmount || record?.penalty_amount || 0,
+        warningNote: record?.warningNote || record?.warning_note || ''
       };
     }).filter(emp => {
       const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -77,12 +81,12 @@ export function AttendancePage() {
 
   // Employee-wise history calculation
   const employeeHistory = useMemo(() => {
-    if (!selectedStaffId) return { emp: null, records: [], summary: { Present: 0, Absent: 0, 'Half Day': 0, Leave: 0 } };
+    if (!selectedStaffId) return { emp: null, records: [], summary: { Present: 0, Absent: 0, 'Half Day': 0, Leave: 0, LateCount: 0, TotalPenalties: 0 } };
     const emp = staff.find(s => s.id === selectedStaffId);
     
     // Filter attendance for selected staff, year & month
     const empAttendance = attendance.filter(a => {
-      if (a.staffId !== selectedStaffId) return false;
+      if ((a.staffId || a.staff_id) !== selectedStaffId) return false;
       if (yearFilter && !a.date.startsWith(yearFilter)) return false;
       if (monthFilter && monthFilter !== 'All') {
         const parts = a.date.split('-');
@@ -92,10 +96,16 @@ export function AttendancePage() {
       return true;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const summary = { Present: 0, Absent: 0, 'Half Day': 0, Leave: 0 };
+    const summary = { Present: 0, Absent: 0, 'Half Day': 0, Leave: 0, LateCount: 0, TotalPenalties: 0 };
     empAttendance.forEach(a => {
       if (summary[a.status as keyof typeof summary] !== undefined) {
         summary[a.status as keyof typeof summary]++;
+      }
+      if (a.isLate || a.is_late || (a.lateMinutes && a.lateMinutes > 0)) {
+        summary.LateCount++;
+      }
+      if (a.penaltyAmount || a.penalty_amount) {
+        summary.TotalPenalties += (a.penaltyAmount || a.penalty_amount || 0);
       }
     });
 
@@ -406,21 +416,30 @@ export function AttendancePage() {
                           )}
                         </td>
                         <td className="py-4 px-6 text-center">
-                          <select 
-                            value={record.status}
-                            onChange={(e) => updateAttendance(record.id, { 
-                              status: e.target.value,
-                              ...(e.target.value === 'Absent' || e.target.value === 'Leave' ? { checkIn: '', checkOut: '' } : {})
-                            })}
-                            disabled={!isAdminOrManager}
-                            className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${getStatusBadge(record.status)} disabled:opacity-75 disabled:cursor-not-allowed`}
-                          >
-                            <option value="Unmarked">Unmarked</option>
-                            <option value="Present">Present</option>
-                            <option value="Half Day">Half Day</option>
-                            <option value="Leave">Leave</option>
-                            <option value="Absent">Absent</option>
-                          </select>
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <select 
+                              value={record.status}
+                              onChange={(e) => updateAttendance(record.id, { 
+                                status: e.target.value,
+                                ...(e.target.value === 'Absent' || e.target.value === 'Leave' ? { checkIn: '', checkOut: '' } : {})
+                              })}
+                              disabled={!isAdminOrManager}
+                              className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${getStatusBadge(record.status)} disabled:opacity-75 disabled:cursor-not-allowed`}
+                            >
+                              <option value="Unmarked">Unmarked</option>
+                              <option value="Present">Present</option>
+                              <option value="Half Day">Half Day</option>
+                              <option value="Leave">Leave</option>
+                              <option value="Absent">Absent</option>
+                            </select>
+
+                            {(record.isLate || record.lateMinutes > 0) && (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-sm" title={record.warningNote || 'Late Punch-In Warning'}>
+                                <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                Late ({record.lateMinutes || 0}m)
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-4 px-6 text-center">
                           {isAdminOrManager && (
@@ -520,7 +539,7 @@ export function AttendancePage() {
 
           {/* Employee Attendance Summary Cards */}
           {employeeHistory.emp && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
               <div className="glass-panel p-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 backdrop-blur-md">
                 <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Present Days</span>
                 <p className="text-2xl font-extrabold text-emerald-800 mt-1">{employeeHistory.summary.Present}</p>
@@ -536,6 +555,17 @@ export function AttendancePage() {
               <div className="glass-panel p-4 rounded-2xl border border-primary/20 bg-primary/5 backdrop-blur-md">
                 <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Leave Taken</span>
                 <p className="text-2xl font-extrabold text-primary mt-1">{employeeHistory.summary.Leave}</p>
+              </div>
+              <div className="glass-panel p-4 rounded-2xl border border-orange-200 bg-amber-50/70 backdrop-blur-md">
+                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-600" /> Late Punch-Ins
+                </span>
+                <p className="text-2xl font-extrabold text-amber-900 mt-1">{employeeHistory.summary.LateCount}</p>
+                {employeeHistory.summary.TotalPenalties > 0 && (
+                  <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                    ₹{employeeHistory.summary.TotalPenalties} Penalty Total
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -606,9 +636,17 @@ export function AttendancePage() {
                             )}
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
-                              {rec.status}
-                            </span>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
+                                {rec.status}
+                              </span>
+                              {(rec.isLate || rec.is_late || (rec.lateMinutes && rec.lateMinutes > 0)) && (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-sm" title={rec.warningNote || rec.warning_note || 'Late Punch-In Warning'}>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                  Late ({rec.lateMinutes || rec.late_minutes || 0}m)
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -700,9 +738,17 @@ export function AttendancePage() {
                             )}
                           </td>
                           <td className="py-4 px-6 text-center">
-                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
-                              {rec.status}
-                            </span>
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block ${getStatusBadge(rec.status)}`}>
+                                {rec.status}
+                              </span>
+                              {(rec.isLate || rec.is_late || (rec.lateMinutes && rec.lateMinutes > 0)) && (
+                                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-sm" title={rec.warningNote || rec.warning_note || 'Late Punch-In Warning'}>
+                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                  Late ({rec.lateMinutes || rec.late_minutes || 0}m)
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );

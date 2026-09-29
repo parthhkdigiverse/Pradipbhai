@@ -12,6 +12,10 @@ class AttendanceBase(BaseModel):
     status: Optional[str] = "Present"
     location: Optional[str] = None
     punches: Optional[Any] = None
+    is_late: Optional[bool] = False
+    late_minutes: Optional[int] = 0
+    penalty_amount: Optional[float] = 0.0
+    warning_note: Optional[str] = None
 
 class AttendanceCreate(AttendanceBase):
     id: Optional[str] = None
@@ -23,7 +27,12 @@ class AttendanceUpdate(BaseModel):
     overtime_hours: Optional[float] = None
     status: Optional[str] = None
     punches: Optional[Any] = None
+    is_late: Optional[bool] = None
+    late_minutes: Optional[int] = None
+    penalty_amount: Optional[float] = None
+    warning_note: Optional[str] = None
 
 class AttendanceOut(AttendanceBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
+

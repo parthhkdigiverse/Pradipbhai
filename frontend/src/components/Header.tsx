@@ -1,16 +1,20 @@
-import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft } from 'lucide-react';
+import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useSettings } from '../context/SettingsContext';
+import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission } = useData();
+  const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [lateWarningAlert, setLateWarningAlert] = useState<{ note: string; lateMins: number; penalty: number; action: string } | null>(null);
 
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
   const displayUserName = currentUser?.name || 'System Admin';
@@ -137,6 +141,25 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const todayStr = new Date(now).toISOString().split('T')[0];
     const checkInStr = new Date(now).toTimeString().slice(0, 5);
 
+    // Calculate late status
+    const lateCalc = calculateLatePunchIn(
+      checkInStr,
+      officeStartTime,
+      lateBufferMinutes,
+      enableLatePenalty,
+      latePenaltyAction,
+      latePenaltyAmount
+    );
+
+    if (lateCalc.isLate) {
+      setLateWarningAlert({
+        note: lateCalc.warningNote,
+        lateMins: lateCalc.lateMinutes,
+        penalty: lateCalc.penaltyAmount,
+        action: latePenaltyAction
+      });
+    }
+
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
     if (existingRecord) {
       const existingPunches = existingRecord.punches || [];
@@ -149,19 +172,27 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       });
       const newPunches = [...closedPunches, { in: checkInStr, out: '' }];
       await updateAttendance(existingRecord.id, {
-        status: 'Present',
+        status: lateCalc.isLate && latePenaltyAction === 'half_day' ? 'Half Day' : (existingRecord.status || 'Present'),
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-        punches: newPunches
+        punches: newPunches,
+        is_late: existingRecord.isLate || lateCalc.isLate,
+        late_minutes: existingRecord.lateMinutes || lateCalc.lateMinutes,
+        penalty_amount: (existingRecord.penaltyAmount || 0) + lateCalc.penaltyAmount,
+        warning_note: existingRecord.warningNote || lateCalc.warningNote
       });
     } else {
       await addAttendance({
         staff_id: loggedStaffId,
         staff_name: loggedStaffName,
         date: todayStr,
-        status: 'Present',
+        status: lateCalc.status || 'Present',
         check_in: checkInStr,
         check_out: '',
-        punches: [{ in: checkInStr, out: '' }]
+        punches: [{ in: checkInStr, out: '' }],
+        is_late: lateCalc.isLate,
+        late_minutes: lateCalc.lateMinutes,
+        penalty_amount: lateCalc.penaltyAmount,
+        warning_note: lateCalc.warningNote
       });
     }
   };
@@ -429,6 +460,46 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 {activeJobTracker ? 'Switch Duty' : 'Confirm Punch In'}
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Late Punch-In Penalty/Warning Modal */}
+      {lateWarningAlert && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-amber-200 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mb-4 shadow-inner">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            
+            <h3 className="text-xl font-bold text-gray-800 mb-1">⚠️ Late Punch-In Notice</h3>
+            <p className="text-xs text-amber-700 font-semibold mb-4 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60">
+              Office Hours Start: <strong>{officeStartTime}</strong> | Buffer Allowed: <strong>{lateBufferMinutes} mins</strong>
+            </p>
+
+            <div className="space-y-3 text-xs text-gray-600 bg-gray-50 p-3.5 rounded-xl border border-gray-100 mb-5">
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-500">Late Duration:</span>
+                <span className="font-bold text-amber-700">{lateWarningAlert.lateMins} minutes late</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-gray-500">Penalty Action:</span>
+                <span className="font-bold uppercase tracking-wider text-rose-600">
+                  {lateWarningAlert.action === 'deduction' ? `Deduction (₹${lateWarningAlert.penalty})` : lateWarningAlert.action === 'half_day' ? 'Half Day Marked' : 'Warning Alert'}
+                </span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 text-[11px] text-gray-500 italic">
+                "{lateWarningAlert.note}"
+              </div>
+            </div>
+
+            <button
+              onClick={() => setLateWarningAlert(null)}
+              className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+            >
+              Acknowledge & Continue
+            </button>
           </div>
         </div>,
         document.body
