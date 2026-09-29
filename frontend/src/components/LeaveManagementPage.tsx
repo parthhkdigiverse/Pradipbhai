@@ -44,7 +44,7 @@ const emptyForm = () => ({
 });
 
 export function LeaveManagementPage() {
-  const { staff, leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest, leaveBalances, setLeaveBalances, currentUserRole, currentUser, setAttendance, hasPermission, attendance, addAttendance } = useData();
+  const { staff, leaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest, leaveBalances, setLeaveBalances, currentUserRole, currentUser, hasPermission, attendance, addAttendance } = useData();
 
   const canApply = hasPermission(currentUserRole, 'Apply Leave');
   const canApproveReject = hasPermission(currentUserRole, 'Approve/Reject Leaves');

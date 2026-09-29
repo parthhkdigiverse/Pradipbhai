@@ -472,7 +472,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
       const fetchWithAuth = async (url: string) => {
         const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          if (res.status === 401 && isRealToken) {
+            localStorage.removeItem('authToken');
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
         return res.json();
       };
 
