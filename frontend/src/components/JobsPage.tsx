@@ -5,6 +5,7 @@ import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
+import { QuickAddProductModal } from './QuickAddProductModal';
 
 export function JobsPage() {
   const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, attendance, addAttendance, updateAttendance, hasPermission } = useData();
@@ -21,6 +22,10 @@ export function JobsPage() {
   // Quick Add Client Modal State
   const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
   const [quickClientName, setQuickClientName] = useState('');
+  
+  // Quick Add Product Modal State
+  const [isQuickProductModalOpen, setIsQuickProductModalOpen] = useState(false);
+  const [quickProductName, setQuickProductName] = useState('');
   
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -1037,7 +1042,16 @@ export function JobsPage() {
                   <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Product</label>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickProductName(''); setIsQuickProductModalOpen(true); }}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-600" /> Add Product
+                    </button>
+                  </div>
                   <SearchableSelect
                     value={formData.productId}
                     onChange={val => {
@@ -1079,6 +1093,11 @@ export function JobsPage() {
                         })
                     ]}
                     placeholder={`Search ${newJobType === 'Des+Print' ? '' : newJobType + ' '}products...`}
+                    onCreateOption={(query) => {
+                      setQuickProductName(query);
+                      setIsQuickProductModalOpen(true);
+                    }}
+                    createOptionLabel="Add Product"
                   />
                 </div>
               </div>
@@ -1372,6 +1391,27 @@ export function JobsPage() {
         onClientCreated={(newClient) => {
           setFormData(prev => ({ ...prev, clientId: newClient.id, projectId: '' }));
           setIsQuickClientModalOpen(false);
+        }}
+      />
+      {/* Quick Add Product Modal */}
+      <QuickAddProductModal
+        isOpen={isQuickProductModalOpen}
+        onClose={() => setIsQuickProductModalOpen(false)}
+        initialName={quickProductName}
+        initialType={newJobType === 'Des+Print' ? 'Designing' : newJobType}
+        onProductCreated={(newProd) => {
+          const autoPrice = (newProd && newProd.price !== undefined && newProd.price !== null && newProd.price !== '') ? String(newProd.price) : formData.totalAmount;
+          const autoTime = (newProd && (newProd.estimated_time || newProd.estimatedTime)) ? String(newProd.estimated_time || newProd.estimatedTime) : formData.estimatedTime;
+          const autoTimeUnit = (newProd && (newProd.estimated_time_unit || newProd.estimatedTimeUnit)) ? (newProd.estimated_time_unit || newProd.estimatedTimeUnit) : formData.estimatedTimeUnit;
+          
+          setFormData(prev => ({
+            ...prev,
+            productId: newProd.id,
+            totalAmount: autoPrice,
+            estimatedTime: autoTime,
+            estimatedTimeUnit: autoTimeUnit
+          }));
+          setIsQuickProductModalOpen(false);
         }}
       />
     </div>
