@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown, Clock } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, FilterX , ChevronDown, Clock, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -19,6 +19,7 @@ export function CatalogPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -43,6 +44,7 @@ export function CatalogPage() {
   const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleOpenModal = (product?: any) => {
+    setErrorMessage('');
     if (product) {
       setEditingId(product.id);
       setFormData({
@@ -67,27 +69,46 @@ export function CatalogPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) return;
+
+    // Check duplicate name + type in frontend
+    const isDuplicate = products.some(
+      p => p.id !== editingId && p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase() && p.type === formData.type
+    );
+
+    if (isDuplicate) {
+      setErrorMessage(`A product named "${trimmedName}" with category "${formData.type}" already exists.`);
+      return;
+    }
+
+    setErrorMessage('');
     const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : 0;
     const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0;
     const dataToSave = {
-      name: formData.name,
+      name: trimmedName,
       description: formData.description,
       type: formData.type,
       price: parsedPrice,
       estimated_time: parsedTime,
       estimated_time_unit: formData.estimatedTimeUnit
     };
-    if (editingId) {
-      updateProduct(editingId, dataToSave);
-    } else {
-      addProduct({
-        id: `prod-${Date.now()}`,
-        ...dataToSave
-      });
+
+    try {
+      if (editingId) {
+        await updateProduct(editingId, dataToSave);
+      } else {
+        await addProduct({
+          id: `prod-${Date.now()}`,
+          ...dataToSave
+        });
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save product.');
     }
-    setIsModalOpen(false);
   };
 
   const handleDelete = (id: string) => {
@@ -307,6 +328,12 @@ export function CatalogPage() {
               </button>
             </div>
             <form onSubmit={handleSave} className="p-6 space-y-4">
+              {errorMessage && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Name <span className="text-rose-500">*</span></label>
                 <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />

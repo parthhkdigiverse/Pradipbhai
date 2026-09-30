@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -47,6 +47,19 @@ async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Product ID already exists")
     
+    # Check duplicate name + type (case-insensitive name match)
+    duplicate = await db.execute(
+        select(Product).where(
+            func.lower(Product.name) == product.name.strip().lower(),
+            Product.type == product.type
+        )
+    )
+    if duplicate.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"A product named '{product.name.strip()}' with type '{product.type}' already exists."
+        )
+
     db_product = Product(**product.model_dump())
     db.add(db_product)
     await db.commit()
@@ -60,6 +73,23 @@ async def update_product(product_id: str, product_data: ProductUpdate, db: Async
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
     
+    new_name = product_data.name.strip() if product_data.name is not None else db_product.name
+    new_type = product_data.type if product_data.type is not None else db_product.type
+
+    # Check duplicate name + type for other products
+    duplicate = await db.execute(
+        select(Product).where(
+            Product.id != product_id,
+            func.lower(Product.name) == new_name.lower(),
+            Product.type == new_type
+        )
+    )
+    if duplicate.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail=f"A product named '{new_name}' with type '{new_type}' already exists."
+        )
+
     for key, value in product_data.model_dump(exclude_unset=True).items():
         setattr(db_product, key, value)
     

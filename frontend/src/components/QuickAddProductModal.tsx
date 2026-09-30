@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, PackagePlus, Tag, IndianRupee, Clock, FileText } from 'lucide-react';
+import { X, PackagePlus, Tag, IndianRupee, Clock, FileText, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 interface QuickAddProductModalProps {
@@ -17,7 +17,8 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   onClose,
   onProductCreated
 }) => {
-  const { addProduct } = useData();
+  const { products, addProduct } = useData();
+  const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -41,6 +42,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         estimatedTime: '',
         estimatedTimeUnit: 'Hours'
       });
+      setErrorMessage('');
     }
   }, [isOpen, initialName, initialType]);
 
@@ -48,19 +50,35 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) return;
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) return;
 
-    const newProduct = await addProduct({
-      name: formData.name.trim(),
-      description: formData.description.trim() || '-',
-      type: formData.type,
-      price: formData.price !== '' ? parseFloat(formData.price) : 0,
-      estimated_time: formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0,
-      estimated_time_unit: formData.estimatedTimeUnit || 'Hours'
-    });
+    // Check duplicate name + type in frontend
+    const isDuplicate = products.some(
+      p => p.name && p.name.trim().toLowerCase() === trimmedName.toLowerCase() && p.type === formData.type
+    );
 
-    onProductCreated(newProduct);
-    onClose();
+    if (isDuplicate) {
+      setErrorMessage(`A product named "${trimmedName}" with category "${formData.type}" already exists.`);
+      return;
+    }
+
+    setErrorMessage('');
+    try {
+      const newProduct = await addProduct({
+        name: trimmedName,
+        description: formData.description.trim() || '-',
+        type: formData.type,
+        price: formData.price !== '' ? parseFloat(formData.price) : 0,
+        estimated_time: formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0,
+        estimated_time_unit: formData.estimatedTimeUnit || 'Hours'
+      });
+
+      onProductCreated(newProduct);
+      onClose();
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to create product.');
+    }
   };
 
   return (
@@ -77,6 +95,12 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">
               Product Name <span className="text-rose-500">*</span>
