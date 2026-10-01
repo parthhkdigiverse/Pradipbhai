@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { User, Mail, Phone, MapPin, Building, Shield, Save, Bell, CreditCard, Clock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Building, Shield, Save, Clock } from 'lucide-react';
 
 export function ProfilePage() {
   const { workLogs, staff, currentUserRole } = useData();
@@ -127,42 +127,6 @@ export function ProfilePage() {
               </div>
             </div>
           </div>
-
-          {/* Notifications */}
-          <div className="glass-panel p-6 rounded-2xl">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <Bell className="w-5 h-5 text-orange-500" /> Notifications
-            </h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-700 text-sm">Email Alerts</p>
-                  <p className="text-xs text-gray-500">Daily summaries</p>
-                </div>
-                <div className="w-10 h-5 bg-primary rounded-full relative cursor-pointer shadow-inner">
-                  <div className="w-4 h-4 bg-white rounded-full absolute right-0.5 top-0.5 shadow-sm"></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-700 text-sm">Push Notifications</p>
-                  <p className="text-xs text-gray-500">Instant updates</p>
-                </div>
-                <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
-                  <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-700 text-sm">Marketing Emails</p>
-                  <p className="text-xs text-gray-500">News & Offers</p>
-                </div>
-                <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
-                  <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Stats & Meta */}
@@ -200,20 +164,6 @@ export function ProfilePage() {
                   <User className="w-6 h-6" />
                 </div>
               </div>
-            </div>
-          </div>
-
-          <div className="glass-panel p-6 rounded-2xl">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-              <CreditCard className="w-5 h-5 text-emerald-500" /> Billing Details
-            </h2>
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-sm font-semibold text-gray-700">Salary Account</p>
-                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded uppercase">Verified</span>
-              </div>
-              <p className="text-xs text-gray-500 font-mono">**** **** **** 4582</p>
-              <p className="text-xs text-gray-500 mt-1">Bank of America</p>
             </div>
           </div>
         </div>

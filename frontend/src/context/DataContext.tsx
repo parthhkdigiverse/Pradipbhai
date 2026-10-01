@@ -374,12 +374,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return role === 'Admin';
   };
 
+  const loadCache = (key: string, fallback: any = []) => {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const saveCache = (key: string, data: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {}
+  };
+
   const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>(null);
 
-  const [leads, setLeads] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>(() => loadCache('cached_leads'));
+  const [clients, setClients] = useState<any[]>(() => loadCache('cached_clients'));
+  const [products, setProducts] = useState<any[]>(() => loadCache('cached_products'));
+  const [staff, setStaff] = useState<any[]>(() => loadCache('cached_staff'));
 
   const currentUser = useMemo(() => {
     const email = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
@@ -399,16 +414,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       role: currentUserRole
     };
   }, [staff, currentUserRole]);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [payroll, setPayroll] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [attendance, setAttendance] = useState<any[]>(() => loadCache('cached_attendance'));
+  const [payroll, setPayroll] = useState<any[]>(() => loadCache('cached_payroll'));
+  const [vendors, setVendors] = useState<any[]>(() => loadCache('cached_vendors'));
+  const [jobs, setJobs] = useState<any[]>(() => loadCache('cached_jobs'));
+  const [invoices, setInvoices] = useState<any[]>(() => loadCache('cached_invoices'));
+  const [holidays, setHolidays] = useState<Holiday[]>(() => loadCache('cached_holidays'));
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => loadCache('cached_leave_requests'));
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
-  const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>([]);
+  const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>(() => loadCache('cached_daily_progress'));
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
@@ -432,7 +447,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
   };
   const activeJobTracker = activeJobTrackerState;
-  const [workLogs, setWorkLogs] = useState<any[]>([]);
+  const [workLogs, setWorkLogs] = useState<any[]>(() => loadCache('cached_worklogs'));
 
   const { autoConvertLeads } = useSettings();
 
@@ -499,15 +514,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) {
-        setClients(clientsRes.value.map((c: any) => ({
+        const formatted = clientsRes.value.map((c: any) => ({
           ...c,
           contact: c.contact || c.name || '',
           clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
           projects: c.projects || []
-        })));
+        }));
+        setClients(formatted);
+        saveCache('cached_clients', formatted);
       }
       if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
-        setJobs(jobsRes.value.map((j: any) => ({
+        const formatted = jobsRes.value.map((j: any) => ({
           ...j,
           clientId: j.clientId || j.client_id || '',
           projectId: j.projectId || j.project_id || '',
@@ -518,15 +535,32 @@ export function DataProvider({ children }: { children: ReactNode }) {
           status: j.status || 'Pending',
           title: j.title || 'Untitled Job',
           type: j.type || 'Designing'
-        })));
+        }));
+        setJobs(formatted);
+        saveCache('cached_jobs', formatted);
       }
-      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) setInvoices(invoicesRes.value);
-      if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
-      if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) setDailyProgressRecords(progressRes.value);
-      if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
-      if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
+      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) {
+        setInvoices(invoicesRes.value);
+        saveCache('cached_invoices', invoicesRes.value);
+      }
+      if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) {
+        setPayroll(payrollRes.value);
+        saveCache('cached_payroll', payrollRes.value);
+      }
+      if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) {
+        setDailyProgressRecords(progressRes.value);
+        saveCache('cached_daily_progress', progressRes.value);
+      }
+      if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) {
+        setLeads(leadsRes.value);
+        saveCache('cached_leads', leadsRes.value);
+      }
+      if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) {
+        setStaff(staffRes.value);
+        saveCache('cached_staff', staffRes.value);
+      }
       if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {
-        setAttendance(attRes.value.map((a: any) => {
+        const formatted = attRes.value.map((a: any) => {
           const rawPunches = a.punches || (a.check_in || a.checkIn ? [{ in: a.check_in || a.checkIn, out: a.check_out || a.checkOut }] : []);
           const cleanPunches = Array.isArray(rawPunches) ? rawPunches.map((p: any, idx: number) => {
             if (!p.out && idx < rawPunches.length - 1) {
@@ -543,15 +577,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
             punches: cleanPunches,
             isLate: a.is_late !== undefined ? a.is_late : a.isLate,
             lateMinutes: a.late_minutes !== undefined ? a.late_minutes : a.lateMinutes,
-            penaltyAmount: a.penalty_amount !== undefined ? a.penalty_amount : a.penaltyAmount,
+            penaltyAmount: a.penalty_amount !== undefined ? a.penaltyAmount : a.penaltyAmount,
             warningNote: a.warning_note || a.warningNote
           };
-        }));
+        });
+        setAttendance(formatted);
+        saveCache('cached_attendance', formatted);
       }
-      if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
-      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
+      if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) {
+        setHolidays(holRes.value);
+        saveCache('cached_holidays', holRes.value);
+      }
+      if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
+        setProducts(prodRes.value);
+        saveCache('cached_products', prodRes.value);
+      }
       if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
-        setLeaveRequests(leaveRes.value.map((l: any) => ({
+        const formatted = leaveRes.value.map((l: any) => ({
           ...l,
           staffId: l.staff_id || l.staffId,
           staffName: l.staff_name || l.staffName,
@@ -561,19 +603,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
           reviewedBy: l.reviewed_by || l.reviewedBy,
           reviewNote: l.review_note || l.reviewNote,
           reviewedOn: l.reviewed_on || l.reviewedOn
-        })));
+        }));
+        setLeaveRequests(formatted);
+        saveCache('cached_leave_requests', formatted);
       }
       if (workRes.status === 'fulfilled' && Array.isArray(workRes.value)) {
-        setWorkLogs(workRes.value.map((w: any) => ({
+        const formatted = workRes.value.map((w: any) => ({
           ...w,
           userName: w.staff_name || w.userName,
           jobId: w.job_id || w.jobId,
           jobTitle: w.job_title || w.jobTitle,
           startTime: w.start_time || w.startTime,
           endTime: w.end_time || w.endTime
-        })));
+        }));
+        setWorkLogs(formatted);
+        saveCache('cached_worklogs', formatted);
       }
-      if (venRes.status === 'fulfilled' && Array.isArray(venRes.value)) setVendors(venRes.value);
+      if (venRes.status === 'fulfilled' && Array.isArray(venRes.value)) {
+        setVendors(venRes.value);
+        saveCache('cached_vendors', venRes.value);
+      }
       if (permRes.status === 'fulfilled' && permRes.value && typeof permRes.value === 'object') {
         setRolePermissions(permRes.value);
         localStorage.setItem('rolePermissions', JSON.stringify(permRes.value));
