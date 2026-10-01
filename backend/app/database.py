@@ -195,6 +195,68 @@ async def init_db():
                 h3 = models.Holiday(id="hol-003", date="2026-12-25", name="Christmas Day", type="National")
                 session.add_all([h1, h2, h3])
 
+            # Check if Jobs exist
+            job_result = await session.execute(select(models.Job))
+            if not job_result.scalars().first():
+                j1 = models.Job(
+                    id="JOB-2026-001",
+                    title="Brand Identity & Logo Design",
+                    description="Complete brand identity guidelines, logo vectors, and social media kit",
+                    type="Designing",
+                    clientId="client-001",
+                    teamId="emp-001",
+                    dueDate="2026-10-15",
+                    totalAmount=15000.0,
+                    paidAmount=5000.0,
+                    status="In Progress",
+                    paymentStatus="Partially Paid",
+                    estimatedTime=20.0,
+                    estimatedTimeUnit="Hours",
+                    trackedTime=8.5,
+                    createdBy="Admin",
+                    createdAt="2026-10-01"
+                )
+                j2 = models.Job(
+                    id="JOB-2026-002",
+                    title="Corporate Brochure Printing",
+                    description="1000 copies of 16-page glossy corporate brochure",
+                    type="Printing",
+                    clientId="client-002",
+                    teamId="emp-002",
+                    dueDate="2026-10-20",
+                    totalAmount=8500.0,
+                    paidAmount=0.0,
+                    status="Pending",
+                    paymentStatus="Unpaid",
+                    estimatedTime=15.0,
+                    estimatedTimeUnit="Hours",
+                    trackedTime=0.0,
+                    createdBy="Admin",
+                    createdAt="2026-10-01"
+                )
+                j3 = models.Job(
+                    id="JOB-2026-003",
+                    title="Website Redesign & UI Assets",
+                    description="Full responsive website redesign and promotional banner graphics",
+                    type="Des+Print",
+                    clientId="client-001",
+                    teamId="emp-admin",
+                    dueDate="2026-09-28",
+                    totalAmount=35000.0,
+                    paidAmount=35000.0,
+                    status="Completed",
+                    paymentStatus="Paid",
+                    vendorEmailSent=True,
+                    workLink="https://alphacreative.com/preview",
+                    workLocation="Google Drive / Assets",
+                    estimatedTime=40.0,
+                    estimatedTimeUnit="Hours",
+                    trackedTime=38.0,
+                    createdBy="Admin",
+                    createdAt="2026-09-15"
+                )
+                session.add_all([j1, j2, j3])
+
             await session.commit()
         except Exception as e:
             print(f"⚠️ Database seed notice: {e}")
