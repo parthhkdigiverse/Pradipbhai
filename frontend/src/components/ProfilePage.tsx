@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
-import { User, Mail, Phone, MapPin, Building, Shield, Save, Key, Bell, CreditCard, Clock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Building, Shield, Save, Bell, CreditCard, Clock } from 'lucide-react';
 
 export function ProfilePage() {
   const { workLogs, staff, currentUserRole } = useData();
@@ -128,59 +128,37 @@ export function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Password / Security */}
-            <div className="glass-panel p-6 rounded-2xl">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                <Key className="w-5 h-5 text-purple-500" /> Security
-              </h2>
-              <div className="space-y-4">
+          {/* Notifications */}
+          <div className="glass-panel p-6 rounded-2xl">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+              <Bell className="w-5 h-5 text-orange-500" /> Notifications
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Current Password</label>
-                  <input type="password" placeholder="••••••••" className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm focus:outline-none" />
+                  <p className="font-semibold text-gray-700 text-sm">Email Alerts</p>
+                  <p className="text-xs text-gray-500">Daily summaries</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">New Password</label>
-                  <input type="password" placeholder="Leave blank to keep same" className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm focus:outline-none" />
+                <div className="w-10 h-5 bg-primary rounded-full relative cursor-pointer shadow-inner">
+                  <div className="w-4 h-4 bg-white rounded-full absolute right-0.5 top-0.5 shadow-sm"></div>
                 </div>
-                <button className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg transition-colors text-sm">
-                  Update Password
-                </button>
               </div>
-            </div>
-
-            {/* Notifications */}
-            <div className="glass-panel p-6 rounded-2xl">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                <Bell className="w-5 h-5 text-orange-500" /> Notifications
-              </h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Email Alerts</p>
-                    <p className="text-xs text-gray-500">Daily summaries</p>
-                  </div>
-                  <div className="w-10 h-5 bg-primary rounded-full relative cursor-pointer shadow-inner">
-                    <div className="w-4 h-4 bg-white rounded-full absolute right-0.5 top-0.5 shadow-sm"></div>
-                  </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-gray-700 text-sm">Push Notifications</p>
+                  <p className="text-xs text-gray-500">Instant updates</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Push Notifications</p>
-                    <p className="text-xs text-gray-500">Instant updates</p>
-                  </div>
-                  <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
-                    <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
-                  </div>
+                <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
+                  <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">Marketing Emails</p>
-                    <p className="text-xs text-gray-500">News & Offers</p>
-                  </div>
-                  <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
-                    <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
-                  </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-gray-700 text-sm">Marketing Emails</p>
+                  <p className="text-xs text-gray-500">News & Offers</p>
+                </div>
+                <div className="w-10 h-5 bg-gray-200 rounded-full relative cursor-pointer shadow-inner">
+                  <div className="w-4 h-4 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm"></div>
                 </div>
               </div>
             </div>
