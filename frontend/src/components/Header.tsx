@@ -141,29 +141,11 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const todayStr = new Date(now).toISOString().split('T')[0];
     const checkInStr = new Date(now).toTimeString().slice(0, 5);
 
-    // Calculate late status
-    const lateCalc = calculateLatePunchIn(
-      checkInStr,
-      officeStartTime,
-      lateBufferMinutes,
-      enableLatePenalty,
-      latePenaltyAction,
-      latePenaltyAmount
-    );
-
-    if (lateCalc.isLate) {
-      setLateWarningAlert({
-        note: lateCalc.warningNote,
-        lateMins: lateCalc.lateMinutes,
-        penalty: lateCalc.penaltyAmount,
-        action: latePenaltyAction
-      });
-    }
-
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
     if (existingRecord) {
+      // Subsequent punch-in of the day: keep first punch-in's late status and penalties
       const existingPunches = existingRecord.punches || [];
-      // Auto-turn off / close any previous active sessions using checkInStr
       const closedPunches = existingPunches.map((p: any) => {
         if (!p.out) {
           return { ...p, out: checkInStr };
@@ -172,15 +154,34 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       });
       const newPunches = [...closedPunches, { in: checkInStr, out: '' }];
       await updateAttendance(existingRecord.id, {
-        status: lateCalc.isLate && latePenaltyAction === 'half_day' ? 'Half Day' : (existingRecord.status || 'Present'),
+        status: existingRecord.status || 'Present',
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
         punches: newPunches,
-        is_late: existingRecord.isLate || lateCalc.isLate,
-        late_minutes: existingRecord.lateMinutes || lateCalc.lateMinutes,
-        penalty_amount: (existingRecord.penaltyAmount || 0) + lateCalc.penaltyAmount,
-        warning_note: existingRecord.warningNote || lateCalc.warningNote
+        is_late: existingRecord.isLate || existingRecord.is_late || false,
+        late_minutes: existingRecord.lateMinutes || existingRecord.late_minutes || 0,
+        penalty_amount: existingRecord.penaltyAmount || existingRecord.penalty_amount || 0,
+        warning_note: existingRecord.warningNote || existingRecord.warning_note || ''
       });
     } else {
+      // First punch-in of the day: calculate late status
+      const lateCalc = calculateLatePunchIn(
+        checkInStr,
+        officeStartTime,
+        lateBufferMinutes,
+        enableLatePenalty,
+        latePenaltyAction,
+        latePenaltyAmount
+      );
+
+      if (lateCalc.isLate) {
+        setLateWarningAlert({
+          note: lateCalc.warningNote,
+          lateMins: lateCalc.lateMinutes,
+          penalty: lateCalc.penaltyAmount,
+          action: latePenaltyAction
+        });
+      }
+
       await addAttendance({
         staff_id: loggedStaffId,
         staff_name: loggedStaffName,

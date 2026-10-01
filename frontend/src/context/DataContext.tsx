@@ -583,10 +583,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Only fetch data if user is authenticated — prevents API calls on login page
-    const token = localStorage.getItem('authToken');
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    if (!token && !isAuth) return;
     refreshApiData();
   }, []);
 

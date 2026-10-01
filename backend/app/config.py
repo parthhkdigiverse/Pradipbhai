@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "alpha_creative_secret_key_2026"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
     ENVIRONMENT: str = "development"
     ALLOWED_ORIGINS: str = "*"
 

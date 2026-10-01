@@ -249,19 +249,11 @@ export function JobsPage() {
       const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
       const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-      const lateCalc = calculateLatePunchIn(
-        checkInStr,
-        officeStartTime,
-        lateBufferMinutes,
-        enableLatePenalty,
-        latePenaltyAction,
-        latePenaltyAmount
-      );
-
       const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
       if (existingRecord) {
+        // Subsequent punch-in of the day: keep first punch-in's late status and penalties
         const existingPunches = existingRecord.punches || (existingRecord.checkIn ? [{ in: existingRecord.checkIn, out: existingRecord.checkOut }] : []);
-        // Auto-close any previous active punch sessions using checkInStr
         const closedPunches = existingPunches.map((p: any) => {
           if (!p.out) {
             return { ...p, out: checkInStr };
@@ -269,15 +261,25 @@ export function JobsPage() {
           return p;
         });
         await updateAttendance(existingRecord.id, {
-          status: lateCalc.isLate && latePenaltyAction === 'half_day' ? 'Half Day' : (existingRecord.status || 'Present'),
+          status: existingRecord.status || 'Present',
           check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
           punches: [...closedPunches, { in: checkInStr, out: '' }],
-          is_late: existingRecord.isLate || lateCalc.isLate,
-          late_minutes: existingRecord.lateMinutes || lateCalc.lateMinutes,
-          penalty_amount: (existingRecord.penaltyAmount || 0) + lateCalc.penaltyAmount,
-          warning_note: existingRecord.warningNote || lateCalc.warningNote
+          is_late: existingRecord.isLate || existingRecord.is_late || false,
+          late_minutes: existingRecord.lateMinutes || existingRecord.late_minutes || 0,
+          penalty_amount: existingRecord.penaltyAmount || existingRecord.penalty_amount || 0,
+          warning_note: existingRecord.warningNote || existingRecord.warning_note || ''
         });
       } else {
+        // First punch-in of the day: calculate late status
+        const lateCalc = calculateLatePunchIn(
+          checkInStr,
+          officeStartTime,
+          lateBufferMinutes,
+          enableLatePenalty,
+          latePenaltyAction,
+          latePenaltyAmount
+        );
+
         await addAttendance({
           staff_id: loggedStaffId,
           staff_name: loggedStaffName,
@@ -866,9 +868,32 @@ export function JobsPage() {
               ) : (
                 <tr>
                   <td colSpan={11} className="py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center justify-center">
-                      <Briefcase className="w-12 h-12 text-gray-300 mb-4" />
-                      <p>No jobs found.</p>
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <Briefcase className="w-12 h-12 text-gray-300" />
+                      {jobs.length > 0 ? (
+                        <>
+                          <p className="font-semibold text-gray-700">No jobs match your current filter criteria.</p>
+                          <p className="text-xs text-gray-400">There are {jobs.length} total job(s) stored in the database.</p>
+                          <button
+                            onClick={() => {
+                              setSearchTerm('');
+                              setFilterStatus('All');
+                              setFilterClient('All');
+                              setFilterStaff('All');
+                              setFilterProduct('All');
+                              setFilterBilling('All');
+                              setFilterType('All');
+                              setFilterDateFrom('');
+                              setFilterDateTo('');
+                            }}
+                            className="px-4 py-1.5 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
+                          >
+                            Reset All Filters
+                          </button>
+                        </>
+                      ) : (
+                        <p className="font-medium text-gray-500">No jobs found in the system. Click "Add New Job" to create one.</p>
+                      )}
                     </div>
                   </td>
                 </tr>
