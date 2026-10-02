@@ -28,15 +28,7 @@ logger = logging.getLogger(__name__)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
-    pool_recycle=60,        # ← was 300; must be < Hostinger's wait_timeout
-    pool_pre_ping=True,
-    pool_timeout=30,
-    # Tell MySQL to keep connections alive for 55 s max (< pool_recycle=60).
-    # This prevents the server from closing a socket that the pool still
-    # holds, which is the root cause of the "TCPTransport handler is closed"
-    # RuntimeError on Hostinger shared hosting.
+    poolclass=NullPool,
     connect_args={"init_command": "SET SESSION wait_timeout=55"},
 )
 
