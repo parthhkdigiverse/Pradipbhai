@@ -434,9 +434,22 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                   <option value="activity-outdoor-visit">🚗 Client Visit / Outdoor Duty</option>
                 </optgroup>
                 <optgroup label="📋 Assigned In-Office Jobs">
-                  {jobs.filter(j => j.status !== 'Done' && j.id !== activeJobTracker?.jobId).map(job => (
-                    <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
-                  ))}
+                  {jobs
+                    .filter(j => j.status !== 'Done' && j.id !== activeJobTracker?.jobId)
+                    .filter(j => {
+                      if (currentUserRole === 'Admin' || currentUserRole === 'Manager') return true;
+                      const staffId = currentUser?.id || staff.find(s => s.email?.toLowerCase() === (currentUser?.email || '').toLowerCase())?.id;
+                      const staffName = currentUser?.name || staff.find(s => s.id === staffId)?.name || '';
+                      return (
+                        (staffId && (j.teamId === staffId || j.assignedStaffId === staffId || j.assigned_staff_id === staffId)) ||
+                        (staffName && j.createdBy && j.createdBy.toLowerCase() === staffName.toLowerCase()) ||
+                        (currentUser?.email && j.assignedStaffEmail && j.assignedStaffEmail.toLowerCase() === currentUser.email.toLowerCase())
+                      );
+                    })
+                    .map(job => (
+                      <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
+                    ))
+                  }
                 </optgroup>
               </select>
               

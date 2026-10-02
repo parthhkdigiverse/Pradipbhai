@@ -110,8 +110,22 @@ export function JobsPage() {
     };
   };
 
+  const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
+  const currentStaffId = currentUser?.id || staff.find(s => s.email?.toLowerCase() === (currentUser?.email || '').toLowerCase())?.id;
+  const currentStaffName = currentUser?.name || staff.find(s => s.id === currentStaffId)?.name || '';
+
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
+      // Employees only see jobs assigned to them or created by them
+      if (isEmployee) {
+        const isAssigned = (
+          (currentStaffId && (job.teamId === currentStaffId || job.assignedStaffId === currentStaffId || job.assigned_staff_id === currentStaffId)) ||
+          (currentStaffName && job.createdBy && job.createdBy.toLowerCase() === currentStaffName.toLowerCase()) ||
+          (currentUser?.email && job.assignedStaffEmail && job.assignedStaffEmail.toLowerCase() === currentUser.email.toLowerCase())
+        );
+        if (!isAssigned) return false;
+      }
+
       const sLower = searchTerm.toLowerCase();
       const clientName = clients.find(c => c.id === job.clientId)?.company || '';
       const staffName = staff.find(s => s.id === job.teamId)?.name || '';
@@ -141,7 +155,7 @@ export function JobsPage() {
       
       return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDateFrom && matchDateTo;
     });
-  }, [jobs, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo]);
+  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo]);
 
   const totalFilteredJobAmount = useMemo(() => {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
