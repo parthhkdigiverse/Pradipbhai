@@ -1,22 +1,49 @@
 from typing import AsyncGenerator
-from sqlalchemy import inspect, text, select
+from sqlalchemy import inspect, text, select, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 from app.config import settings
+import logging
 
-# Create async engine for MySQL via aiomysql
-# Using QueuePool with pool_recycle and pool_pre_ping:
-# Prevents creating a new TCP connection on every single request,
-# avoiding Hostinger's max_connections_per_hour (500) limit while
-# automatically refreshing stale connections.
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Engine configuration
+# ---------------------------------------------------------------------------
+# On shared hosting (Hostinger etc.), the MySQL server aggressively closes
+# idle connections (often <60 s).  pool_pre_ping alone isn't enough because
+# aiomysql's ping() itself errors when the underlying TCP socket is already
+# half-closed – producing the "RuntimeError: unable to perform operation on
+# <TCPTransport>; the handler is closed" cascade that kills every endpoint.
+#
+# Strategy chosen: keep a *small* pool that gets recycled very aggressively.
+#   pool_size=5        – never hold more than 5 live sockets
+#   max_overflow=10    – burst headroom
+#   pool_recycle=60    – recycle connections every 60 s (before the server
+#                        kills them at ~120 s on Hostinger free tier)
+#   pool_pre_ping=True – still useful for non-TCP-closed staleness
+#   pool_timeout=30    – don't wait forever for a slot
+# ---------------------------------------------------------------------------
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=300,
-    pool_pre_ping=True
+    poolclass=NullPool,
+    connect_args={"init_command": "SET SESSION wait_timeout=55"},
 )
+
+# ---------------------------------------------------------------------------
+# Reconnect-on-error: invalidate the connection so the pool discards it and
+# checks out a fresh one on the next request.
+# ---------------------------------------------------------------------------
+@event.listens_for(engine.sync_engine, "handle_error")
+def handle_db_error(context):
+    """Invalidate connections that raise OperationalError (lost connection)."""
+    from sqlalchemy.exc import OperationalError, DBAPIError
+    if context.is_disconnect or isinstance(context.original_exception, (OperationalError, DBAPIError)):
+        logger.warning("DB connection error detected – invalidating connection: %s", context.original_exception)
+        if context.connection:
+            context.connection.invalidate()
 
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -27,17 +54,30 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False
 )
 
+
 # Base ORM model class
 class Base(DeclarativeBase):
     pass
 
 # Dependency for FastAPI endpoints
+# Retries once on disconnect errors (stale pool connections on Hostinger).
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    from sqlalchemy.exc import OperationalError, DBAPIError
+    for attempt in range(2):
+        session = AsyncSessionLocal()
         try:
             yield session
+            return
+        except (OperationalError, DBAPIError) as exc:
+            await session.rollback()
+            await session.close()
+            if attempt == 0 and getattr(exc, "connection_invalidated", False):
+                logger.warning("Stale DB connection – retrying with fresh connection (attempt %d)", attempt + 1)
+                continue
+            raise
         finally:
             await session.close()
+
 
 # Safe database initialization (Creates missing tables, columns & initial seed data)
 async def init_db():

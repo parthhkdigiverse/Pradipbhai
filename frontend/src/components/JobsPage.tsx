@@ -515,10 +515,12 @@ export function JobsPage() {
             Filter Jobs
           </h3>
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
-              <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
-            </div>
+            {currentUserRole !== 'Employee' && (
+              <div className="text-right">
+                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
+                <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
+              </div>
+            )}
             {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterStaff !== 'All' || filterProduct !== 'All' || filterBilling !== 'All' || filterType !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
               <button 
                 onClick={(e) => { e.stopPropagation(); resetFilters(); }}
@@ -581,18 +583,20 @@ export function JobsPage() {
               ]}
             />
           </div>
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
-            <SearchableSelect
-              value={filterBilling}
-              onChange={setFilterBilling}
-              options={[
-                { value: 'All', label: 'All' },
-                { value: 'Paid', label: 'Paid' },
-                { value: 'Unpaid', label: 'Unpaid' }
-              ]}
-            />
-          </div>
+          {currentUserRole !== 'Employee' && (
+            <div>
+              <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
+              <SearchableSelect
+                value={filterBilling}
+                onChange={setFilterBilling}
+                options={[
+                  { value: 'All', label: 'All' },
+                  { value: 'Paid', label: 'Paid' },
+                  { value: 'Unpaid', label: 'Unpaid' }
+                ]}
+              />
+            </div>
+          )}
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Job Type</label>
             <SearchableSelect
@@ -646,7 +650,9 @@ export function JobsPage() {
                 <th className="py-4 px-6">Team</th>
                 <th className="py-4 px-6">Due Date</th>
                 <th className="py-4 px-6 text-center">Time</th>
-                <th className="py-4 px-6 text-center">Payment</th>
+                {currentUserRole !== 'Employee' && (
+                  <th className="py-4 px-6 text-center">Payment</th>
+                )}
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
@@ -813,13 +819,15 @@ export function JobsPage() {
                         );
                       })()}
                     </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
-                        job.paymentStatus === 'Paid' ? 'bg-emerald-500' : 'bg-rose-500'
-                      }`}>
-                        {job.paymentStatus}
-                      </span>
-                    </td>
+                    {currentUserRole !== 'Employee' && (
+                      <td className="py-4 px-6 text-center">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
+                          job.paymentStatus === 'Paid' ? 'bg-emerald-500' : 'bg-rose-500'
+                        }`}>
+                          {job.paymentStatus}
+                        </span>
+                      </td>
+                    )}
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-1.5 transition-opacity">
                         {activeJobTracker?.jobId === job.id ? (
@@ -1216,16 +1224,18 @@ export function JobsPage() {
               )}
 
               {/* Amounts */}
-              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Total Amount (₹)</label>
-                  <input type="number" min="0" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 font-bold" />
+              {currentUserRole !== 'Employee' && (
+                <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Total Amount (₹)</label>
+                    <input type="number" min="0" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 font-bold" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Paid Amount (₹)</label>
+                    <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Paid Amount (₹)</label>
-                  <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" />
-                </div>
-              </div>
+              )}
 
               {/* Work Deliverables / Completion Link */}
               <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4 bg-emerald-50/40 p-4 rounded-xl border border-emerald-100/60">
