@@ -13,6 +13,7 @@ dist
 dist-ssr
 *.local
 .vite
+package-lock.json
 
 # Python & Backend artifacts
 __pycache__/
