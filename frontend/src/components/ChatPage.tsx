@@ -85,7 +85,18 @@ const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥",
 export function ChatPage() {
   const { staff, currentUser } = useData();
   const MOCK_CONTACTS = [
-    ...staff.filter(s => s.id !== currentUser?.id).map((s: any) => ({ id: s.id, name: s.name, type: 'team', status: 'online', lastMessage: 'No messages yet', time: '', unread: 0, avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random` }))
+    ...staff.filter(s => s.id !== currentUser?.id).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email || '',
+      role: s.role || 'Staff',
+      type: 'team',
+      status: 'online',
+      lastMessage: 'No messages yet',
+      time: '',
+      unread: 0,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
+    }))
   ];
   const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -501,6 +512,9 @@ export function ChatPage() {
                       <h4 className={`text-sm font-bold truncate ${activeContactId === contact.id ? 'text-primary' : 'text-gray-800'}`}>{contact.name}</h4>
                       <span className="text-[10px] font-semibold text-gray-400 shrink-0">{contact.time}</span>
                     </div>
+                    {contact.email && (
+                      <p className="text-[10px] text-gray-400 truncate -mt-0.5 mb-0.5">{contact.email}</p>
+                    )}
                     <p className="text-xs text-gray-500 truncate font-medium">{displayLastMsg}</p>
                   </div>
                   {contact.unread > 0 && (
