@@ -413,24 +413,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
-  const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(() => {
-    const saved = localStorage.getItem('activeJobTracker');
-    if (saved) {
-      try { return JSON.parse(saved); } catch {}
-    }
-    return null;
-  });
+  const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(null);
 
   const setActiveJobTracker = (val: { jobId: string, startTime: number } | null | ((prev: { jobId: string, startTime: number } | null) => { jobId: string, startTime: number } | null)) => {
-    setActiveJobTrackerState(prev => {
-      const next = typeof val === 'function' ? val(prev) : val;
-      if (next) {
-        localStorage.setItem('activeJobTracker', JSON.stringify(next));
-      } else {
-        localStorage.removeItem('activeJobTracker');
-      }
-      return next;
-    });
+    setActiveJobTrackerState(prev => typeof val === 'function' ? val(prev) : val);
   };
   const activeJobTracker = activeJobTrackerState;
   const [workLogs, setWorkLogs] = useState<any[]>([]);
@@ -613,9 +599,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        setIsPunchedIn(false);
-        setActiveJobTracker(null);
+        if (!activeJobTrackerState) {
+          setIsPunchedIn(false);
+        } else {
+          setIsPunchedIn(true);
+        }
       }
+    } else if (activeJobTrackerState) {
+      setIsPunchedIn(true);
     }
   }, [attendance, currentUser, staff, jobs, activeJobTrackerState]);
 
@@ -1103,7 +1094,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         finalJobTitle = 'General Work';
       }
       setActiveJobTracker(null);
-      localStorage.removeItem('activeJobTracker');
     }
 
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';

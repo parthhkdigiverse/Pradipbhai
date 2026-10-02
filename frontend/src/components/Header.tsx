@@ -32,8 +32,10 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     return () => clearInterval(interval);
   }, [activeJobTracker]);
 
+  const isPunchedInOrActive = isPunchedIn || Boolean(activeJobTracker);
+
   const handlePunchToggle = async () => {
-    if (isPunchedIn) {
+    if (isPunchedInOrActive) {
       // Punch Out
       setIsPunchedIn(false);
       const endTime = Date.now();
@@ -304,13 +306,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           <button 
             onClick={handlePunchToggle}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm cursor-pointer ${
-              isPunchedIn 
+              isPunchedInOrActive 
                 ? 'bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200' 
                 : 'bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200'
             }`}
           >
-            <div className={`w-2 h-2 rounded-full ${isPunchedIn ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-            {isPunchedIn ? 'Punch Out' : 'Punch In'}
+            <div className={`w-2 h-2 rounded-full ${isPunchedInOrActive ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></div>
+            {isPunchedInOrActive ? 'Punch Out' : 'Punch In'}
           </button>
         )}
         <div className="relative">
