@@ -27,7 +27,7 @@ import { SearchableSelect } from './SearchableSelect';
 export function ClientsPage() {
   const { dateFormat } = useSettings();
   const { 
-    clients, setClients, 
+    clients, 
     addClient, updateClient, deleteClient,
     currentUserRole, addProject, updateProject, hasPermission 
   } = useData();

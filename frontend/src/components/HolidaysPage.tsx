@@ -24,7 +24,7 @@ function TypeIcon({ type }: { type: Holiday['type'] }) {
 const emptyForm = () => ({ date: '', name: '', type: 'National' as Holiday['type'] });
 
 export function HolidaysPage() {
-  const { holidays, setHolidays, addHoliday, deleteHoliday, currentUserRole, hasPermission } = useData();
+  const { holidays, addHoliday, deleteHoliday, currentUserRole, hasPermission } = useData();
   const canManageHolidays = hasPermission(currentUserRole, 'Manage Holidays');
 
   const currentYear = new Date().getFullYear();

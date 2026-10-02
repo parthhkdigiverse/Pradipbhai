@@ -15,7 +15,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
   onClose,
   onClientCreated
 }) => {
-  const { setClients, addClient } = useData();
+  const { addClient } = useData();
   const [formData, setFormData] = useState({
     company: '',
     contact: '',

@@ -8,7 +8,7 @@ import { QuickAddClientModal } from './QuickAddClientModal';
 import { QuickAddProductModal } from './QuickAddProductModal';
 
 export function JobsPage() {
-  const { jobs, setJobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, setAttendance, attendance, addAttendance, updateAttendance, hasPermission } = useData();
+  const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -698,8 +698,8 @@ export function JobsPage() {
                         )}
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wide text-white shadow-sm ${
+                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                      <span className={`whitespace-nowrap inline-block px-2.5 py-1 rounded text-[10px] font-bold tracking-wide text-white shadow-sm ${
                         job.type === 'Designing' ? 'bg-emerald-500' : job.type === 'Des+Print' ? 'bg-purple-600' : 'bg-primary'
                       }`}>
                         {job.type === 'Des+Print' ? 'Des + Print' : job.type}
@@ -820,8 +820,8 @@ export function JobsPage() {
                       })()}
                     </td>
                     {currentUserRole !== 'Employee' && (
-                      <td className="py-4 px-6 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
+                      <td className="py-4 px-6 text-center whitespace-nowrap">
+                        <span className={`whitespace-nowrap inline-block px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm ${
                           job.paymentStatus === 'Paid' ? 'bg-emerald-500' : 'bg-rose-500'
                         }`}>
                           {job.paymentStatus}

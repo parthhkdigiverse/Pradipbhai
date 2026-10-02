@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function VendorsPage() {
-  const { vendors, setVendors, addVendor, updateVendor, deleteVendor, currentUserRole, hasPermission } = useData();
+  const { vendors, addVendor, updateVendor, deleteVendor, currentUserRole, hasPermission } = useData();
   const canManageVendors = hasPermission(currentUserRole, 'Manage Vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);

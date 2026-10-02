@@ -13,7 +13,7 @@ const DEFAULT_CATEGORIES = ['Hot Lead', 'Warm Lead', 'Cold Lead'];
 
 export function LeadsPage() {
   const { dateFormat } = useSettings();
-  const { leads, setLeads, addLead, updateLead, deleteLead, convertLeadToClient, currentUserRole, hasPermission } = useData();
+  const { leads, addLead, updateLead, deleteLead, convertLeadToClient, currentUserRole, hasPermission } = useData();
   const canCreateEditLeads = hasPermission(currentUserRole, 'Create/Edit Leads');
   const canDeleteLeads = hasPermission(currentUserRole, 'Delete Leads');
   const [searchTerm, setSearchTerm] = useState('');

@@ -303,14 +303,14 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         {canPunch && (
           <button 
             onClick={handlePunchToggle}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm ${
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm cursor-pointer ${
               isPunchedIn 
                 ? 'bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200' 
                 : 'bg-emerald-100 text-emerald-700 border border-emerald-200 hover:bg-emerald-200'
             }`}
           >
             <div className={`w-2 h-2 rounded-full ${isPunchedIn ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`}></div>
-            {isPunchedIn ? 'Punched In' : 'Punch In'}
+            {isPunchedIn ? 'Punch Out' : 'Punch In'}
           </button>
         )}
         <div className="relative">

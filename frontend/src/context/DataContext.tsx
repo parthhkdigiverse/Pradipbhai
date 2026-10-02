@@ -257,7 +257,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const fetchPerms = async () => {
       try {
-        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
         const res = await fetch(`${API_BASE_URL}/permissions`, { headers });
         if (res.ok) {
           const data = await res.json();
@@ -437,7 +437,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const { autoConvertLeads } = useSettings();
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem('authToken');
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
