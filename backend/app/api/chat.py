@@ -3,10 +3,11 @@ from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, and_, or_
 
 from app.database import get_db
 from app.models.chat import ChatMessage
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -36,20 +37,39 @@ class UpdateMessageSchema(BaseModel):
     isEdited: Optional[bool] = None
 
 @router.get("/{contact_id}")
-async def get_chat_messages(contact_id: str, db: AsyncSession = Depends(get_db)):
+async def get_chat_messages(
+    contact_id: str, 
+    db: AsyncSession = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    user_id = str(getattr(current_user, 'id', '')) or str(getattr(current_user, 'email', ''))
+    user_email = str(getattr(current_user, 'email', ''))
+    target_id = str(contact_id)
+
+    # Fetch 2-way messages between current user and target contact
     result = await db.execute(
         select(ChatMessage)
-        .where(ChatMessage.contact_id == str(contact_id))
+        .where(
+            or_(
+                and_(ChatMessage.sender == user_id, ChatMessage.contact_id == target_id),
+                and_(ChatMessage.sender == target_id, ChatMessage.contact_id == user_id),
+                and_(ChatMessage.sender == user_email, ChatMessage.contact_id == target_id),
+                and_(ChatMessage.sender == target_id, ChatMessage.contact_id == user_email),
+                # Legacy compatibility fallback
+                and_(ChatMessage.contact_id == target_id, ChatMessage.sender.in_(["me", "them"]))
+            )
+        )
         .order_by(ChatMessage.created_at.asc())
     )
     records = result.scalars().all()
     
     out = []
     for m in records:
+        is_me = (m.sender == user_id) or (m.sender == user_email) or (m.sender == "me")
         out.append({
             "id": m.id,
             "text": m.text or "",
-            "sender": m.sender,
+            "sender": "me" if is_me else "them",
             "time": m.time,
             "status": m.status,
             "attachment": m.attachment,
@@ -62,14 +82,20 @@ async def get_chat_messages(contact_id: str, db: AsyncSession = Depends(get_db))
     return out
 
 @router.post("/{contact_id}", status_code=status.HTTP_201_CREATED)
-async def create_chat_message(contact_id: str, payload: SendMessageSchema, db: AsyncSession = Depends(get_db)):
+async def create_chat_message(
+    contact_id: str, 
+    payload: SendMessageSchema, 
+    db: AsyncSession = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
     msg_id = f"msg-{uuid.uuid4().hex[:10]}"
+    sender_id = str(getattr(current_user, 'id', '')) or str(getattr(current_user, 'email', ''))
     
     msg = ChatMessage(
         id=msg_id,
         contact_id=str(contact_id),
         text=payload.text,
-        sender=payload.sender,
+        sender=sender_id,
         time=payload.time,
         status=payload.status or "sent",
         attachment=payload.attachment.model_dump() if payload.attachment else None,
@@ -86,7 +112,7 @@ async def create_chat_message(contact_id: str, payload: SendMessageSchema, db: A
     return {
         "id": msg.id,
         "text": msg.text,
-        "sender": msg.sender,
+        "sender": "me",
         "time": msg.time,
         "status": msg.status,
         "attachment": msg.attachment,

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   Search, MessageSquare, Paperclip, Smile, Send, Check, CheckCheck, 
-  Reply, Forward, Copy, Download, Trash2, Edit3, Star, MoreVertical, 
+  Reply, Copy, Download, Trash2, Edit3, Star, MoreVertical, 
   X, FileText, Eye
 } from 'lucide-react';
 
@@ -29,7 +29,6 @@ interface Message {
   attachment?: Attachment | null;
   reactions?: Record<string, string[]>; // emoji -> array of user names/types
   isStarred?: boolean;
-  isForwarded?: boolean;
   isEdited?: boolean;
 }
 
@@ -84,19 +83,24 @@ const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥",
 
 export function ChatPage() {
   const { staff, currentUser } = useData();
+  const currentUserId = currentUser?.id || localStorage.getItem('userId') || '';
+  const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || '').toLowerCase().trim();
+
   const MOCK_CONTACTS = [
-    ...staff.filter(s => s.id !== currentUser?.id).map((s: any) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email || '',
-      role: s.role || 'Staff',
-      type: 'team',
-      status: 'online',
-      lastMessage: 'No messages yet',
-      time: '',
-      unread: 0,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
-    }))
+    ...staff
+      .filter(s => s.id !== currentUserId && s.email?.toLowerCase().trim() !== currentUserEmail)
+      .map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email || '',
+        role: s.role || 'Staff',
+        type: 'team',
+        status: 'online',
+        lastMessage: 'No messages yet',
+        time: '',
+        unread: 0,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
+      }))
   ];
   const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -109,7 +113,6 @@ export function ChatPage() {
   // Interactive features states
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
-  const [forwardingMsg, setForwardingMsg] = useState<Message | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -162,8 +165,36 @@ export function ChatPage() {
     return () => window.removeEventListener('click', handleClickOutside);
   }, [activeMenuMsgId]);
 
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('authToken');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
+  const fetchRemoteMessages = async (contactId: string | number) => {
+    try {
+      const res = await fetch(`/api/chat/${contactId}`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setMessages(prev => ({ ...prev, [contactId]: data }));
+        }
+      }
+    } catch (e) {
+      console.warn("Could not fetch remote chat messages:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeContactId) return;
+    fetchRemoteMessages(activeContactId);
+    const interval = setInterval(() => {
+      fetchRemoteMessages(activeContactId);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeContactId]);
+
   // Handle Send or Update Message
-  const handleSendMessage = (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if ((!messageText.trim() && pendingAttachments.length === 0) || !activeContactId) return;
 
@@ -175,6 +206,15 @@ export function ChatPage() {
           m.id === editingMsgId ? { ...m, text: messageText, isEdited: true } : m
         )
       }));
+      try {
+        await fetch(`/api/chat/message/${editingMsgId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ text: messageText })
+        });
+      } catch (err) {
+        console.warn("Failed to edit chat message:", err);
+      }
       setEditingMsgId(null);
       setMessageText("");
       showToast("Message edited");
@@ -182,44 +222,27 @@ export function ChatPage() {
     }
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const payload = {
+      text: messageText,
+      sender: "me" as const,
+      time: timeStr,
+      status: "sent" as const,
+      attachment: pendingAttachments[0] || null,
+      replyTo: replyingTo ? {
+        id: replyingTo.id,
+        text: replyingTo.text || (replyingTo.attachment ? `[${replyingTo.attachment.type}] ${replyingTo.attachment.name}` : ""),
+        senderName: replyingTo.sender === "me" ? "Me" : activeContact?.name || "Them"
+      } : null
+    };
 
-    // Handle multiple attachments or text
-    const newMsgs: Message[] = [];
-
-    if (pendingAttachments.length > 0) {
-      pendingAttachments.forEach((att, idx) => {
-        newMsgs.push({
-          id: Date.now() + idx,
-          text: idx === 0 ? messageText : "",
-          sender: "me",
-          time: timeStr,
-          status: "sent",
-          attachment: att,
-          replyTo: idx === 0 && replyingTo ? {
-            id: replyingTo.id,
-            text: replyingTo.text || (replyingTo.attachment ? `[${replyingTo.attachment.type}] ${replyingTo.attachment.name}` : ""),
-            senderName: replyingTo.sender === "me" ? "Me" : activeContact?.name || "Them"
-          } : null
-        });
-      });
-    } else {
-      newMsgs.push({
-        id: Date.now(),
-        text: messageText,
-        sender: "me",
-        time: timeStr,
-        status: "sent",
-        replyTo: replyingTo ? {
-          id: replyingTo.id,
-          text: replyingTo.text || (replyingTo.attachment ? `[${replyingTo.attachment.type}] ${replyingTo.attachment.name}` : ""),
-          senderName: replyingTo.sender === "me" ? "Me" : activeContact?.name || "Them"
-        } : null
-      });
-    }
+    const tempMsg: Message = {
+      id: Date.now(),
+      ...payload
+    };
 
     setMessages(prev => ({
       ...prev,
-      [activeContactId]: [...(prev[activeContactId] || []), ...newMsgs]
+      [activeContactId]: [...(prev[activeContactId] || []), tempMsg]
     }));
 
     setMessageText("");
@@ -227,15 +250,18 @@ export function ChatPage() {
     setReplyingTo(null);
     setEmojiPickerOpen(false);
 
-    // Simulate contact typing and reply after 2s
-    setTimeout(() => {
-      setMessages(prev => ({
-        ...prev,
-        [activeContactId]: (prev[activeContactId] || []).map(m => 
-          newMsgs.some(nm => nm.id === m.id) ? { ...m, status: "read" as const } : m
-        )
-      }));
-    }, 1500);
+    try {
+      const res = await fetch(`/api/chat/${activeContactId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        fetchRemoteMessages(activeContactId);
+      }
+    } catch (err) {
+      console.warn("Failed to send chat message:", err);
+    }
   };
 
   // Drag and Drop Files
@@ -253,18 +279,28 @@ export function ChatPage() {
 
   const processFiles = (files: FileList | File[]) => {
     const fileArray = Array.from(files);
-    const newAtts: Attachment[] = fileArray.map(file => {
+    fileArray.forEach(file => {
       const isImg = file.type.startsWith('image/');
       const sizeMb = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
-      return {
-        name: file.name,
-        url: URL.createObjectURL(file),
-        type: isImg ? 'image' : 'file',
-        size: sizeMb
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (dataUrl) {
+          setPendingAttachments(prev => [
+            ...prev,
+            {
+              name: file.name,
+              url: dataUrl,
+              type: isImg ? 'image' : 'file',
+              size: sizeMb
+            }
+          ]);
+        }
       };
+      reader.readAsDataURL(file);
     });
-    setPendingAttachments(prev => [...prev, ...newAtts]);
-    showToast(`Added ${newAtts.length} attachment(s)`);
+    showToast(`Added ${fileArray.length} attachment(s)`);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -300,25 +336,42 @@ export function ChatPage() {
   };
 
   // Delete Message
-  const handleDeleteMessage = (msgId: number) => {
+  const handleDeleteMessage = async (msgId: number | string) => {
     if (!activeContactId) return;
     setMessages(prev => ({
       ...prev,
       [activeContactId]: (prev[activeContactId] || []).filter(m => m.id !== msgId)
     }));
+    try {
+      await fetch(`/api/chat/message/${msgId}`, { method: 'DELETE', headers: getAuthHeaders() });
+    } catch (err) {
+      console.warn("Failed to delete chat message:", err);
+    }
     showToast("Message deleted");
     setActiveMenuMsgId(null);
   };
 
   // Toggle Starred
-  const handleToggleStar = (msgId: number) => {
+  const handleToggleStar = async (msgId: number | string) => {
     if (!activeContactId) return;
+    const targetMsg = (messages[activeContactId] || []).find(m => m.id === msgId);
+    const newStarState = targetMsg ? !targetMsg.isStarred : true;
+
     setMessages(prev => ({
       ...prev,
       [activeContactId]: (prev[activeContactId] || []).map(m => 
-        m.id === msgId ? { ...m, isStarred: !m.isStarred } : m
+        m.id === msgId ? { ...m, isStarred: newStarState } : m
       )
     }));
+    try {
+      await fetch(`/api/chat/message/${msgId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ isStarred: newStarState })
+      });
+    } catch (err) {
+      console.warn("Failed to star chat message:", err);
+    }
     showToast("Updated starred status");
     setActiveMenuMsgId(null);
   };
@@ -344,31 +397,6 @@ export function ChatPage() {
     setActiveMenuMsgId(null);
   };
 
-  // Forward Message
-  const handleForwardSubmit = (targetContactId: number) => {
-    if (!forwardingMsg) return;
-    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
-    const fwdMsg: Message = {
-      id: Date.now(),
-      text: forwardingMsg.text,
-      sender: "me",
-      time: timeStr,
-      status: "sent",
-      attachment: forwardingMsg.attachment,
-      isForwarded: true
-    };
-
-    setMessages(prev => ({
-      ...prev,
-      [targetContactId]: [...(prev[targetContactId] || []), fwdMsg]
-    }));
-
-    const targetContact = MOCK_CONTACTS.find(c => c.id === targetContactId);
-    showToast(`Forwarded to ${targetContact?.name}`);
-    setForwardingMsg(null);
-  };
-
   // Download / Save file
   const handleDownloadAttachment = (att: Attachment) => {
     const a = document.createElement('a');
@@ -377,7 +405,6 @@ export function ChatPage() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    showToast(`Downloading ${att.name}...`);
   };
 
   return (
@@ -408,48 +435,6 @@ export function ChatPage() {
             >
               <Download className="w-4 h-4" /> Save Image
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Forward Modal */}
-      {forwardingMsg && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setForwardingMsg(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-white/60 animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
-                <Forward className="w-5 h-5 text-primary" /> Forward Message
-              </h3>
-              <button onClick={() => setForwardingMsg(null)} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="my-4 p-3 bg-gray-50 rounded-2xl border border-gray-100 text-xs text-gray-600 font-medium italic truncate">
-              "{forwardingMsg.text || forwardingMsg.attachment?.name}"
-            </div>
-
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Select Recipient</p>
-            <div className="max-h-60 overflow-y-auto space-y-1">
-              {MOCK_CONTACTS.map(contact => (
-                <button
-                  key={contact.id}
-                  onClick={() => handleForwardSubmit(contact.id)}
-                  className="w-full flex items-center justify-between p-3 hover:bg-primary/5 rounded-2xl transition-all border border-transparent hover:border-primary/20 group"
-                >
-                  <div className="flex items-center gap-3">
-                    <img src={contact.avatar} alt={contact.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
-                    <div className="text-left">
-                      <h4 className="text-sm font-bold text-gray-800">{contact.name}</h4>
-                      <p className="text-xs text-gray-400 font-medium capitalize">{contact.type}</p>
-                    </div>
-                  </div>
-                  <span className="p-2 bg-primary/10 text-primary rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Send className="w-4 h-4" />
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}
@@ -608,14 +593,6 @@ export function ChatPage() {
 
                 return (
                   <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative animate-in fade-in slide-in-from-bottom-2 duration-200`}>
-                    
-                    {/* Forwarded Tag */}
-                    {msg.isForwarded && (
-                      <span className="text-[10px] font-semibold text-gray-400 flex items-center gap-1 mb-1 px-1 italic">
-                        <Forward className="w-3 h-3" /> Forwarded
-                      </span>
-                    )}
-
                     {/* Message Bubble Container */}
                     <div className="relative flex items-center max-w-[75%] gap-2 msg-menu-container">
                       
@@ -662,13 +639,6 @@ export function ChatPage() {
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-primary/10 hover:text-primary rounded-xl transition-all"
                           >
                             <Copy className="w-3.5 h-3.5" /> Copy Text
-                          </button>
-
-                          <button
-                            onClick={() => { setForwardingMsg(msg); setActiveMenuMsgId(null); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-primary/10 hover:text-primary rounded-xl transition-all"
-                          >
-                            <Forward className="w-3.5 h-3.5" /> Forward
                           </button>
 
                           <button
