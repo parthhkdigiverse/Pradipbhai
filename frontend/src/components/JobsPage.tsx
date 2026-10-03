@@ -285,9 +285,12 @@ export function JobsPage() {
         });
       } else {
         // First punch-in of the day: calculate late status
+        const loggedStaff = staff.find((s: any) => s.id === loggedStaffId || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()));
+        const effectiveStartTime = loggedStaff?.officeStartTime || loggedStaff?.office_start_time || (currentUser as any)?.officeStartTime || officeStartTime;
+
         const lateCalc = calculateLatePunchIn(
           checkInStr,
-          officeStartTime,
+          effectiveStartTime,
           lateBufferMinutes,
           enableLatePenalty,
           latePenaltyAction,

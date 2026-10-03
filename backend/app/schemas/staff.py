@@ -21,6 +21,8 @@ class StaffBase(BaseModel):
     baseSalary: Optional[float] = 0.0
     password: Optional[str] = None
     permissions: Optional[dict] = None
+    officeStartTime: Optional[str] = None
+    office_start_time: Optional[str] = None
 
 class StaffCreate(StaffBase):
     id: Optional[str] = None
@@ -35,6 +37,8 @@ class StaffUpdate(BaseModel):
     baseSalary: Optional[float] = None
     password: Optional[str] = None
     permissions: Optional[dict] = None
+    officeStartTime: Optional[str] = None
+    office_start_time: Optional[str] = None
 
 class StaffOut(StaffBase):
     id: str

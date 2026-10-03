@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX, ChevronDown, Eye, EyeOff, Trash2, Shield, Sparkles, RotateCcw } from 'lucide-react';
+import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX, ChevronDown, Eye, EyeOff, Trash2, Shield, Sparkles, RotateCcw, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -65,6 +65,7 @@ export function StaffPage() {
     joinDate: string;
     baseSalary: string;
     password: string;
+    officeStartTime: string;
     permissions: Record<string, boolean>;
   }>({
     name: '',
@@ -75,6 +76,7 @@ export function StaffPage() {
     joinDate: new Date().toISOString().split('T')[0],
     baseSalary: '',
     password: '',
+    officeStartTime: '',
     permissions: {}
   });
 
@@ -115,6 +117,7 @@ export function StaffPage() {
           joinDate: emp.joinDate,
           baseSalary: emp.baseSalary?.toString() || '',
           password: (emp as any).password || '',
+          officeStartTime: emp.officeStartTime || (emp as any).office_start_time || '',
           permissions: (emp as any).permissions || {}
         });
         setEditingStaffId(staffId);
@@ -129,6 +132,7 @@ export function StaffPage() {
         joinDate: new Date().toISOString().split('T')[0],
         baseSalary: '',
         password: '',
+        officeStartTime: '',
         permissions: {}
       });
       setEditingStaffId(null);
@@ -281,6 +285,7 @@ export function StaffPage() {
               <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
                 <th className="py-4 px-6">Employee</th>
                 <th className="py-4 px-6">Role</th>
+                <th className="py-4 px-6">Office Hours</th>
                 <th className="py-4 px-6">Contact Info</th>
                 <th className="py-4 px-6">Join Date</th>
                 <th className="py-4 px-6">Base Salary</th>
@@ -298,6 +303,17 @@ export function StaffPage() {
                     </td>
                     <td className="py-4 px-6">
                       <span className="font-semibold text-gray-600 bg-gray-100/50 px-2 py-0.5 rounded text-[11px]">{emp.role}</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      {(emp.officeStartTime || emp.office_start_time) ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded text-[11px]" title="Custom Office Start Time">
+                          <Clock className="w-3 h-3 text-indigo-500" /> {emp.officeStartTime || emp.office_start_time} (Custom)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-medium text-gray-500 bg-gray-100/60 px-2 py-0.5 rounded text-[11px]" title="Uses Global Office Start Time">
+                          <Clock className="w-3 h-3 text-gray-400" /> Default (Global)
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-gray-500">
                       <div className="flex flex-col gap-1">
@@ -366,7 +382,7 @@ export function StaffPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                  <td colSpan={9} className="py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
                       <UserCheck className="w-12 h-12 text-gray-300 mb-4" />
                       <p>No staff members found.</p>
@@ -438,6 +454,17 @@ export function StaffPage() {
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Base Salary (₹) <span className="text-rose-500">*</span></label>
                     <input required type="number" min="0" value={formData.baseSalary} onChange={e => setFormData({...formData, baseSalary: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Office Start Time (Custom)</label>
+                    <input 
+                      type="time" 
+                      value={formData.officeStartTime} 
+                      onChange={e => setFormData({...formData, officeStartTime: e.target.value})} 
+                      className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Leave blank to use default global office start time.</p>
                   </div>
 
                   <div className="sm:col-span-2">

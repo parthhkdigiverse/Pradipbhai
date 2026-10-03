@@ -166,9 +166,12 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       });
     } else {
       // First punch-in of the day: calculate late status
+      const loggedStaff = staff.find((s: any) => s.id === (currentUser?.id || '') || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()));
+      const effectiveStartTime = loggedStaff?.officeStartTime || loggedStaff?.office_start_time || (currentUser as any)?.officeStartTime || officeStartTime;
+
       const lateCalc = calculateLatePunchIn(
         checkInStr,
-        officeStartTime,
+        effectiveStartTime,
         lateBufferMinutes,
         enableLatePenalty,
         latePenaltyAction,
@@ -491,7 +494,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             
             <h3 className="text-xl font-bold text-gray-800 mb-1">⚠️ Late Punch-In Notice</h3>
             <p className="text-xs text-amber-700 font-semibold mb-4 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60">
-              Office Hours Start: <strong>{officeStartTime}</strong> | Buffer Allowed: <strong>{lateBufferMinutes} mins</strong>
+              Office Hours Start: <strong>{staff.find((s: any) => s.id === (currentUser?.id || '') || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()))?.officeStartTime || (currentUser as any)?.officeStartTime || officeStartTime}</strong> | Buffer Allowed: <strong>{lateBufferMinutes} mins</strong>
             </p>
 
             <div className="space-y-3 text-xs text-gray-600 bg-gray-50 p-3.5 rounded-xl border border-gray-100 mb-5">

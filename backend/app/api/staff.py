@@ -32,7 +32,9 @@ async def get_staff(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(
             "joinDate": s.join_date,
             "baseSalary": s.base_salary,
             "password": s.password,
-            "permissions": s.permissions
+            "permissions": s.permissions,
+            "officeStartTime": s.office_start_time,
+            "office_start_time": s.office_start_time
         })
     
     await set_cache(f"{CACHE_KEY}:{skip}:{limit}", staff_dict, expire_seconds=300)
@@ -41,6 +43,7 @@ async def get_staff(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(
 @router.post("", response_model=StaffOut, status_code=status.HTTP_201_CREATED)
 async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)):
     staff_id = staff_in.id or f"emp-{uuid.uuid4().hex[:8]}"
+    start_time_val = staff_in.officeStartTime or staff_in.office_start_time
     staff_member = Staff(
         id=staff_id,
         name=staff_in.name,
@@ -51,7 +54,8 @@ async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)
         join_date=staff_in.joinDate,
         base_salary=staff_in.baseSalary or 0.0,
         password=staff_in.password or "password",
-        permissions=staff_in.permissions
+        permissions=staff_in.permissions,
+        office_start_time=start_time_val
     )
     db.add(staff_member)
     await db.commit()
@@ -69,7 +73,9 @@ async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)
         "joinDate": staff_member.join_date,
         "baseSalary": staff_member.base_salary,
         "password": staff_member.password,
-        "permissions": staff_member.permissions
+        "permissions": staff_member.permissions,
+        "officeStartTime": staff_member.office_start_time,
+        "office_start_time": staff_member.office_start_time
     }
 
 @router.put("/{staff_id}", response_model=StaffOut)
@@ -84,6 +90,10 @@ async def update_staff(staff_id: str, staff_in: StaffUpdate, db: AsyncSession = 
         staff_member.join_date = update_data.pop("joinDate")
     if "baseSalary" in update_data:
         staff_member.base_salary = update_data.pop("baseSalary")
+    if "officeStartTime" in update_data:
+        staff_member.office_start_time = update_data.pop("officeStartTime")
+    if "office_start_time" in update_data:
+        staff_member.office_start_time = update_data.pop("office_start_time")
         
     for field, val in update_data.items():
         setattr(staff_member, field, val)
@@ -102,7 +112,9 @@ async def update_staff(staff_id: str, staff_in: StaffUpdate, db: AsyncSession = 
         "joinDate": staff_member.join_date,
         "baseSalary": staff_member.base_salary,
         "password": staff_member.password,
-        "permissions": staff_member.permissions
+        "permissions": staff_member.permissions,
+        "officeStartTime": staff_member.office_start_time,
+        "office_start_time": staff_member.office_start_time
     }
 
 @router.delete("/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -126,6 +126,8 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
             "email": staff_member.email,
             "role": staff_member.role or "Employee",
             "status": staff_member.status,
-            "permissions": staff_member.permissions
+            "permissions": staff_member.permissions,
+            "officeStartTime": staff_member.office_start_time,
+            "office_start_time": staff_member.office_start_time
         }
     }
