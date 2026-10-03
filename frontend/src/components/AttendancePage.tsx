@@ -14,13 +14,18 @@ export function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Filter staff list according to role
+  // Filter staff list according to role
   const displayStaff = useMemo(() => {
     if (isAdminOrManager) return staff;
-    return staff.filter(s => s.id === currentUser.id || s.email?.toLowerCase() === currentUser.email?.toLowerCase() || s.name.toLowerCase() === currentUser.name.toLowerCase());
+    const userStaff = staff.filter(s => s.id === currentUser?.id || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()) || (s.name && currentUser?.name && s.name.toLowerCase() === currentUser.name.toLowerCase()));
+    if (userStaff.length === 0 && currentUser) {
+      return [{ id: currentUser.id || 'current-user', name: currentUser.name || 'Employee', role: currentUser.role || 'Employee', email: currentUser.email || '' }];
+    }
+    return userStaff;
   }, [staff, isAdminOrManager, currentUser]);
 
   // Employee-wise view state
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(displayStaff[0]?.id || currentUser.id || '');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(displayStaff[0]?.id || currentUser?.id || '');
   const [yearFilter, setYearFilter] = useState<string>(new Date().getFullYear().toString());
   const [monthFilter, setMonthFilter] = useState<string>((new Date().getMonth() + 1).toString().padStart(2, '0')); // "01" to "12"
 
@@ -72,16 +77,16 @@ export function AttendancePage() {
         warningNote: record?.warningNote || record?.warning_note || ''
       };
     }).filter(emp => {
-      const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || (emp.role || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'All' || emp.status === filterStatus;
       return matchSearch && matchStatus;
     });
-  }, [staff, attendance, selectedDate, searchTerm, filterStatus]);
+  }, [displayStaff, attendance, selectedDate, searchTerm, filterStatus]);
 
   // Employee-wise history calculation
   const employeeHistory = useMemo(() => {
     if (!selectedStaffId) return { emp: null, records: [], summary: { Present: 0, Absent: 0, 'Half Day': 0, Leave: 0, LateCount: 0, TotalPenalties: 0 } };
-    const emp = staff.find(s => s.id === selectedStaffId);
+    const emp = displayStaff.find(s => s.id === selectedStaffId) || staff.find(s => s.id === selectedStaffId);
     
     // Filter attendance for selected staff, year & month
     const empAttendance = attendance.filter(a => {
@@ -109,32 +114,37 @@ export function AttendancePage() {
     });
 
     return { emp, records: empAttendance, summary };
-  }, [selectedStaffId, yearFilter, monthFilter, attendance, staff, filterStatus]);
+  }, [selectedStaffId, yearFilter, monthFilter, attendance, displayStaff, staff, filterStatus]);
 
   // General History View records
   const allHistoryRecords = useMemo(() => {
     return attendance
       .filter(record => {
-        const emp = displayStaff.find(s => s.id === record.staffId);
+        const recStaffId = record.staffId || record.staff_id;
+        const emp = displayStaff.find(s => s.id === recStaffId || (s.name && s.name.toLowerCase() === (record.staffName || record.staff_name || '').toLowerCase()));
         if (!emp) return false;
         const empName = emp.name.toLowerCase();
-        const empRole = emp.role.toLowerCase();
+        const empRole = (emp.role || '').toLowerCase();
         const matchSearch = empName.includes(searchTerm.toLowerCase()) || empRole.includes(searchTerm.toLowerCase());
 
-        const matchStaff = historyStaffId === 'All' || record.staffId === historyStaffId;
+        const matchStaff = historyStaffId === 'All' || recStaffId === historyStaffId;
         const matchStatus = filterStatus === 'All' || record.status === filterStatus;
         const matchDateFrom = !historyDateFrom || record.date >= historyDateFrom;
         const matchDateTo = !historyDateTo || record.date <= historyDateTo;
 
         return matchSearch && matchStaff && matchStatus && matchDateFrom && matchDateTo;
       })
-      .map(record => ({
-        ...record,
-        staffName: displayStaff.find(s => s.id === record.staffId)?.name || 'Unknown Staff',
-        staffRole: displayStaff.find(s => s.id === record.staffId)?.role || '-'
-      }))
+      .map(record => {
+        const recStaffId = record.staffId || record.staff_id;
+        const emp = displayStaff.find(s => s.id === recStaffId || (s.name && s.name.toLowerCase() === (record.staffName || record.staff_name || '').toLowerCase()));
+        return {
+          ...record,
+          staffName: emp?.name || record.staffName || record.staff_name || 'Staff Member',
+          staffRole: emp?.role || '-'
+        };
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [attendance, staff, searchTerm, historyStaffId, filterStatus, historyDateFrom, historyDateTo]);
+  }, [attendance, displayStaff, searchTerm, historyStaffId, filterStatus, historyDateFrom, historyDateTo]);
 
   const handleUpdateAttendance = async (staffId: string, updates: any) => {
     const existing = attendance.find(a => a.staffId === staffId && a.date === selectedDate);
@@ -264,7 +274,7 @@ export function AttendancePage() {
                 />
               </div>
 
-              {activeTab === 'history' && (
+              {activeTab === 'history' && isAdminOrManager && (
                 <>
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Employee</label>

@@ -7,11 +7,25 @@ from app.database import get_db
 from app.models.attendance import Attendance
 from app.schemas.attendance import AttendanceCreate, AttendanceUpdate, AttendanceOut
 
+from app.api.deps import get_current_user
+from app.models.staff import Staff
+
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 @router.get("", response_model=List[AttendanceOut])
-async def get_attendance_records(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Attendance))
+async def get_attendance_records(
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    user_role = (current_user.role or "Employee").lower()
+    if user_role in ["admin", "manager"]:
+        result = await db.execute(select(Attendance))
+    else:
+        result = await db.execute(
+            select(Attendance).where(
+                (Attendance.staff_id == current_user.id) | (Attendance.staff_name == current_user.name)
+            )
+        )
     return result.scalars().all()
 
 @router.post("", response_model=AttendanceOut, status_code=status.HTTP_201_CREATED)
