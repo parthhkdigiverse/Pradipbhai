@@ -2,7 +2,6 @@ from typing import AsyncGenerator
 from sqlalchemy import inspect, text, select, event
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.pool import NullPool
 from app.config import settings
 import logging
 
@@ -28,7 +27,11 @@ logger = logging.getLogger(__name__)
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    poolclass=NullPool,
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=45,
+    pool_pre_ping=True,
+    pool_timeout=30,
     connect_args={"init_command": "SET SESSION wait_timeout=55"},
 )
 
