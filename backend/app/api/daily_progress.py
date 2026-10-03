@@ -1,3 +1,4 @@
+from datetime import datetime
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,9 +23,10 @@ async def create_daily_progress(progress_in: DailyProgressCreate, db: AsyncSessi
         employee_name=progress_in.employee_name,
         role=progress_in.role,
         date=progress_in.date,
-        submitted_at=progress_in.submitted_at,
+        submitted_at=progress_in.submitted_at or datetime.now().strftime("%H:%M"),
         tasks_done=progress_in.tasks_done or [],
         tasks_pending=progress_in.tasks_pending or [],
+        hours_logged=progress_in.hours_logged or 0.0,
         verification_status=progress_in.verification_status or "Pending",
         rating=progress_in.rating or 0,
         manager_remarks=progress_in.manager_remarks,

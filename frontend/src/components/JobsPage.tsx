@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2 } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
@@ -174,7 +174,7 @@ export function JobsPage() {
                           printerName.toLowerCase().includes(sLower) ||
                           (job.delayReason || '').toLowerCase().includes(sLower) ||
                           (job.totalAmount && job.totalAmount.toString().includes(sLower));
-      const matchStatus = filterStatus === 'All' || job.status === filterStatus;
+      const matchStatus = filterStatus === 'All' || job.status === filterStatus || ((filterStatus === 'Completed' || filterStatus === 'Done') && (job.status === 'Completed' || job.status === 'Done'));
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
       const matchStaff = filterStaff === 'All' || job.teamId === filterStaff;
       const matchProduct = filterProduct === 'All' || job.productId === filterProduct;
@@ -367,18 +367,83 @@ export function JobsPage() {
     await updateJob(jobId, { status: 'Progress' });
   };
 
+  const handleApproveJobByAdmin = async (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    const client = clients.find(c => c.id === job.clientId);
+    if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
+      alert('🔴 PAYMENT REQUIRED — Work is blocked for this Red client until an advance is recorded or a Partner override is provided.');
+      return;
+    }
+    if (client && client.trafficLight === 'Yellow' && job.paidAmount < job.totalAmount) {
+      alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
+      return;
+    }
+
+    await updateJob(jobId, { status: 'Completed' });
+
+    // Auto-create Printing job when a Designing job of a Des+Print project is approved
+    if (job.type === 'Designing' && job.projectId) {
+      const client = clients.find((c: any) => c.id === job.clientId);
+      const project = client?.projects?.find((p: any) => p.name === job.projectId);
+      if (project && project.category === 'Des+Print') {
+        const printingJobExists = jobs.some(
+          j => j.projectId === job.projectId &&
+               j.clientId === job.clientId &&
+               j.type === 'Printing'
+        );
+        if (!printingJobExists) {
+          const newPrintingJob = {
+            id: Math.random().toString(36).substr(2, 9),
+            createdBy: 'System (Auto)',
+            createdAt: new Date().toISOString().split('T')[0],
+            title: `[PRINT] ${job.title.replace(/^\[DESIGN\]\s*/i, '')}`,
+            type: 'Printing',
+            description: `Auto-created Printing job after Designing was approved by Admin for project: ${job.projectId}`,
+            clientId: job.clientId,
+            projectId: job.projectId,
+            status: 'Pending',
+            teamId: '',
+            dueDate: project.deadline || '',
+            paymentStatus: 'Unpaid',
+            totalAmount: 0,
+            paidAmount: 0,
+            printerId: '',
+            productId: job.productId || '',
+            trackedTime: 0,
+            workLink: job.workLink || '',
+            workLocation: job.workLocation || ''
+          };
+          await addJob(newPrintingJob);
+        }
+      }
+    }
+  };
+
+  const handleRejectJobForRevision = async (jobId: string) => {
+    const feedback = prompt('Enter revision feedback / notes for the employee:');
+    if (feedback !== null) {
+      await updateJob(jobId, {
+        status: 'Progress',
+        delayReason: feedback.trim() ? `Revision Requested: ${feedback.trim()}` : 'Revision Requested by Manager/Admin'
+      });
+    }
+  };
+
   const updateJobStatus = async (id: string, status: string) => {
     const job = jobs.find(j => j.id === id);
     if (!job) return;
+
+    if ((job.status === 'Completed' || job.status === 'Done') && currentUserRole !== 'Admin' && currentUserRole !== 'Manager') {
+      alert('🔒 Completed jobs are locked and cannot be modified by employees.');
+      return;
+    }
 
     if (status !== 'Pending') {
       const client = clients.find(c => c.id === job.clientId);
       if (client && client.trafficLight === 'Red' && !job.paymentOverride) {
         alert('🔴 PAYMENT REQUIRED — Work is blocked for this Red client until an advance is recorded or a Partner override is provided.');
-        return;
-      }
-      if (status === 'Done' && client && client.trafficLight === 'Yellow' && job.paidAmount < job.totalAmount) {
-        alert('🟡 BALANCE PENDING — Delivery/Completion is blocked for this Yellow client until full payment is received.');
         return;
       }
     }
@@ -387,17 +452,26 @@ export function JobsPage() {
       if (activeJobTracker?.jobId !== id) {
         handleStartTracker(id);
       }
+      await updateJob(id, { status: 'Progress' });
       return;
     }
 
     if (status !== 'Progress' && activeJobTracker?.jobId === id) {
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      const job = jobs.find((j: any) => j.id === id);
-      if (job) await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed });
+      await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed });
       setActiveJobTracker(null);
     }
 
-    if (status === 'Done') {
+    if (status === 'Done' || status === 'Completed' || status === 'Under Review') {
+      if (status === 'Done' || status === 'Completed') {
+        if (currentUserRole === 'Admin' || currentUserRole === 'Manager') {
+          await handleApproveJobByAdmin(id);
+          return;
+        } else {
+          alert('⚠️ Only Admins or Managers can approve and mark a job as Completed.');
+          return;
+        }
+      }
       setCompletionModalJobId(id);
       setCompletionWorkLink(job.workLink || '');
       setCompletionWorkLocation(job.workLocation || '');
@@ -410,56 +484,15 @@ export function JobsPage() {
   const handleSaveCompletionModal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!completionWorkLink.trim() && !completionWorkLocation.trim()) {
-      alert('⚠️ At least ONE field is required: Please provide either a Work Output Link OR a Storage Location/Notes to complete this job.');
+      alert('⚠️ At least ONE field is required: Please provide either a Work Output Link OR a Storage Location/Notes to submit this job for review.');
       return;
     }
     if (completionModalJobId) {
-      const completedJob = jobs.find(j => j.id === completionModalJobId);
-      
       await updateJob(completionModalJobId, {
-        status: 'Done',
+        status: 'Under Review',
         workLink: completionWorkLink.trim(),
         workLocation: completionWorkLocation.trim()
       });
-
-      // Auto-create Printing job when a Designing job of a Des+Print project is completed
-      if (completedJob && completedJob.type === 'Designing' && completedJob.projectId) {
-        const client = clients.find((c: any) => c.id === completedJob.clientId);
-        const project = client?.projects?.find((p: any) => p.name === completedJob.projectId);
-        if (project && project.category === 'Des+Print') {
-          // Check if a printing job for this project already exists to avoid duplicates
-          const printingJobExists = jobs.some(
-            j => j.projectId === completedJob.projectId &&
-                 j.clientId === completedJob.clientId &&
-                 j.type === 'Printing'
-          );
-          if (!printingJobExists) {
-            const newPrintingJob = {
-              id: Math.random().toString(36).substr(2, 9),
-              createdBy: 'System (Auto)',
-              createdAt: new Date().toISOString().split('T')[0],
-              title: `[PRINT] ${completedJob.title.replace(/^\[DESIGN\]\s*/i, '')}`,
-              type: 'Printing',
-              description: `Auto-created Printing job after Designing was completed for project: ${completedJob.projectId}`,
-              clientId: completedJob.clientId,
-              projectId: completedJob.projectId,
-              status: 'Pending',
-              teamId: '',
-              dueDate: project.deadline || '',
-              paymentStatus: 'Unpaid',
-              totalAmount: 0,
-              paidAmount: 0,
-              printerId: '',
-              productId: completedJob.productId || '',
-              trackedTime: 0,
-              workLink: '',
-              workLocation: ''
-            };
-            await addJob(newPrintingJob);
-          }
-        }
-      }
-
       setCompletionModalJobId(null);
     }
   };
@@ -555,6 +588,31 @@ export function JobsPage() {
         </div>
       </div>
 
+      {/* Admin/Manager Review Required Alert Banner */}
+      {(currentUserRole === 'Admin' || currentUserRole === 'Manager') && jobs.filter(j => j.status === 'Under Review').length > 0 && (
+        <div className="bg-amber-500/15 border border-amber-500/30 rounded-2xl p-4 mb-6 backdrop-blur-md flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md">
+              <Clock className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-900 text-sm">
+                🔍 {jobs.filter(j => j.status === 'Under Review').length} Job(s) Pending Manager & Admin Review
+              </h4>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                Work completed and submitted by team members. Review work output links & approve or request revision.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setFilterStatus('Under Review')}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all whitespace-nowrap cursor-pointer"
+          >
+            Filter Review Jobs
+          </button>
+        </div>
+      )}
+
       {/* Advanced Filters Panel */}
       <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
         <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
@@ -590,9 +648,10 @@ export function JobsPage() {
               value={filterStatus}
               onChange={setFilterStatus}
               options={[
-                { value: 'All', label: 'All' },
+                { value: 'All', label: 'All Statuses' },
                 { value: 'Pending', label: 'Pending' },
-                { value: 'Progress', label: 'Progress' },
+                { value: 'Progress', label: 'In Progress' },
+                { value: 'Under Review', label: 'Under Review 🔍' },
                 { value: 'Completed', label: 'Completed' },
                 { value: 'Cancel', label: 'Cancel' }
               ]}
@@ -774,22 +833,47 @@ export function JobsPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <div className="flex items-center justify-center gap-1">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
                         <select
-                          value={job.status}
+                          value={job.status === 'Done' ? 'Completed' : job.status}
                           onChange={(e) => updateJobStatus(job.id, e.target.value)}
+                          disabled={currentUserRole !== 'Admin' && currentUserRole !== 'Manager' && (job.status === 'Completed' || job.status === 'Done')}
                           onClick={(e) => e.stopPropagation()}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
-                            job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                            job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                          }`}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none appearance-none relative text-center ${
+                            job.status === 'Completed' || job.status === 'Done' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' :
+                            job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200 cursor-pointer' : 
+                            job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary cursor-pointer' : 
+                            'bg-amber-100 text-amber-800 border-amber-300 animate-pulse font-bold cursor-pointer'
+                          } ${currentUserRole !== 'Admin' && currentUserRole !== 'Manager' && (job.status === 'Completed' || job.status === 'Done') ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                           style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
                         >
                           <option value="Pending">Pending</option>
                           <option value="Progress">Progress</option>
-                          <option value="Done">Done</option>
+                          <option value="Under Review">Under Review</option>
+                          <option value="Completed" disabled={currentUserRole !== 'Admin' && currentUserRole !== 'Manager'}>Completed</option>
                         </select>
-                        {job.status === 'Done' && (
+
+                        {/* Admin / Manager Review Quick Actions */}
+                        {job.status === 'Under Review' && (currentUserRole === 'Admin' || currentUserRole === 'Manager') && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleApproveJobByAdmin(job.id); }}
+                              className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              title="Approve work output and mark job Completed"
+                            >
+                              <CheckCircle2 className="w-3 h-3" /> Approve
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRejectJobForRevision(job.id); }}
+                              className="px-2 py-0.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-[10px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                              title="Send back to Progress with revision feedback"
+                            >
+                              <RotateCcw className="w-3 h-3" /> Revision
+                            </button>
+                          </div>
+                        )}
+
+                        {(job.status === 'Completed' || job.status === 'Done') && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

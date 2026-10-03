@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
@@ -80,6 +80,22 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         unread: isUnread
       });
     });
+
+    // 1.5. Jobs Pending Review for Admin/Manager
+    if (isUserAdmin) {
+      const reviewJobs = jobs.filter((j: any) => j.status === 'Under Review').slice(0, 3);
+      reviewJobs.forEach((j: any) => {
+        const notifId = `job-review-${j.id}`;
+        list.push({
+          id: notifId,
+          title: `🔍 Job Submitted for Review: ${j.title || j.id}`,
+          message: `Work completed by team. Needs manager/admin review and approval.`,
+          time: j.dueDate || 'Needs Review',
+          type: 'job',
+          unread: !readNotificationIds.includes(notifId)
+        });
+      });
+    }
 
     // 2. Today's Attendance / Late check
     const todayStr = new Date().toISOString().split('T')[0];
@@ -271,6 +287,36 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           check_out: checkOutStr,
           punches: [newPunchSession]
         });
+      }
+
+      // Auto-sync Daily Progress report for today
+      try {
+        const addedHours = Number((duration / 3600).toFixed(1)) || 0.1;
+        const existingProg = (dailyProgressRecords || []).find((p: any) => 
+          (p.employeeName?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
+        );
+        if (existingProg) {
+          const currentTasksDone = Array.isArray(existingProg.tasksDone) ? existingProg.tasksDone : [];
+          const updatedTasksDone = Array.from(new Set([...currentTasksDone, finalJobTitle]));
+          const updatedHours = Number(((existingProg.hoursLogged || 0) + addedHours).toFixed(1));
+          await updateDailyProgress(existingProg.id, {
+            tasks_done: updatedTasksDone,
+            hours_logged: updatedHours
+          });
+        } else {
+          await addDailyProgress({
+            employee_name: loggedStaffName,
+            role: currentUser?.role || 'Staff Member',
+            date: todayStr,
+            tasks_done: [finalJobTitle],
+            tasks_pending: [],
+            hours_logged: addedHours,
+            verification_status: 'Pending',
+            rating: 0
+          });
+        }
+      } catch (err) {
+        console.error('Failed to auto-sync daily progress:', err);
       }
 
       setPunchInTime(null);

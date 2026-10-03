@@ -1,4 +1,4 @@
-from sqlalchemy import String, Integer, DateTime, JSON, func
+from sqlalchemy import String, Integer, Float, DateTime, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -12,6 +12,7 @@ class DailyProgress(Base):
     submitted_at: Mapped[str] = mapped_column(String(50), nullable=True)
     tasks_done: Mapped[dict] = mapped_column(JSON, nullable=True) # Array of done tasks
     tasks_pending: Mapped[dict] = mapped_column(JSON, nullable=True) # Array of pending tasks
+    hours_logged: Mapped[float] = mapped_column(Float, nullable=True, default=0.0)
     verification_status: Mapped[str] = mapped_column(String(50), default="Pending") # Pending, Verified
     rating: Mapped[int] = mapped_column(Integer, default=0) # 1 to 5 stars
     manager_remarks: Mapped[str] = mapped_column(String(500), nullable=True)

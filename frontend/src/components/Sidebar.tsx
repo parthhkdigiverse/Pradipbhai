@@ -103,7 +103,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
         </div>
       </div>
 
-      <div className="p-4 flex-1 flex flex-col overflow-hidden">
+      <div className="p-4 flex-1 flex flex-col overflow-y-auto custom-scrollbar">
         
         {/* Search Bar */}
         <div className="mb-6 relative z-50">
@@ -245,7 +245,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                 </div>
                 <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.hr ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
               </button>
-              <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'staff') && (
                     <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>

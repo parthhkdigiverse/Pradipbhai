@@ -46,16 +46,25 @@ export interface DailyTask {
 export interface DailyRecord {
   id: string;
   employeeName: string;
+  employee_name?: string;
   role: string;
   department?: string;
   submittedAt: string;
+  submitted_at?: string;
   date: string;
-  tasksDone: DailyTask[];
-  tasksPending: DailyTask[];
-  verificationStatus: "Pending" | "Verified";
+  tasksDone: any[];
+  tasks_done?: any[];
+  tasksPending: any[];
+  tasks_pending?: any[];
+  verificationStatus: "Pending" | "Verified" | string;
+  verification_status?: string;
   rating?: number;
+  hoursLogged?: number;
+  hours_logged?: number;
   managerRemarks?: string;
+  manager_remarks?: string;
   verifiedBy?: string;
+  verified_by?: string;
 }
 
 interface DataContextType {
@@ -508,7 +517,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) setInvoices(invoicesRes.value);
       if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
-      if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) setDailyProgressRecords(progressRes.value);
+      if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) {
+        setDailyProgressRecords(progressRes.value.map((r: any) => ({
+          ...r,
+          employeeName: r.employee_name || r.employeeName || 'Staff Member',
+          verificationStatus: r.verification_status || r.verificationStatus || 'Pending',
+          managerRemarks: r.manager_remarks || r.managerRemarks || '',
+          verifiedBy: r.verified_by || r.verifiedBy || '',
+          tasksDone: r.tasks_done || r.tasksDone || [],
+          tasksPending: r.tasks_pending || r.tasksPending || [],
+          hoursLogged: r.hours_logged || r.hoursLogged || 0,
+          submittedAt: r.submitted_at || r.submittedAt || ''
+        })));
+      }
       if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
       if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {

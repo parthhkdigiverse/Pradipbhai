@@ -341,6 +341,37 @@ async def init_db():
                 )
                 session.add_all([j1, j2, j3])
 
+            # Check if DailyProgress exist
+            dp_result = await session.execute(select(models.DailyProgress))
+            if not dp_result.scalars().first():
+                dp1 = models.DailyProgress(
+                    id="prog-001",
+                    employee_name="Jane Doe",
+                    role="Senior Graphic Designer",
+                    date="2026-10-02",
+                    submitted_at="18:15",
+                    tasks_done=["Completed Brand Guidelines PDF v2", "Exported high-res PNG vectors"],
+                    tasks_pending=["Awaiting client feedback on color palette"],
+                    verification_status="Verified",
+                    rating=5,
+                    manager_remarks="Excellent work on vector quality!",
+                    verified_by="Admin"
+                )
+                dp2 = models.DailyProgress(
+                    id="prog-002",
+                    employee_name="John Smith",
+                    role="UI/UX Specialist",
+                    date="2026-10-03",
+                    submitted_at="17:45",
+                    tasks_done=["Figma UI Prototype for Mobile App", "Client presentation prep"],
+                    tasks_pending=["Desktop responsive layout"],
+                    verification_status="Pending",
+                    rating=0,
+                    manager_remarks=None,
+                    verified_by=None
+                )
+                session.add_all([dp1, dp2])
+
             await session.commit()
         except Exception as e:
             print(f"⚠️ Database seed notice: {e}")

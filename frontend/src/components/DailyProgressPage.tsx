@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 export function DailyProgressPage() {
-  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission } = useData();
+  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission, jobs } = useData();
   const canVerifyRate = hasPermission(currentUserRole, 'Verify & Rate Reports');
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [search, setSearch] = useState("");
@@ -24,26 +24,99 @@ export function DailyProgressPage() {
 
   // Filtered daily reports by search, status, date, and user role
   const filteredRecords = records.filter(rec => {
-    const matchesSearch = rec.employeeName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "All" || rec.verificationStatus === statusFilter;
-    const matchesDate = rec.date >= startDate && rec.date <= endDate;
-    const matchesUser = isAdminOrManager || rec.employeeName.toLowerCase() === currentUser.name.toLowerCase();
+    const empName = rec?.employeeName || rec?.employee_name || "";
+    const matchesSearch = empName.toLowerCase().includes((search || "").toLowerCase());
+    const status = rec?.verificationStatus || rec?.verification_status || "Pending";
+    const matchesStatus = statusFilter === "All" || status === statusFilter;
+    const matchesDate = rec?.date ? (rec.date >= startDate && rec.date <= endDate) : true;
+    const currentUserName = currentUser?.name || "";
+    const matchesUser = isAdminOrManager || (currentUserName ? empName.toLowerCase() === currentUserName.toLowerCase() : true);
     return matchesSearch && matchesStatus && matchesDate && matchesUser;
   });
+
+  const cleanTaskTitle = (s: string) => (s || '').replace(/^\[.*?\]\s*/i, '').trim().toLowerCase();
+
+  // Render task text & lookup job due date if available
+  const renderTaskInfo = (task: any) => {
+    const text = typeof task === 'string' ? task : (task?.description || task?.title || String(task || ''));
+    const cleanText = cleanTaskTitle(text);
+
+    const matchedJob = (jobs || []).find((j: any) => 
+      (j.id && String(j.id) === text) ||
+      (j.title && cleanTaskTitle(j.title) === cleanText) ||
+      (j.title && (cleanTaskTitle(j.title).includes(cleanText) || cleanText.includes(cleanTaskTitle(j.title))))
+    );
+
+    const rawDueDate = matchedJob?.dueDate || (typeof task === 'object' ? (task?.dueDate || task?.due_date) : null);
+    const dueDate = rawDueDate ? rawDueDate : 'No Due Date';
+    return { text, dueDate };
+  };
+
+  // Categorize tasks into Completed (Under Review / Completed) vs Pending
+  const getCategorizedTasks = (record: any) => {
+    if (!record) return { doneTasks: [], pendingTasks: [] };
+    const rawDone = Array.isArray(record.tasksDone) ? record.tasksDone : (Array.isArray(record.tasks_done) ? record.tasks_done : []);
+    const rawPending = Array.isArray(record.tasksPending) ? record.tasksPending : (Array.isArray(record.tasks_pending) ? record.tasks_pending : []);
+
+    const allTasks = [...rawDone, ...rawPending];
+    const doneTasks: any[] = [];
+    const pendingTasks: any[] = [];
+    const seen = new Set<string>();
+
+    allTasks.forEach((task: any) => {
+      const text = typeof task === 'string' ? task : (task?.description || task?.title || String(task || ''));
+      if (!text || seen.has(text.toLowerCase())) return;
+      seen.add(text.toLowerCase());
+
+      const cleanText = cleanTaskTitle(text);
+      const matchedJob = (jobs || []).find((j: any) => 
+        (j.id && String(j.id) === text) ||
+        (j.title && cleanTaskTitle(j.title) === cleanText) ||
+        (j.title && (cleanTaskTitle(j.title).includes(cleanText) || cleanText.includes(cleanTaskTitle(j.title))))
+      );
+
+      if (matchedJob) {
+        const s = matchedJob.status;
+        if (s === 'Under Review' || s === 'Completed' || s === 'Done') {
+          doneTasks.push(task);
+        } else {
+          pendingTasks.push(task);
+        }
+      } else {
+        if (typeof task === 'object' && task !== null && task.status) {
+          if (task.status === 'done' || task.status === 'Under Review' || task.status === 'Completed' || task.status === 'Done') {
+            doneTasks.push(task);
+          } else {
+            pendingTasks.push(task);
+          }
+        } else {
+          if (rawDone.includes(task)) {
+            doneTasks.push(task);
+          } else {
+            pendingTasks.push(task);
+          }
+        }
+      }
+    });
+
+    return { doneTasks, pendingTasks };
+  };
 
   // Calculate Overall Ratings per Employee for the selected Date Range
   const employeeRatingStats = useMemo(() => {
     const map: Record<string, { totalRating: number; verifiedCount: number; totalReports: number; role: string }> = {};
     
     records.forEach(rec => {
-      if (rec.date >= startDate && rec.date <= endDate) {
-        if (!map[rec.employeeName]) {
-          map[rec.employeeName] = { totalRating: 0, verifiedCount: 0, totalReports: 0, role: rec.role || "Staff Member" };
+      const empName = rec?.employeeName || rec?.employee_name || "Staff Member";
+      if (rec?.date && rec.date >= startDate && rec.date <= endDate) {
+        if (!map[empName]) {
+          map[empName] = { totalRating: 0, verifiedCount: 0, totalReports: 0, role: rec?.role || "Staff Member" };
         }
-        map[rec.employeeName].totalReports += 1;
-        if (rec.verificationStatus === "Verified" && rec.rating) {
-          map[rec.employeeName].totalRating += rec.rating;
-          map[rec.employeeName].verifiedCount += 1;
+        map[empName].totalReports += 1;
+        const vStatus = rec?.verificationStatus || rec?.verification_status;
+        if (vStatus === "Verified" && rec?.rating) {
+          map[empName].totalRating += rec.rating;
+          map[empName].verifiedCount += 1;
         }
       }
     });
@@ -251,7 +324,7 @@ export function DailyProgressPage() {
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {employeeRatingStats
-              .filter(emp => emp.employeeName.toLowerCase().includes(search.toLowerCase()))
+              .filter(emp => (emp?.employeeName || '').toLowerCase().includes((search || '').toLowerCase()))
               .map(emp => (
                 <div key={emp.employeeName} className="bg-white/40 backdrop-blur-md border border-white/60 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all space-y-4 relative group">
                   
@@ -332,7 +405,10 @@ export function DailyProgressPage() {
 
         /* DAILY REPORTS GRID VIEW */
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredRecords.map((record) => (
+          {filteredRecords.map((record) => {
+            const displayName = record?.employeeName || record?.employee_name || "Staff Member";
+            const { doneTasks, pendingTasks } = getCategorizedTasks(record);
+            return (
             <div key={record.id} className="bg-white/40 backdrop-blur-md border border-white/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col">
               
               {/* Header info */}
@@ -340,11 +416,11 @@ export function DailyProgressPage() {
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 font-bold text-lg">
-                      {record.employeeName.charAt(0)}
+                      {displayName.charAt(0)}
                     </div>
                     <div>
-                      <div className="font-bold text-gray-900 leading-tight">{record.employeeName}</div>
-                      <div className="text-xs text-gray-500">{record.role}</div>
+                      <div className="font-bold text-gray-900 leading-tight">{displayName}</div>
+                      <div className="text-xs text-gray-500">{record?.role || "Staff Member"}</div>
                     </div>
                   </div>
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black uppercase border ${
@@ -366,36 +442,49 @@ export function DailyProgressPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-2 text-sm font-bold text-emerald-600">
                     <CheckCircle2 className="w-4 h-4" />
-                    Completed Tasks ({record.tasksDone.length})
+                    Completed Tasks ({doneTasks.length})
                   </div>
                   <ul className="space-y-1.5">
-                    {record.tasksDone.slice(0, 2).map((task: any) => (
-                      <li key={task.id} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                        {task.description}
-                      </li>
-                    ))}
-                    {record.tasksDone.length > 2 && (
+                    {doneTasks.slice(0, 2).map((task: any, idx: number) => {
+                      const { text, dueDate } = renderTaskInfo(task);
+                      return (
+                        <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                          <span>
+                            {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                    {doneTasks.length > 2 && (
                       <li className="text-xs text-gray-400 font-medium pl-3">
-                        +{record.tasksDone.length - 2} more...
+                        +{doneTasks.length - 2} more...
                       </li>
+                    )}
+                    {doneTasks.length === 0 && (
+                      <li className="text-xs text-gray-400 italic">No tasks completed yet</li>
                     )}
                   </ul>
                 </div>
 
-                {record.tasksPending.length > 0 && (
+                {pendingTasks.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2 text-sm font-bold text-amber-600">
                       <Clock className="w-4 h-4" />
-                      Pending Tasks ({record.tasksPending.length})
+                      Pending Tasks ({pendingTasks.length})
                     </div>
                     <ul className="space-y-1.5">
-                      {record.tasksPending.slice(0, 2).map((task: any) => (
-                        <li key={task.id} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                          {task.description}
-                        </li>
-                      ))}
+                      {pendingTasks.slice(0, 2).map((task: any, idx: number) => {
+                        const { text, dueDate } = renderTaskInfo(task);
+                        return (
+                          <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                            <span>
+                              {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
@@ -428,7 +517,8 @@ export function DailyProgressPage() {
               </div>
 
             </div>
-          ))}
+            );
+          })}
 
           {filteredRecords.length === 0 && (
             <div className="col-span-full p-12 text-center text-gray-500 bg-white/40 backdrop-blur-md border border-dashed border-white/60 rounded-3xl">
@@ -465,43 +555,60 @@ export function DailyProgressPage() {
                 
                 {/* Tasks List */}
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="font-bold flex items-center gap-2 text-emerald-600 mb-3 pb-2 border-b border-gray-100">
-                      <CheckCircle2 className="w-5 h-5" />
-                      Completed Tasks
-                    </h3>
-                    {selectedRecord && selectedRecord.tasksDone.length > 0 ? (
-                      <ul className="space-y-3">
-                        {selectedRecord.tasksDone.map((task: any) => (
-                          <li key={task.id} className="flex items-start gap-3 bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                            <span className="text-sm font-medium text-gray-900">{task.description}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm text-gray-500 p-4 bg-gray-50 rounded-xl text-center">No tasks completed today.</div>
-                    )}
-                  </div>
+                  {(() => {
+                    const { doneTasks, pendingTasks } = getCategorizedTasks(selectedRecord);
+                    return (
+                      <>
+                        <div>
+                          <h3 className="font-bold flex items-center gap-2 text-emerald-600 mb-3 pb-2 border-b border-gray-100">
+                            <CheckCircle2 className="w-5 h-5" />
+                            Completed Tasks ({doneTasks.length})
+                          </h3>
+                          {doneTasks.length > 0 ? (
+                            <ul className="space-y-3">
+                              {doneTasks.map((task: any, idx: number) => {
+                                const { text, dueDate } = renderTaskInfo(task);
+                                return (
+                                  <li key={task?.id || idx} className="flex items-start gap-3 bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {text} <span className="text-emerald-700/80 font-bold text-xs ml-1 font-mono">({dueDate})</span>
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <div className="text-sm text-gray-500 p-4 bg-gray-50 rounded-xl text-center">No tasks completed yet.</div>
+                          )}
+                        </div>
 
-                  <div>
-                    <h3 className="font-bold flex items-center gap-2 text-amber-600 mb-3 pb-2 border-b border-gray-100">
-                      <Clock className="w-5 h-5" />
-                      Pending / Blocked
-                    </h3>
-                    {selectedRecord && selectedRecord.tasksPending.length > 0 ? (
-                      <ul className="space-y-3">
-                        {selectedRecord.tasksPending.map((task: any) => (
-                          <li key={task.id} className="flex items-start gap-3 bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
-                            <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                            <span className="text-sm font-medium text-gray-900">{task.description}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm text-gray-500 p-4 bg-gray-50 rounded-xl text-center">No pending tasks! 🎉</div>
-                    )}
-                  </div>
+                        <div>
+                          <h3 className="font-bold flex items-center gap-2 text-amber-600 mb-3 pb-2 border-b border-gray-100">
+                            <Clock className="w-5 h-5" />
+                            Pending / Not Completed ({pendingTasks.length})
+                          </h3>
+                          {pendingTasks.length > 0 ? (
+                            <ul className="space-y-3">
+                              {pendingTasks.map((task: any, idx: number) => {
+                                const { text, dueDate } = renderTaskInfo(task);
+                                return (
+                                  <li key={task?.id || idx} className="flex items-start gap-3 bg-amber-500/5 p-3 rounded-xl border border-amber-500/10">
+                                    <Clock className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {text} <span className="text-amber-700/80 font-bold text-xs ml-1 font-mono">({dueDate})</span>
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <div className="text-sm text-gray-500 p-4 bg-gray-50 rounded-xl text-center">No pending tasks! 🎉</div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Rating & Verification Section */}
@@ -599,14 +706,16 @@ export function DailyProgressPage() {
             </div>
             
             <div className="p-6 space-y-3 overflow-y-auto max-h-[70vh]">
-              {records.filter(r => r.verificationStatus === "Pending").map(record => (
+              {records.filter(r => (r.verificationStatus || r.verification_status) === "Pending").map(record => {
+                const name = record.employeeName || record.employee_name || "Staff Member";
+                return (
                 <div key={record.id} className="p-4 border border-gray-100 rounded-2xl bg-gray-50/50 flex justify-between items-center hover:border-primary/50 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 font-bold">
-                      {record.employeeName.charAt(0)}
+                      {name.charAt(0)}
                     </div>
                     <div>
-                      <div className="font-bold text-gray-900 text-sm">{record.employeeName}</div>
+                      <div className="font-bold text-gray-900 text-sm">{name}</div>
                       <div className="text-xs text-gray-500">{record.date} • {record.submittedAt}</div>
                     </div>
                   </div>
@@ -620,7 +729,8 @@ export function DailyProgressPage() {
                     Review
                   </button>
                 </div>
-              ))}
+              );
+            })}
               {records.filter(r => r.verificationStatus === "Pending").length === 0 && (
                 <div className="text-center p-8 text-gray-500 bg-gray-50 rounded-2xl font-medium text-sm">
                   No pending verifications! 🎉
