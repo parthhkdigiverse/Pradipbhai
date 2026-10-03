@@ -19,6 +19,29 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
   const displayUserName = currentUser?.name || 'System Admin';
   const displayUserEmail = currentUser?.email || userEmail;
+  const userKey = currentUser?.id || displayUserEmail;
+
+  const [headerAvatarUrl, setHeaderAvatarUrl] = useState<string>(() => {
+    return (
+      localStorage.getItem(`user_avatar_${userKey}`) ||
+      (currentUser as any)?.avatarUrl ||
+      (currentUser as any)?.avatar_url ||
+      `https://i.pravatar.cc/150?u=${displayUserEmail}`
+    );
+  });
+
+  useEffect(() => {
+    const syncAvatar = () => {
+      const saved = localStorage.getItem(`user_avatar_${userKey}`);
+      if (saved) {
+        setHeaderAvatarUrl(saved);
+      } else {
+        setHeaderAvatarUrl(`https://i.pravatar.cc/150?u=${displayUserEmail}`);
+      }
+    };
+    window.addEventListener('avatarChanged', syncAvatar);
+    return () => window.removeEventListener('avatarChanged', syncAvatar);
+  }, [userKey, displayUserEmail]);
 
   // Dynamic Notifications calculation
   const userStaffName = currentUser?.name;
@@ -528,7 +551,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/60 shadow-sm hover:border-primary/60 transition-colors"
           >
-            <img src={`https://i.pravatar.cc/150?u=${displayUserEmail}`} alt="User profile" className="w-full h-full object-cover" />
+            <img src={headerAvatarUrl} alt="User profile" className="w-full h-full object-cover" />
           </button>
           
           {/* Profile Dropdown */}

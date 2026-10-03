@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useData } from '../context/DataContext';
-import { User, Mail, Phone, MapPin, Building, Shield, Save, Clock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Building, Shield, Save, Clock, Camera, RefreshCw } from 'lucide-react';
 
 export function ProfilePage() {
-  const { workLogs, staff, currentUserRole } = useData();
+  const { workLogs, staff, currentUserRole, updateStaff } = useData();
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
   const currentUser = staff.find(s => s.email?.toLowerCase() === userEmail.toLowerCase());
+  const userKey = currentUser?.id || userEmail;
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [avatarUrl, setAvatarUrl] = useState<string>(() => {
+    return (
+      localStorage.getItem(`user_avatar_${userKey}`) ||
+      (currentUser as any)?.avatarUrl ||
+      (currentUser as any)?.avatar_url ||
+      `https://i.pravatar.cc/150?u=${userEmail}`
+    );
+  });
 
   const [formData, setFormData] = useState({
     name: currentUser ? currentUser.name : 'System Admin',
@@ -21,8 +33,45 @@ export function ProfilePage() {
   const totalTrackedSeconds = workLogs.reduce((acc, log) => acc + (log.duration || 0), 0);
   const totalTrackedHours = (totalTrackedSeconds / 3600).toFixed(1);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setAvatarUrl(result);
+          localStorage.setItem(`user_avatar_${userKey}`, result);
+          if (currentUser && updateStaff) {
+            updateStaff(currentUser.id, { avatarUrl: result, avatar_url: result });
+          }
+          window.dispatchEvent(new Event('avatarChanged'));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleResetAvatar = () => {
+    const defaultUrl = `https://i.pravatar.cc/150?u=${userEmail}`;
+    setAvatarUrl(defaultUrl);
+    localStorage.removeItem(`user_avatar_${userKey}`);
+    if (currentUser && updateStaff) {
+      updateStaff(currentUser.id, { avatarUrl: defaultUrl, avatar_url: defaultUrl });
+    }
+    window.dispatchEvent(new Event('avatarChanged'));
+  };
+
   return (
     <div className="w-full relative pb-10">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="image/*" 
+        className="hidden" 
+        onChange={handleFileSelect} 
+      />
+
       {/* Banner & Avatar Container */}
       <div className="relative mb-16">
         <div className="h-48 rounded-3xl bg-primary relative overflow-hidden shadow-lg">
@@ -37,11 +86,29 @@ export function ProfilePage() {
           </div>
         </div>
         
-        {/* Avatar */}
-        <div className="absolute -bottom-12 left-8">
-          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-white relative z-10">
-            <img src={`https://i.pravatar.cc/150?u=${formData.email}`} alt="Profile" className="w-full h-full object-cover" />
+        {/* Avatar Container with Sleek Floating Camera Badge */}
+        <div className="absolute -bottom-12 left-8 group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-white relative">
+            <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+            
+            {/* Subtle Hover Overlay */}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+              <Camera className="w-7 h-7 text-white drop-shadow-md" />
+            </div>
           </div>
+
+          {/* Camera Action Badge */}
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+            className="absolute bottom-1 right-1 w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shadow-lg border-2 border-white hover:bg-primary-dark hover:scale-110 transition-all z-20 cursor-pointer"
+            title="Change Profile Picture"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -62,16 +129,28 @@ export function ProfilePage() {
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" /> Personal Information
               </h2>
-              <button 
-                onClick={() => setIsEditing(!isEditing)}
-                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
-                  isEditing ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {isEditing ? (
-                  <span className="flex items-center gap-1.5"><Save className="w-4 h-4" /> Save</span>
-                ) : 'Edit Profile'}
-              </button>
+              <div className="flex items-center gap-2">
+                {localStorage.getItem(`user_avatar_${userKey}`) && (
+                  <button
+                    type="button"
+                    onClick={handleResetAvatar}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer flex items-center gap-1 border border-gray-200"
+                    title="Remove custom photo"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Reset Photo
+                  </button>
+                )}
+                <button 
+                  onClick={() => setIsEditing(!isEditing)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-bold transition-all ${
+                    isEditing ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {isEditing ? (
+                    <span className="flex items-center gap-1.5"><Save className="w-4 h-4" /> Save</span>
+                  ) : 'Edit Profile'}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
