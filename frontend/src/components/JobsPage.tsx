@@ -78,6 +78,37 @@ export function JobsPage() {
   const [delayModalJob, setDelayModalJob] = useState<any | null>(null);
   const [delayReasonInput, setDelayReasonInput] = useState('');
 
+  const handleOpenWorkLocation = async (locationPath: string) => {
+    if (!locationPath || !locationPath.trim()) return;
+    const cleanPath = locationPath.trim();
+
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+      window.open(cleanPath, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/jobs/open-folder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        },
+        body: JSON.stringify({ path: cleanPath })
+      });
+      const data = await res.json();
+      if (data.status === 'url' && data.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      } else if (data.status === 'error') {
+        await navigator.clipboard.writeText(cleanPath);
+        alert(`Folder path copied to clipboard:\n${cleanPath}`);
+      }
+    } catch {
+      await navigator.clipboard.writeText(cleanPath);
+      alert(`Folder path copied to clipboard:\n${cleanPath}`);
+    }
+  };
+
   const handleOpenDelayModal = (job: any) => {
     setDelayModalJob(job);
     setDelayReasonInput(job.delayReason || '');
@@ -703,13 +734,19 @@ export function JobsPage() {
                               </a>
                             )}
                             {job.workLocation && (
-                              <span 
-                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 rounded-md truncate max-w-[180px]"
-                                title={job.workLocation}
+                              <button 
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenWorkLocation(job.workLocation);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 rounded-lg hover:bg-indigo-100 hover:text-indigo-800 transition-all cursor-pointer shadow-2xs group/folder shrink-0"
+                                title={`Click to open directly in File Explorer / Finder: ${job.workLocation}`}
                               >
-                                <Folder className="w-3 h-3 text-gray-400 shrink-0" />
-                                {job.workLocation}
-                              </span>
+                                <Folder className="w-3.5 h-3.5 text-indigo-500 group-hover/folder:scale-110 transition-transform shrink-0" />
+                                <span className="truncate max-w-[160px]">{job.workLocation}</span>
+                                <ExternalLink className="w-3 h-3 text-indigo-400 group-hover/folder:text-indigo-600 shrink-0" />
+                              </button>
                             )}
                           </div>
                         )}

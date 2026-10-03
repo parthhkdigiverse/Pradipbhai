@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Calendar, Search, CheckCircle, Check, X, FilterX, ChevronDown, User, Clock, History, AlertTriangle } from 'lucide-react';
+import { Calendar, Search, CheckCircle, Check, X, FilterX, ChevronDown, User, Clock, History, AlertTriangle, Edit2, Plus, Trash2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -162,6 +162,103 @@ export function AttendancePage() {
     }
   };
 
+  const [editingRecord, setEditingRecord] = useState<{
+    id?: string;
+    staffId: string;
+    staffName: string;
+    date: string;
+    status: string;
+    checkIn: string;
+    checkOut: string;
+    punches: { in: string; out: string }[];
+  } | null>(null);
+
+  const handleOpenEditModal = (rec: any, defaultStaffId?: string, defaultStaffName?: string) => {
+    const staffId = rec.staffId || rec.staff_id || defaultStaffId || '';
+    const staffName = rec.staffName || rec.staff_name || defaultStaffName || 'Employee';
+    const rawPunches = rec.punches || (rec.checkIn || rec.check_in ? [{ in: rec.checkIn || rec.check_in || '', out: rec.checkOut || rec.check_out || '' }] : []);
+
+    setEditingRecord({
+      id: rec.id,
+      staffId: staffId,
+      staffName: staffName,
+      date: rec.date,
+      status: rec.status || 'Present',
+      checkIn: rec.checkIn || rec.check_in || '',
+      checkOut: rec.checkOut || rec.check_out || '',
+      punches: Array.isArray(rawPunches) ? JSON.parse(JSON.stringify(rawPunches)) : []
+    });
+  };
+
+  const handleSessionChange = (index: number, field: 'in' | 'out', value: string) => {
+    if (!editingRecord) return;
+    const newPunches = [...editingRecord.punches];
+    newPunches[index] = { ...newPunches[index], [field]: value };
+    const firstIn = newPunches[0]?.in || editingRecord.checkIn;
+    const lastOut = newPunches[newPunches.length - 1]?.out || editingRecord.checkOut;
+    setEditingRecord({
+      ...editingRecord,
+      punches: newPunches,
+      checkIn: firstIn,
+      checkOut: lastOut
+    });
+  };
+
+  const handleAddSession = () => {
+    if (!editingRecord) return;
+    const lastPunch = editingRecord.punches[editingRecord.punches.length - 1];
+    const defaultIn = lastPunch?.out || '09:00';
+    const defaultOut = '18:00';
+    const newPunches = [...editingRecord.punches, { in: defaultIn, out: defaultOut }];
+    setEditingRecord({
+      ...editingRecord,
+      punches: newPunches,
+      checkIn: newPunches[0]?.in || editingRecord.checkIn,
+      checkOut: newPunches[newPunches.length - 1]?.out || editingRecord.checkOut
+    });
+  };
+
+  const handleDeleteSession = (index: number) => {
+    if (!editingRecord) return;
+    const newPunches = editingRecord.punches.filter((_, i) => i !== index);
+    const firstIn = newPunches[0]?.in || '';
+    const lastOut = newPunches[newPunches.length - 1]?.out || '';
+    setEditingRecord({
+      ...editingRecord,
+      punches: newPunches,
+      checkIn: firstIn,
+      checkOut: lastOut
+    });
+  };
+
+  const handleSaveEditModal = async () => {
+    if (!editingRecord) return;
+    
+    const updatedPunches = editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? [] : editingRecord.punches;
+    const firstIn = updatedPunches[0]?.in || (editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? '' : editingRecord.checkIn);
+    const lastOut = updatedPunches[updatedPunches.length - 1]?.out || (editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? '' : editingRecord.checkOut);
+
+    const payload = {
+      status: editingRecord.status,
+      check_in: firstIn,
+      check_out: lastOut,
+      checkIn: firstIn,
+      checkOut: lastOut,
+      punches: updatedPunches
+    };
+
+    if (editingRecord.id) {
+      await updateAttendance(editingRecord.id, payload);
+    } else {
+      await addAttendance({
+        staffId: editingRecord.staffId,
+        date: editingRecord.date,
+        ...payload
+      });
+    }
+    setEditingRecord(null);
+  };
+
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'Present': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
@@ -209,17 +306,19 @@ export function AttendancePage() {
             <Calendar className="w-4 h-4" />
             Daily Entry
           </button>
-          <button
-            onClick={() => setActiveTab('employee')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'employee'
-                ? 'bg-primary text-white shadow-md shadow-primary/20'
-                : 'text-gray-600 hover:bg-white/50'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            Employee Wise
-          </button>
+          {isAdminOrManager && (
+            <button
+              onClick={() => setActiveTab('employee')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                activeTab === 'employee'
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'text-gray-600 hover:bg-white/50'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              Employee Wise
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('history')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -467,6 +566,13 @@ export function AttendancePage() {
                               >
                                 <X className="w-4 h-4" />
                               </button>
+                              <button 
+                                onClick={() => handleOpenEditModal(record, record.id, record.name)}
+                                className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
+                                title="Edit Record & Sessions"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           )}
                         </td>
@@ -490,7 +596,7 @@ export function AttendancePage() {
       )}
 
       {/* TAB 2: EMPLOYEE-WISE ATTENDANCE HISTORY */}
-      {activeTab === 'employee' && (
+      {activeTab === 'employee' && isAdminOrManager && (
         <div className="space-y-6">
           {/* Employee Selector Bar */}
           <div className="glass-panel p-5 rounded-2xl border border-white/60 bg-white/40 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -599,6 +705,7 @@ export function AttendancePage() {
                     <th className="py-4 px-6 text-center">Last Out</th>
                     <th className="py-4 px-6 text-center">Punch Sessions (Breaks)</th>
                     <th className="py-4 px-6 text-center">Status</th>
+                    {isAdminOrManager && <th className="py-4 px-6 text-center">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -657,6 +764,18 @@ export function AttendancePage() {
                               )}
                             </div>
                           </td>
+                          {isAdminOrManager && (
+                            <td className="py-4 px-6 text-center">
+                              <button
+                                onClick={() => handleOpenEditModal(rec, employeeHistory.emp?.id, employeeHistory.emp?.name)}
+                                className="px-2 py-1 rounded-lg text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1 font-semibold text-xs border border-primary/20"
+                                title="Edit Record"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                Edit
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -700,6 +819,7 @@ export function AttendancePage() {
                     <th className="py-4 px-6 text-center">Last Out</th>
                     <th className="py-4 px-6 text-center">Punch Sessions (Breaks)</th>
                     <th className="py-4 px-6 text-center">Status</th>
+                    {isAdminOrManager && <th className="py-4 px-6 text-center">Action</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -759,6 +879,18 @@ export function AttendancePage() {
                               )}
                             </div>
                           </td>
+                          {isAdminOrManager && (
+                            <td className="py-4 px-6 text-center">
+                              <button
+                                onClick={() => handleOpenEditModal(rec, rec.staffId || rec.staff_id, rec.staffName)}
+                                className="px-2 py-1 rounded-lg text-primary hover:bg-primary/10 transition-colors inline-flex items-center gap-1 font-semibold text-xs border border-primary/20"
+                                title="Edit Record"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                                Edit
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })
@@ -774,6 +906,165 @@ export function AttendancePage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* EDIT ATTENDANCE MODAL */}
+      {editingRecord && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/95 backdrop-blur-xl border border-white/80 rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800 text-lg">Edit Attendance Record</h3>
+                  <p className="text-xs text-gray-500 font-medium">Update status, overall times & punch sessions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingRecord(null)}
+                className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Employee</span>
+                  <p className="font-bold text-gray-800 text-sm">{editingRecord.staffName}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">Date</span>
+                  <p className="font-bold text-gray-800 text-sm">{editingRecord.date}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
+                  Status
+                </label>
+                <select
+                  value={editingRecord.status}
+                  onChange={(e) => setEditingRecord({ ...editingRecord, status: e.target.value })}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800 shadow-sm"
+                >
+                  <option value="Present">Present</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Half Day">Half Day</option>
+                  <option value="Leave">Leave</option>
+                  <option value="Unmarked">Unmarked</option>
+                </select>
+              </div>
+
+              {editingRecord.status !== 'Absent' && editingRecord.status !== 'Leave' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
+                        First In (Overall Check-In)
+                      </label>
+                      <input
+                        type="time"
+                        value={editingRecord.checkIn}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, checkIn: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800 shadow-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
+                        Last Out (Overall Check-Out)
+                      </label>
+                      <input
+                        type="time"
+                        value={editingRecord.checkOut}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, checkOut: e.target.value })}
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800 shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Punch & Break Sessions List Editor */}
+                  <div className="space-y-3 border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-primary" />
+                        Punch & Break Sessions ({editingRecord.punches.length})
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddSession}
+                        className="px-2.5 py-1 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-lg text-[11px] transition-all flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Session
+                      </button>
+                    </div>
+
+                    {editingRecord.punches.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {editingRecord.punches.map((punch, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-gray-50/80 p-2.5 rounded-xl border border-gray-100">
+                            <span className="text-[10px] font-bold text-gray-400 font-mono w-6">#{idx + 1}</span>
+                            <div className="flex-1 grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase block mb-0.5">Punch In</span>
+                                <input
+                                  type="time"
+                                  value={punch.in}
+                                  onChange={(e) => handleSessionChange(idx, 'in', e.target.value)}
+                                  className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase block mb-0.5">Punch Out</span>
+                                <input
+                                  type="time"
+                                  value={punch.out || ''}
+                                  onChange={(e) => handleSessionChange(idx, 'out', e.target.value)}
+                                  className="w-full px-2 py-1 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                  placeholder="Active"
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSession(idx)}
+                              className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors mt-3 cursor-pointer"
+                              title="Delete session"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-xs">
+                        No punch sessions recorded yet. Click "+ Add Session" to add one.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                onClick={() => setEditingRecord(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEditModal}
+                className="px-4 py-2 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-md shadow-primary/20 transition-all cursor-pointer"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         </div>

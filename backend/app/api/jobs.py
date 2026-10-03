@@ -39,12 +39,39 @@ async def update_job(job_id: str, job_in: JobUpdate, db: AsyncSession = Depends(
     await db.refresh(job)
     return job
 
-@router.delete("/{job_id}")
-async def delete_job(job_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Job).where(Job.id == job_id))
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    await db.delete(job)
-    await db.commit()
-    return {"message": "Job deleted"}
+import os
+import sys
+import subprocess
+import platform
+from pydantic import BaseModel
+
+class OpenFolderRequest(BaseModel):
+    path: str
+
+@router.post("/open-folder")
+async def open_folder(req: OpenFolderRequest):
+    folder_path = req.path.strip()
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="Path cannot be empty")
+
+    clean_path = folder_path.strip('"').strip("'")
+
+    # Handle URLs directly
+    if clean_path.startswith(("http://", "https://", "ftp://", "smb://")):
+        return {"status": "url", "url": clean_path}
+
+    system_os = platform.system()
+
+    try:
+        if system_os == "Windows":
+            if os.path.exists(clean_path):
+                os.startfile(clean_path)
+            else:
+                subprocess.Popen(["explorer", clean_path])
+        elif system_os == "Darwin":  # macOS
+            subprocess.Popen(["open", clean_path])
+        else:  # Linux
+            subprocess.Popen(["xdg-open", clean_path])
+        return {"status": "success", "message": f"Opened {clean_path} in file explorer", "path": clean_path}
+    except Exception as e:
+        return {"status": "error", "detail": str(e), "path": clean_path}
