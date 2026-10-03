@@ -8,7 +8,7 @@ import { QuickAddClientModal } from './QuickAddClientModal';
 import { QuickAddProductModal } from './QuickAddProductModal';
 
 export function JobsPage() {
-  const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission } = useData();
+  const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -345,6 +345,24 @@ export function JobsPage() {
     }
   };
 
+  const enforceSingleProgressJob = async (newProgressJobId: string) => {
+    const otherProgressJobs = jobs.filter((j: any) => 
+      j.id !== newProgressJobId && 
+      j.status === 'Progress' && 
+      (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === currentStaffId)
+    );
+
+    for (const prevJob of otherProgressJobs) {
+      if (activeJobTracker && activeJobTracker.jobId === prevJob.id) {
+        const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        await updateJob(prevJob.id, { trackedTime: (prevJob.trackedTime || 0) + elapsed, status: 'Pending' });
+        setActiveJobTracker(null);
+      } else {
+        await updateJob(prevJob.id, { status: 'Pending' });
+      }
+    }
+  };
+
   const handleStartTracker = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
@@ -356,12 +374,13 @@ export function JobsPage() {
     }
 
     ensurePunchedIn();
+    await enforceSingleProgressJob(jobId);
 
     if (activeJobTracker && activeJobTracker.jobId !== jobId) {
       // Stop previous tracker
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      const job = jobs.find((j: any) => j.id === activeJobTracker.jobId);
-      if (job) await updateJob(activeJobTracker.jobId, { trackedTime: (job.trackedTime || 0) + elapsed });
+      const prev = jobs.find((j: any) => j.id === activeJobTracker.jobId);
+      if (prev) await updateJob(activeJobTracker.jobId, { trackedTime: (prev.trackedTime || 0) + elapsed, status: 'Pending' });
     }
     setActiveJobTracker({ jobId, startTime: Date.now() });
     await updateJob(jobId, { status: 'Progress' });
@@ -382,6 +401,12 @@ export function JobsPage() {
     }
 
     await updateJob(jobId, { status: 'Completed' });
+    if (activeJobTracker && activeJobTracker.jobId === jobId) {
+      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      await updateJob(jobId, { trackedTime: (job?.trackedTime || 0) + elapsed });
+      setActiveJobTracker(null);
+    }
+    setTimeout(() => openPunchInModal(), 200);
 
     // Auto-create Printing job when a Designing job of a Des+Print project is approved
     if (job.type === 'Designing' && job.projectId) {
@@ -449,6 +474,7 @@ export function JobsPage() {
     }
 
     if (status === 'Progress') {
+      await enforceSingleProgressJob(id);
       if (activeJobTracker?.jobId !== id) {
         handleStartTracker(id);
       }
@@ -488,12 +514,20 @@ export function JobsPage() {
       return;
     }
     if (completionModalJobId) {
-      await updateJob(completionModalJobId, {
+      const targetId = completionModalJobId;
+      await updateJob(targetId, {
         status: 'Under Review',
         workLink: completionWorkLink.trim(),
         workLocation: completionWorkLocation.trim()
       });
+      if (activeJobTracker && activeJobTracker.jobId === targetId) {
+        const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        const targetJob = jobs.find(j => j.id === targetId);
+        await updateJob(targetId, { trackedTime: (targetJob?.trackedTime || 0) + elapsed });
+        setActiveJobTracker(null);
+      }
       setCompletionModalJobId(null);
+      setTimeout(() => openPunchInModal(), 200);
     }
   };
 

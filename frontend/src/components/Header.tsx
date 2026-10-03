@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
@@ -322,7 +322,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       setPunchInTime(null);
     } else {
       // Punch In - open job modal
-      setShowJobModal(true);
+      setIsPunchInModalOpen(true);
     }
   };
 
@@ -334,6 +334,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
     await updateJob(selectedJobId, { status: 'Progress' });
     setShowJobModal(false);
+    setIsPunchInModalOpen(false);
     setSelectedJobId('');
 
     // Resolve current user
@@ -449,6 +450,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     }
     
     setShowJobModal(false);
+    setIsPunchInModalOpen(false);
     setSelectedJobId('');
   };
 
@@ -643,7 +645,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       </div>
 
       {/* Job Selection / Switch Modal */}
-      {showJobModal && createPortal(
+      {(showJobModal || isPunchInModalOpen) && createPortal(
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
@@ -651,7 +653,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 <ArrowRightLeft className="w-4 h-4 text-primary" />
                 {activeJobTracker ? 'Switch Active Job / Field Duty' : 'Select Job or Activity for Punch In'}
               </h3>
-              <button onClick={() => setShowJobModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => { setShowJobModal(false); setIsPunchInModalOpen(false); }} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -699,7 +701,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             </div>
             <div className="flex gap-2 p-4 bg-gray-50 border-t border-gray-100 justify-end">
               <button 
-                onClick={() => setShowJobModal(false)}
+                onClick={() => { setShowJobModal(false); setIsPunchInModalOpen(false); }}
                 className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               >
                 Cancel

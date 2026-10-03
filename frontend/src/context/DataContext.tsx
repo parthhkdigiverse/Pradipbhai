@@ -171,6 +171,9 @@ interface DataContextType {
   currentUserRole: string;
   setCurrentUserRole: React.Dispatch<React.SetStateAction<string>>;
   currentUser: { id: string; name: string; email: string; role: string };
+  isPunchInModalOpen: boolean;
+  setIsPunchInModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  openPunchInModal: () => void;
   performAutoPunchOut: (overrideEndTime?: number) => Promise<void>;
   refreshApiData: () => Promise<void>;
 }
@@ -423,6 +426,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
   const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(null);
+  const [isPunchInModalOpen, setIsPunchInModalOpen] = useState<boolean>(false);
+
+  const openPunchInModal = () => setIsPunchInModalOpen(true);
 
   const setActiveJobTracker = (val: { jobId: string, startTime: number } | null | ((prev: { jobId: string, startTime: number } | null) => { jobId: string, startTime: number } | null)) => {
     setActiveJobTrackerState(prev => typeof val === 'function' ? val(prev) : val);
@@ -1217,6 +1223,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       currentUserRole,
       setCurrentUserRole,
       currentUser,
+      isPunchInModalOpen,
+      setIsPunchInModalOpen,
+      openPunchInModal,
       performAutoPunchOut,
       refreshApiData
     }}>

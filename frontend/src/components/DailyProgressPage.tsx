@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 
 export function DailyProgressPage() {
-  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission, jobs } = useData();
+  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission, jobs, staff } = useData();
   const canVerifyRate = hasPermission(currentUserRole, 'Verify & Rate Reports');
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [search, setSearch] = useState("");
@@ -106,6 +106,20 @@ export function DailyProgressPage() {
   const employeeRatingStats = useMemo(() => {
     const map: Record<string, { totalRating: number; verifiedCount: number; totalReports: number; role: string }> = {};
     
+    // First initialize map with all staff members from database
+    (staff || []).forEach((member: any) => {
+      const name = member?.name || member?.staff_name || member?.full_name;
+      if (name) {
+        map[name] = {
+          totalRating: 0,
+          verifiedCount: 0,
+          totalReports: 0,
+          role: member?.role || member?.designation || "Employee"
+        };
+      }
+    });
+
+    // Then accumulate ratings from actual daily progress records in the date range
     records.forEach(rec => {
       const empName = rec?.employeeName || rec?.employee_name || "Staff Member";
       if (rec?.date && rec.date >= startDate && rec.date <= endDate) {
@@ -132,15 +146,25 @@ export function DailyProgressPage() {
         totalReports: data.totalReports
       };
     }).sort((a, b) => b.numericAvg - a.numericAvg);
-  }, [records, startDate, endDate]);
+  }, [records, staff, startDate, endDate]);
+
+  // Filter ratings stats according to search and user role permissions (Employees only see their own rating)
+  const filteredRatingStats = useMemo(() => {
+    const currentUserName = (currentUser?.name || '').toLowerCase();
+    return employeeRatingStats.filter(emp => {
+      const matchesSearch = (emp?.employeeName || '').toLowerCase().includes((search || '').toLowerCase());
+      const matchesUser = isAdminOrManager || (currentUserName ? emp.employeeName.toLowerCase() === currentUserName : true);
+      return matchesSearch && matchesUser;
+    });
+  }, [employeeRatingStats, isAdminOrManager, currentUser, search]);
 
   // Overall stats for selected date range
-  const rangeVerifiedRecords = records.filter(r => r.date >= startDate && r.date <= endDate && r.verificationStatus === "Verified" && r.rating);
+  const rangeVerifiedRecords = filteredRecords.filter(r => (r.date ? (r.date >= startDate && r.date <= endDate) : true) && ((r.verificationStatus || r.verification_status) === "Verified") && r.rating);
   const rangeAvgRating = rangeVerifiedRecords.length > 0 
     ? (rangeVerifiedRecords.reduce((acc, curr) => acc + (curr.rating || 0), 0) / rangeVerifiedRecords.length).toFixed(1)
     : "N/A";
 
-  const pendingCount = records.filter(r => r.verificationStatus === "Pending").length;
+  const pendingCount = filteredRecords.filter(r => (r.verificationStatus || r.verification_status) === "Pending").length;
 
   const handleOpenVerify = (record: any) => {
     setSelectedRecord(record);
@@ -318,14 +342,12 @@ export function DailyProgressPage() {
               <Award className="w-5 h-5 text-primary" /> Overall Employee Ratings ({startDate} to {endDate})
             </h2>
             <span className="text-xs font-bold text-gray-500 bg-white/50 border border-white/60 px-3 py-1.5 rounded-xl">
-              {employeeRatingStats.length} Employees Rated
+              {filteredRatingStats.length} {isAdminOrManager ? 'Employees Rated' : 'Rating Card'}
             </span>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {employeeRatingStats
-              .filter(emp => (emp?.employeeName || '').toLowerCase().includes((search || '').toLowerCase()))
-              .map(emp => (
+            {filteredRatingStats.map(emp => (
                 <div key={emp.employeeName} className="bg-white/40 backdrop-blur-md border border-white/60 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all space-y-4 relative group">
                   
                   {/* Top Avatar & Name Header */}
@@ -393,7 +415,7 @@ export function DailyProgressPage() {
                 </div>
               ))}
 
-            {employeeRatingStats.length === 0 && (
+            {filteredRatingStats.length === 0 && (
               <div className="col-span-full p-12 text-center text-gray-500 bg-white/40 backdrop-blur-md border border-dashed border-white/60 rounded-3xl">
                 No verified ratings found for the selected date range ({startDate} to {endDate}).
               </div>
