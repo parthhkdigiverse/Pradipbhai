@@ -33,29 +33,64 @@ export function ProfilePage() {
   const totalTrackedSeconds = workLogs.reduce((acc, log) => acc + (log.duration || 0), 0);
   const totalTrackedHours = (totalTrackedSeconds / 3600).toFixed(1);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File, maxWidth = 300, quality = 0.8): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setAvatarUrl(result);
+      try {
+        const result = await compressImage(file, 300, 0.8);
+        setAvatarUrl(result);
+        try {
           localStorage.setItem(`user_avatar_${userKey}`, result);
-          if (currentUser && updateStaff) {
-            updateStaff(currentUser.id, { avatarUrl: result, avatar_url: result });
-          }
-          window.dispatchEvent(new Event('avatarChanged'));
+        } catch (storageErr) {
+          console.warn("localStorage avatar set failed:", storageErr);
         }
-      };
-      reader.readAsDataURL(file);
+        if (currentUser && updateStaff) {
+          updateStaff(currentUser.id, { avatarUrl: result, avatar_url: result });
+        }
+        window.dispatchEvent(new Event('avatarChanged'));
+      } catch (err) {
+        console.error("Avatar compression failed:", err);
+      }
     }
   };
 
   const handleResetAvatar = () => {
     const defaultUrl = `https://i.pravatar.cc/150?u=${userEmail}`;
     setAvatarUrl(defaultUrl);
-    localStorage.removeItem(`user_avatar_${userKey}`);
+    try {
+      localStorage.removeItem(`user_avatar_${userKey}`);
+    } catch {}
     if (currentUser && updateStaff) {
       updateStaff(currentUser.id, { avatarUrl: defaultUrl, avatar_url: defaultUrl });
     }
