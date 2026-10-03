@@ -5,6 +5,34 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 import logging
 
+# ---------------------------------------------------------------------------
+# Patch aiomysql & SQLAlchemy to suppress harmless uvloop closed transport
+# errors when recycling server-closed TCP connections on shared hosting.
+# ---------------------------------------------------------------------------
+try:
+    from sqlalchemy.dialects.mysql.aiomysql import AsyncAdapt_aiomysql_connection
+    _orig_terminate = AsyncAdapt_aiomysql_connection.terminate
+    def _safe_terminate(self):
+        try:
+            _orig_terminate(self)
+        except (RuntimeError, Exception):
+            pass
+    AsyncAdapt_aiomysql_connection.terminate = _safe_terminate
+except Exception:
+    pass
+
+try:
+    import aiomysql.connection
+    _orig_ensure_closed = aiomysql.connection.Connection.ensure_closed
+    async def _safe_ensure_closed(self):
+        try:
+            await _orig_ensure_closed(self)
+        except (RuntimeError, Exception):
+            pass
+    aiomysql.connection.Connection.ensure_closed = _safe_ensure_closed
+except Exception:
+    pass
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------

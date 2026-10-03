@@ -7,5 +7,6 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=settings.BACKEND_PORT,
-        reload=is_dev
+        reload=is_dev,
+        loop="asyncio"
     )
