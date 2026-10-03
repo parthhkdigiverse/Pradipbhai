@@ -16,4 +16,5 @@ class Staff(Base):
     password: Mapped[str] = mapped_column(String(255), nullable=True)
     permissions: Mapped[dict] = mapped_column(JSON, nullable=True)
     office_start_time: Mapped[str] = mapped_column(String(50), nullable=True)
+    office_end_time: Mapped[str] = mapped_column(String(50), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

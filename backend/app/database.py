@@ -209,7 +209,8 @@ async def init_db():
         if "staff" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("staff")]
             needed_staff_cols = [
-                ("office_start_time", "VARCHAR(50) NULL")
+                ("office_start_time", "VARCHAR(50) NULL"),
+                ("office_end_time", "VARCHAR(50) NULL")
             ]
             for col_name, col_type in needed_staff_cols:
                 if col_name not in columns:

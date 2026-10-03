@@ -23,6 +23,8 @@ class StaffBase(BaseModel):
     permissions: Optional[dict] = None
     officeStartTime: Optional[str] = None
     office_start_time: Optional[str] = None
+    officeEndTime: Optional[str] = None
+    office_end_time: Optional[str] = None
 
 class StaffCreate(StaffBase):
     id: Optional[str] = None
@@ -39,6 +41,8 @@ class StaffUpdate(BaseModel):
     permissions: Optional[dict] = None
     officeStartTime: Optional[str] = None
     office_start_time: Optional[str] = None
+    officeEndTime: Optional[str] = None
+    office_end_time: Optional[str] = None
 
 class StaffOut(StaffBase):
     id: str

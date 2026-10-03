@@ -66,6 +66,7 @@ export function StaffPage() {
     baseSalary: string;
     password: string;
     officeStartTime: string;
+    officeEndTime: string;
     permissions: Record<string, boolean>;
   }>({
     name: '',
@@ -77,6 +78,7 @@ export function StaffPage() {
     baseSalary: '',
     password: '',
     officeStartTime: '',
+    officeEndTime: '',
     permissions: {}
   });
 
@@ -118,6 +120,7 @@ export function StaffPage() {
           baseSalary: emp.baseSalary?.toString() || '',
           password: (emp as any).password || '',
           officeStartTime: emp.officeStartTime || (emp as any).office_start_time || '',
+          officeEndTime: (emp as any).officeEndTime || (emp as any).office_end_time || '',
           permissions: (emp as any).permissions || {}
         });
         setEditingStaffId(staffId);
@@ -133,6 +136,7 @@ export function StaffPage() {
         baseSalary: '',
         password: '',
         officeStartTime: '',
+        officeEndTime: '',
         permissions: {}
       });
       setEditingStaffId(null);
@@ -305,12 +309,12 @@ export function StaffPage() {
                       <span className="font-semibold text-gray-600 bg-gray-100/50 px-2 py-0.5 rounded text-[11px]">{emp.role}</span>
                     </td>
                     <td className="py-4 px-6">
-                      {(emp.officeStartTime || emp.office_start_time) ? (
-                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded text-[11px]" title="Custom Office Start Time">
-                          <Clock className="w-3 h-3 text-indigo-500" /> {emp.officeStartTime || emp.office_start_time} (Custom)
+                      {(emp.officeStartTime || (emp as any).office_start_time || (emp as any).officeEndTime || (emp as any).office_end_time) ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded text-[11px]" title="Custom Office Hours">
+                          <Clock className="w-3 h-3 text-indigo-500" /> {emp.officeStartTime || (emp as any).office_start_time || '09:00'} - {(emp as any).officeEndTime || (emp as any).office_end_time || '18:00'}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 font-medium text-gray-500 bg-gray-100/60 px-2 py-0.5 rounded text-[11px]" title="Uses Global Office Start Time">
+                        <span className="inline-flex items-center gap-1 font-medium text-gray-500 bg-gray-100/60 px-2 py-0.5 rounded text-[11px]" title="Uses Global Office Hours">
                           <Clock className="w-3 h-3 text-gray-400" /> Default (Global)
                         </span>
                       )}
@@ -464,7 +468,18 @@ export function StaffPage() {
                       onChange={e => setFormData({...formData, officeStartTime: e.target.value})} 
                       className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
                     />
-                    <p className="text-[11px] text-gray-500 mt-1">Leave blank to use default global office start time.</p>
+                    <p className="text-[11px] text-gray-500 mt-1">Leave blank for default start time.</p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Office End Time (Custom)</label>
+                    <input 
+                      type="time" 
+                      value={formData.officeEndTime} 
+                      onChange={e => setFormData({...formData, officeEndTime: e.target.value})} 
+                      className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">Leave blank for default end time.</p>
                   </div>
 
                   <div className="sm:col-span-2">
