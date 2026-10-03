@@ -29,8 +29,18 @@ export function DailyProgressPage() {
     const status = rec?.verificationStatus || rec?.verification_status || "Pending";
     const matchesStatus = statusFilter === "All" || status === statusFilter;
     const matchesDate = rec?.date ? (rec.date >= startDate && rec.date <= endDate) : true;
-    const currentUserName = currentUser?.name || "";
-    const matchesUser = isAdminOrManager || (currentUserName ? empName.toLowerCase() === currentUserName.toLowerCase() : true);
+    
+    const currentUserName = (currentUser?.name || localStorage.getItem('userName') || "").toLowerCase().trim();
+    const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || "").toLowerCase().trim();
+    const recEmail = ((rec as any)?.email || (rec as any)?.employee_email || "").toLowerCase().trim();
+    const recName = empName.toLowerCase().trim();
+
+    const matchesUser = isAdminOrManager || 
+      !currentUserName || 
+      recName.includes(currentUserName) || 
+      currentUserName.includes(recName) || 
+      (currentUserEmail && recEmail && recEmail === currentUserEmail);
+
     return matchesSearch && matchesStatus && matchesDate && matchesUser;
   });
 
@@ -150,10 +160,14 @@ export function DailyProgressPage() {
 
   // Filter ratings stats according to search and user role permissions (Employees only see their own rating)
   const filteredRatingStats = useMemo(() => {
-    const currentUserName = (currentUser?.name || '').toLowerCase();
+    const currentUserName = (currentUser?.name || localStorage.getItem('userName') || '').toLowerCase().trim();
     return employeeRatingStats.filter(emp => {
-      const matchesSearch = (emp?.employeeName || '').toLowerCase().includes((search || '').toLowerCase());
-      const matchesUser = isAdminOrManager || (currentUserName ? emp.employeeName.toLowerCase() === currentUserName : true);
+      const empName = (emp?.employeeName || '').toLowerCase().trim();
+      const matchesSearch = empName.includes((search || '').toLowerCase().trim());
+      const matchesUser = isAdminOrManager || 
+        !currentUserName || 
+        empName.includes(currentUserName) || 
+        currentUserName.includes(empName);
       return matchesSearch && matchesUser;
     });
   }, [employeeRatingStats, isAdminOrManager, currentUser, search]);

@@ -395,6 +395,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const currentUser = useMemo(() => {
     const email = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
+    const storedName = localStorage.getItem('userName') || 'Staff Member';
     const found = staff.find(s => s.email?.toLowerCase() === email.trim().toLowerCase());
     if (found) {
       return {
@@ -405,8 +406,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       };
     }
     return {
-      id: 'emp-admin',
-      name: 'Admin',
+      id: localStorage.getItem('userId') || 'emp-user',
+      name: storedName,
       email,
       role: currentUserRole
     };
@@ -681,13 +682,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateJob = async (id: string, updateData: any) => {
+    let resultData: any;
     try {
-      const data = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setJobs(prev => prev.map(j => j.id === id ? data : j));
-      return data;
+      resultData = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      setJobs(prev => prev.map(j => j.id === id ? resultData : j));
     } catch {
+      resultData = { ...updateData };
       setJobs(prev => prev.map(j => j.id === id ? { ...j, ...updateData } : j));
     }
+
+    // Auto-sync task into daily_progress in MySQL database if status is Under Review / Completed / Done
+    const status = (updateData?.status || '').toLowerCase();
+    if (status === 'under review' || status === 'completed' || status === 'done' || status === 'review') {
+      const targetJob = (jobs || []).find(j => j.id === id) || resultData;
+      const jobTitle = targetJob?.jobNo ? `[${targetJob.jobNo}] ${targetJob.title || ''}` : (targetJob?.title || id);
+      const staffName = currentUser?.name || 'Staff Member';
+      const userRole = currentUser?.role || 'Staff Member';
+      syncDailyProgressForTask(staffName, userRole, jobTitle);
+    }
+
+    return resultData;
   };
 
   const deleteJob = async (id: string) => {
@@ -744,25 +758,82 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const normalizeDailyProgress = (r: any) => {
+    if (!r) return r;
+    const tasksDone = Array.isArray(r.tasks_done) ? r.tasks_done : (Array.isArray(r.tasksDone) ? r.tasksDone : []);
+    const tasksPending = Array.isArray(r.tasks_pending) ? r.tasks_pending : (Array.isArray(r.tasksPending) ? r.tasksPending : []);
+    return {
+      ...r,
+      employeeName: r.employee_name || r.employeeName || 'Staff Member',
+      employee_name: r.employee_name || r.employeeName || 'Staff Member',
+      verificationStatus: r.verification_status || r.verificationStatus || 'Pending',
+      verification_status: r.verification_status || r.verificationStatus || 'Pending',
+      managerRemarks: r.manager_remarks !== undefined ? r.manager_remarks : (r.managerRemarks || ''),
+      manager_remarks: r.manager_remarks !== undefined ? r.manager_remarks : (r.managerRemarks || ''),
+      verifiedBy: r.verified_by || r.verifiedBy || '',
+      verified_by: r.verified_by || r.verifiedBy || '',
+      tasksDone,
+      tasks_done: tasksDone,
+      tasksPending,
+      tasks_pending: tasksPending,
+      hoursLogged: r.hours_logged !== undefined ? r.hours_logged : (r.hoursLogged || 0),
+      hours_logged: r.hours_logged !== undefined ? r.hours_logged : (r.hoursLogged || 0),
+      submittedAt: r.submitted_at || r.submittedAt || ''
+    };
+  };
+
   // Daily Progress API
   const addDailyProgress = async (progressData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/daily-progress`, { method: 'POST', body: JSON.stringify(progressData) });
-      setDailyProgressRecords(prev => [data, ...prev]);
-      return data;
+      const norm = normalizeDailyProgress(data);
+      setDailyProgressRecords(prev => [norm, ...prev.filter(r => r.id !== norm.id)]);
+      return norm;
     } catch {
-      setDailyProgressRecords(prev => [progressData, ...prev]);
-      return progressData;
+      const norm = normalizeDailyProgress({ ...progressData, id: progressData.id || `prog-${Date.now()}` });
+      setDailyProgressRecords(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
   const updateDailyProgress = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/daily-progress/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setDailyProgressRecords(prev => prev.map(r => r.id === id ? data : r));
-      return data;
+      const norm = normalizeDailyProgress(data);
+      setDailyProgressRecords(prev => prev.map(r => r.id === id ? norm : r));
+      return norm;
     } catch {
-      setDailyProgressRecords(prev => prev.map(r => r.id === id ? { ...r, ...updateData } : r));
+      setDailyProgressRecords(prev => prev.map(r => r.id === id ? normalizeDailyProgress({ ...r, ...updateData }) : r));
+    }
+  };
+
+  const syncDailyProgressForTask = async (staffName: string, role: string, taskTitle: string, hoursAdded = 0) => {
+    if (!staffName || !taskTitle) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const existingProg = (dailyProgressRecords || []).find((p: any) => 
+      ((p.employeeName || p.employee_name || '')?.toLowerCase() === staffName.toLowerCase()) && p.date === todayStr
+    );
+
+    if (existingProg) {
+      const currentDone = Array.isArray(existingProg.tasksDone) ? existingProg.tasksDone : (Array.isArray(existingProg.tasks_done) ? existingProg.tasks_done : []);
+      const updatedDone = Array.from(new Set([...currentDone, taskTitle]));
+      const currentHours = Number(existingProg.hoursLogged || existingProg.hours_logged || 0);
+      const updatedHours = Number((currentHours + hoursAdded).toFixed(1));
+      await updateDailyProgress(existingProg.id, {
+        tasks_done: updatedDone,
+        hours_logged: updatedHours
+      });
+    } else {
+      await addDailyProgress({
+        employee_name: staffName,
+        role: role || 'Staff Member',
+        date: todayStr,
+        tasks_done: [taskTitle],
+        tasks_pending: [],
+        hours_logged: hoursAdded > 0 ? hoursAdded : 0.1,
+        verification_status: 'Pending',
+        rating: 0
+      });
     }
   };
 
