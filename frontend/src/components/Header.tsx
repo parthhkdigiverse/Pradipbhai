@@ -2,11 +2,11 @@ import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft, AlertTriangle } fro
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
@@ -19,6 +19,138 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
   const displayUserName = currentUser?.name || 'System Admin';
   const displayUserEmail = currentUser?.email || userEmail;
+
+  // Dynamic Notifications calculation
+  const userStaffName = currentUser?.name;
+  const userStaffId = currentUser?.id;
+  const isUserAdmin = currentUserRole === 'Admin' || currentUserRole === 'Manager';
+
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`read_notifs_${userStaffId || 'guest'}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const computedNotifications = useMemo(() => {
+    const list: Array<{ id: string; title: string; message: string; time: string; type: 'job' | 'late' | 'leave' | 'progress'; unread: boolean }> = [];
+
+    // 1. Assigned Jobs
+    const myJobs = jobs.filter((j: any) => 
+      j.status !== 'Completed' && j.status !== 'Delivered' && (
+        isUserAdmin || 
+        j.assignedTo === userStaffName || 
+        j.assigned_to === userStaffName || 
+        (j.assignedStaffIds && j.assignedStaffIds.includes(userStaffId))
+      )
+    ).slice(0, 4);
+
+    myJobs.forEach((j: any) => {
+      const isUnread = !readNotificationIds.includes(`job-${j.id}`);
+      list.push({
+        id: `job-${j.id}`,
+        title: `Active Job: ${j.title || j.id}`,
+        message: `Status: ${j.status || 'Pending'} • Client: ${j.clientName || j.client || 'Standard'}`,
+        time: j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active Task',
+        type: 'job',
+        unread: isUnread
+      });
+    });
+
+    // 2. Today's Attendance / Late check
+    const todayStr = new Date().toISOString().split('T')[0];
+    const myAttToday = attendance.find((a: any) => 
+      ((a.staffId || a.staff_id) === userStaffId || (a.staffName || a.staff_name) === userStaffName) && 
+      a.date === todayStr
+    );
+    if (myAttToday && (myAttToday.isLate || myAttToday.is_late || (myAttToday.lateMinutes && myAttToday.lateMinutes > 0))) {
+      const attId = `att-late-${myAttToday.id || todayStr}`;
+      const isUnread = !readNotificationIds.includes(attId);
+      list.push({
+        id: attId,
+        title: '⚠️ Late Punch-In Logged',
+        message: myAttToday.warningNote || myAttToday.warning_note || `Late punch-in logged (${myAttToday.lateMinutes || myAttToday.late_minutes || 0}m late).`,
+        time: myAttToday.checkIn || myAttToday.check_in || 'Today',
+        type: 'late',
+        unread: isUnread
+      });
+    }
+
+    // 3. Leave Requests Notifications
+    if (leaveRequests && Array.isArray(leaveRequests)) {
+      if (isUserAdmin) {
+        // Pending leave applications requiring admin/manager review
+        const pendingLeaves = leaveRequests.filter((l: any) => l.status === 'Pending').slice(0, 3);
+        pendingLeaves.forEach((l: any) => {
+          const leaveId = `leave-${l.id}`;
+          list.push({
+            id: leaveId,
+            title: `📋 Leave Request: ${l.staffName || 'Staff'}`,
+            message: `${l.type || 'Casual'} Leave from ${l.fromDate} to ${l.toDate} (${l.days} days).`,
+            time: l.appliedOn || 'Pending Review',
+            type: 'leave',
+            unread: !readNotificationIds.includes(leaveId)
+          });
+        });
+      } else {
+        // Status updates on employee's leave requests
+        const myLeaves = leaveRequests.filter((l: any) => (l.staffId === userStaffId || l.staffName === userStaffName)).slice(0, 3);
+        myLeaves.forEach((l: any) => {
+          const leaveId = `leave-status-${l.id}`;
+          list.push({
+            id: leaveId,
+            title: `📋 Leave Application ${l.status}`,
+            message: `${l.type} Leave (${l.fromDate} to ${l.toDate}): Status is ${l.status}.`,
+            time: l.reviewedOn || l.appliedOn || 'Recent',
+            type: 'leave',
+            unread: !readNotificationIds.includes(leaveId)
+          });
+        });
+      }
+    }
+
+    // 4. Daily Progress Report Notifications
+    if (dailyProgressRecords && Array.isArray(dailyProgressRecords)) {
+      if (isUserAdmin) {
+        const pendingProgress = dailyProgressRecords.filter((p: any) => p.verificationStatus === 'Pending').slice(0, 3);
+        pendingProgress.forEach((p: any) => {
+          const progId = `prog-${p.id}`;
+          list.push({
+            id: progId,
+            title: `📊 Daily Progress: ${p.employeeName}`,
+            message: `Submitted progress report for ${p.date}. Pending verification.`,
+            time: p.submittedAt || 'Today',
+            type: 'progress',
+            unread: !readNotificationIds.includes(progId)
+          });
+        });
+      } else {
+        const myProgress = dailyProgressRecords.filter((p: any) => p.employeeName === userStaffName && p.verificationStatus === 'Verified').slice(0, 2);
+        myProgress.forEach((p: any) => {
+          const progId = `prog-verified-${p.id}`;
+          list.push({
+            id: progId,
+            title: `⭐ Daily Report Verified`,
+            message: `Your progress report for ${p.date} was verified by ${p.verifiedBy || 'Manager'}${p.rating ? ` (Rating: ${p.rating}★)` : ''}.`,
+            time: p.date || 'Recent',
+            type: 'progress',
+            unread: !readNotificationIds.includes(progId)
+          });
+        });
+      }
+    }
+
+    return list;
+  }, [jobs, attendance, leaveRequests, dailyProgressRecords, currentUser, isUserAdmin, userStaffName, userStaffId, readNotificationIds]);
+
+  const unreadCount = computedNotifications.filter(n => n.unread).length;
+
+  const markAllNotificationsRead = () => {
+    const allIds = computedNotifications.map(n => n.id);
+    setReadNotificationIds(allIds);
+    localStorage.setItem(`read_notifs_${userStaffId || 'guest'}`, JSON.stringify(allIds));
+  };
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -324,36 +456,69 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             className="text-gray-600 hover:text-gray-900 transition-colors relative p-1"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full shadow-sm shadow-red-500/50"></span>
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full shadow-sm shadow-red-500/50"></span>
+            )}
           </button>
           
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+            <div className="absolute right-0 mt-2 w-80 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                <p className="text-sm font-bold text-gray-800">Notifications</p>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">2 New</span>
+                <p className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-primary" />
+                  Notifications
+                </p>
+                {unreadCount > 0 ? (
+                  <span className="text-[10px] font-extrabold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+                    {unreadCount} New
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    All Read
+                  </span>
+                )}
               </div>
-              <div className="py-2 max-h-80 overflow-y-auto">
-                <div className="px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer border-b border-gray-50">
-                  <p className="text-xs font-semibold text-gray-800">New lead assigned</p>
-                  <p className="text-[10px] text-gray-500 mt-1">Tech Solutions Inc. has been assigned to you.</p>
-                  <p className="text-[9px] font-medium text-primary mt-1">10 minutes ago</p>
+              <div className="py-1 max-h-80 overflow-y-auto divide-y divide-gray-50">
+                {computedNotifications.length > 0 ? (
+                  computedNotifications.map((n) => (
+                    <div 
+                      key={n.id} 
+                      onClick={() => {
+                        if (n.type === 'job' && setCurrentPage) setCurrentPage('jobs');
+                        if (n.type === 'late' && setCurrentPage) setCurrentPage('attendance');
+                        if (n.type === 'leave' && setCurrentPage) setCurrentPage('leaves');
+                        if (n.type === 'progress' && setCurrentPage) setCurrentPage('daily-progress');
+                        setShowNotifications(false);
+                      }}
+                      className={`px-4 py-3 hover:bg-gray-50/80 transition-colors cursor-pointer flex flex-col gap-0.5 ${n.unread ? 'bg-primary/[0.02]' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className={`text-xs font-bold ${n.type === 'late' ? 'text-amber-700' : 'text-gray-800'}`}>
+                          {n.title}
+                        </p>
+                        {n.unread && <span className="w-2 h-2 rounded-full bg-primary shrink-0"></span>}
+                      </div>
+                      <p className="text-[11px] text-gray-600 line-clamp-2">{n.message}</p>
+                      <p className="text-[9px] font-semibold text-gray-400 mt-1">{n.time}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-8 text-center text-gray-400 text-xs">
+                    <p className="font-medium">No notifications right now.</p>
+                  </div>
+                )}
+              </div>
+              {computedNotifications.length > 0 && (
+                <div className="border-t border-gray-100 p-2 bg-gray-50/30">
+                  <button 
+                    onClick={markAllNotificationsRead}
+                    className="w-full text-center text-xs font-bold text-primary hover:text-primary/80 transition-colors py-1 cursor-pointer"
+                  >
+                    Mark all as read
+                  </button>
                 </div>
-                <div className="px-4 py-3 hover:bg-gray-50/50 transition-colors cursor-pointer">
-                  <p className="text-xs font-semibold text-gray-800">Invoice Paid</p>
-                  <p className="text-[10px] text-gray-500 mt-1">Invoice #INV-2026-001 has been paid.</p>
-                  <p className="text-[9px] font-medium text-gray-400 mt-1">2 hours ago</p>
-                </div>
-              </div>
-              <div className="border-t border-gray-100 p-2">
-                <button 
-                  onClick={() => setShowNotifications(false)}
-                  className="w-full text-center text-xs font-bold text-primary hover:text-primary/80 transition-colors py-1"
-                >
-                  Mark all as read
-                </button>
-              </div>
+              )}
             </div>
           )}
         </div>
