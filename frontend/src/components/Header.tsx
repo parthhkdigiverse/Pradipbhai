@@ -153,26 +153,26 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     // 4. Daily Progress Report Notifications
     if (dailyProgressRecords && Array.isArray(dailyProgressRecords)) {
       if (isUserAdmin) {
-        const pendingProgress = dailyProgressRecords.filter((p: any) => p.verificationStatus === 'Pending').slice(0, 3);
+        const pendingProgress = dailyProgressRecords.filter((p: any) => (p.verificationStatus || p.verification_status) === 'Pending').slice(0, 3);
         pendingProgress.forEach((p: any) => {
           const progId = `prog-${p.id}`;
           list.push({
             id: progId,
-            title: `📊 Daily Progress: ${p.employeeName}`,
+            title: `📊 Daily Progress: ${p.employeeName || p.employee_name || 'Staff Member'}`,
             message: `Submitted progress report for ${p.date}. Pending verification.`,
-            time: p.submittedAt || 'Today',
+            time: p.submittedAt || p.submitted_at || 'Today',
             type: 'progress',
             unread: !readNotificationIds.includes(progId)
           });
         });
       } else {
-        const myProgress = dailyProgressRecords.filter((p: any) => p.employeeName === userStaffName && p.verificationStatus === 'Verified').slice(0, 2);
+        const myProgress = dailyProgressRecords.filter((p: any) => (p.employeeName || p.employee_name) === userStaffName && (p.verificationStatus || p.verification_status) === 'Verified').slice(0, 2);
         myProgress.forEach((p: any) => {
           const progId = `prog-verified-${p.id}`;
           list.push({
             id: progId,
             title: `⭐ Daily Report Verified`,
-            message: `Your progress report for ${p.date} was verified by ${p.verifiedBy || 'Manager'}${p.rating ? ` (Rating: ${p.rating}★)` : ''}.`,
+            message: `Your progress report for ${p.date} was verified by ${p.verifiedBy || p.verified_by || 'Manager'}${p.rating ? ` (Rating: ${p.rating}★)` : ''}.`,
             time: p.date || 'Recent',
             type: 'progress',
             unread: !readNotificationIds.includes(progId)
@@ -333,7 +333,11 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setIsPunchedIn(true);
     setPunchInTime(now);
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
-    await updateJob(selectedJobId, { status: 'Progress' });
+    
+    if (!selectedJobId.startsWith('activity-')) {
+      await updateJob(selectedJobId, { status: 'Progress' });
+    }
+    
     setShowJobModal(false);
     setIsPunchInModalOpen(false);
     setSelectedJobId('');
@@ -357,7 +361,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         }
         return p;
       });
-      const newPunches = [...closedPunches, { in: checkInStr, out: '' }];
+      const newPunches = [...closedPunches, { in: checkInStr, out: '', jobId: selectedJobId }];
       await updateAttendance(existingRecord.id, {
         status: existingRecord.status || 'Present',
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
@@ -397,7 +401,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         status: lateCalc.status || 'Present',
         check_in: checkInStr,
         check_out: '',
-        punches: [{ in: checkInStr, out: '' }],
+        punches: [{ in: checkInStr, out: '', jobId: selectedJobId }],
         is_late: lateCalc.isLate,
         late_minutes: lateCalc.lateMinutes,
         penalty_amount: lateCalc.penaltyAmount,
@@ -449,6 +453,19 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     if (nextJob) {
       await updateJob(selectedJobId, { status: 'Progress' });
     }
+
+    // Update active punch jobId for restoration on refresh
+    const loggedStaffIdForSwitch = currentUser?.id || staff[0]?.id || '1';
+    const todayStrForSwitch = localDateStr(now);
+    const existingAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffIdForSwitch && a.date === todayStrForSwitch);
+    if (existingAtt && existingAtt.punches) {
+      const updatedPunches = existingAtt.punches.map((p: any) => {
+        if (!p.out) return { ...p, jobId: selectedJobId };
+        return p;
+      });
+      await updateAttendance(existingAtt.id, { punches: updatedPunches });
+    }
+
     
     setShowJobModal(false);
     setIsPunchInModalOpen(false);
@@ -702,12 +719,14 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             </div>
             <div className="flex gap-2 p-4 bg-gray-50 border-t border-gray-100 justify-end">
               <button 
+                type="button"
                 onClick={() => { setShowJobModal(false); setIsPunchInModalOpen(false); }}
                 className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button 
+                type="button"
                 onClick={activeJobTracker ? handleSwitchJob : confirmPunchIn}
                 disabled={!selectedJobId}
                 className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"

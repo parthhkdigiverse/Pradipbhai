@@ -219,6 +219,27 @@ async def init_db():
                     except Exception as e:
                         print(f"⚠️ Column addition notice for staff.{col_name}: {e}")
 
+        if "daily_progress" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("daily_progress")]
+            needed_dp_cols = [
+                ("role", "VARCHAR(100) NULL"),
+                ("submitted_at", "VARCHAR(50) NULL"),
+                ("tasks_done", "JSON NULL"),
+                ("tasks_pending", "JSON NULL"),
+                ("hours_logged", "FLOAT DEFAULT 0.0"),
+                ("verification_status", "VARCHAR(50) DEFAULT 'Pending'"),
+                ("rating", "INT DEFAULT 0"),
+                ("manager_remarks", "VARCHAR(500) NULL"),
+                ("verified_by", "VARCHAR(255) NULL"),
+                ("created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+            ]
+            for col_name, col_type in needed_dp_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE daily_progress ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for daily_progress.{col_name}: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
 

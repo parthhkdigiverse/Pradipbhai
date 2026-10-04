@@ -610,11 +610,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setPunchInTime(calculatedTime);
         }
 
-        // Auto-restore activeJobTracker if null but there is a job in Progress
-        if (!activeJobTrackerState && jobs && jobs.length > 0) {
-          const progressJob = jobs.find((j: any) => j.status === 'Progress');
-          if (progressJob) {
-            setActiveJobTracker({ jobId: progressJob.id, startTime: calculatedTime });
+        // Auto-restore activeJobTracker if null but there is a job in Progress or an active punch with jobId
+        if (!activeJobTrackerState) {
+          if (activePunch.jobId) {
+            setActiveJobTracker({ jobId: activePunch.jobId, startTime: calculatedTime });
+          } else if (jobs && jobs.length > 0) {
+            const progressJob = jobs.find((j: any) => j.status === 'Progress');
+            if (progressJob) {
+              setActiveJobTracker({ jobId: progressJob.id, startTime: calculatedTime });
+            }
           }
         }
       } else {
