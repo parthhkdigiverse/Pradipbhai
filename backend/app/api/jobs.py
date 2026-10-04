@@ -57,7 +57,7 @@ async def open_folder(req: OpenFolderRequest):
     clean_path = folder_path.strip('"').strip("'")
 
     # Handle URLs directly
-    if clean_path.startswith(("http://", "https://", "ftp://", "smb://")):
+    if clean_path.startswith(("http://", "https://", "ftp://", "smb://", "file://")):
         return {"status": "url", "url": clean_path}
 
     system_os = platform.system()

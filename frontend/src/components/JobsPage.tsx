@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
@@ -80,32 +80,80 @@ export function JobsPage() {
 
   const handleOpenWorkLocation = async (locationPath: string) => {
     if (!locationPath || !locationPath.trim()) return;
-    const cleanPath = locationPath.trim();
+    const cleanPath = locationPath.trim().replace(/^["']|["']$/g, '');
 
+    // Web links / HTTP / HTTPS / Drive URLs
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       window.open(cleanPath, '_blank', 'noopener,noreferrer');
       return;
     }
 
+    if (/^(www\.|drive\.google\.com|dropbox\.com|onedrive\.live\.com|docs\.google\.com)/i.test(cleanPath)) {
+      window.open(`https://${cleanPath}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    // Format file URL scheme
+    let fileUrl = cleanPath;
+    if (cleanPath.startsWith('file://') || cleanPath.startsWith('smb://')) {
+      fileUrl = cleanPath;
+    } else if (cleanPath.startsWith('/')) {
+      fileUrl = `file://${cleanPath}`;
+    } else if (/^[a-zA-Z]:[\\/]/.test(cleanPath)) {
+      fileUrl = `file:///${cleanPath.replace(/\\/g, '/')}`;
+    } else if (cleanPath.startsWith('\\\\')) {
+      fileUrl = `file:${cleanPath.replace(/\\/g, '/')}`;
+    } else {
+      fileUrl = `file:///${cleanPath.replace(/\\/g, '/')}`;
+    }
+
+    // 1. Copy path to clipboard
+    try {
+      await navigator.clipboard.writeText(cleanPath);
+    } catch (e) {
+      console.warn('Clipboard copy error:', e);
+    }
+
+    // 2. Attempt backend API call to launch native OS explorer (for local server or Electron)
+    let openedViaBackend = false;
     try {
       const res = await fetch('/api/jobs/open-folder', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+          'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('token') || ''}`
         },
         body: JSON.stringify({ path: cleanPath })
       });
       const data = await res.json();
       if (data.status === 'url' && data.url) {
         window.open(data.url, '_blank', 'noopener,noreferrer');
-      } else if (data.status === 'error') {
-        await navigator.clipboard.writeText(cleanPath);
-        alert(`Folder path copied to clipboard:\n${cleanPath}`);
+        return;
       }
+      if (data.status === 'success') {
+        openedViaBackend = true;
+      }
+    } catch (err) {
+      console.warn('Backend open-folder error:', err);
+    }
+
+    // 3. Attempt browser window / protocol open for file:// URL
+    try {
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch {
-      await navigator.clipboard.writeText(cleanPath);
-      alert(`Folder path copied to clipboard:\n${cleanPath}`);
+      try {
+        window.open(fileUrl, '_blank');
+      } catch {}
+    }
+
+    if (!openedViaBackend) {
+      alert(`Folder path copied to clipboard!\n${cleanPath}\n\nOpening link attempted: ${fileUrl}\n(If your browser blocks local file:// URLs from web pages, paste the copied path into Finder or File Explorer)`);
     }
   };
 
@@ -811,7 +859,7 @@ export function JobsPage() {
                     <td className="py-4 px-6">
                       <div className="flex flex-col">
                         <span className="font-bold text-primary text-sm hover:underline cursor-pointer">{job.title}</span>
-                        {(job.workLink || job.workLocation) && (
+                        {(job.workLink || job.workLocation || job.delayReason) && (
                           <div className="flex items-center gap-1.5 flex-wrap mt-1">
                             {job.workLink && (
                               <a
@@ -840,6 +888,16 @@ export function JobsPage() {
                                 <span className="truncate max-w-[160px]">{job.workLocation}</span>
                                 <ExternalLink className="w-3 h-3 text-indigo-400 group-hover/folder:text-indigo-600 shrink-0" />
                               </button>
+                            )}
+                            {job.delayReason && (
+                              <span
+                                onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300/80 rounded-md hover:bg-amber-100 transition-colors cursor-pointer max-w-[240px] truncate"
+                                title={`Revision / Delay Note: ${job.delayReason}`}
+                              >
+                                <MessageSquare className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span className="truncate">{job.delayReason}</span>
+                              </span>
                             )}
                           </div>
                         )}
