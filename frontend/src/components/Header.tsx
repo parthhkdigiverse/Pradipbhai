@@ -4,6 +4,7 @@ import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { localDateStr } from '../utils/dateUtils';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen } = useData();
@@ -98,7 +99,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     }
 
     // 2. Today's Attendance / Late check
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const myAttToday = attendance.find((a: any) => 
       ((a.staffId || a.staff_id) === userStaffId || (a.staffName || a.staff_name) === userStaffName) && 
       a.date === todayStr
@@ -238,7 +239,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
       // Save work log to DB via API
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = localDateStr();
       const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
       const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
 
@@ -342,7 +343,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
     // Save attendance check-in to DB via API
-    const todayStr = new Date(now).toISOString().split('T')[0];
+    const todayStr = localDateStr(now);
     const checkInStr = new Date(now).toTimeString().slice(0, 5);
 
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
@@ -426,7 +427,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
         const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
         const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
-        const todayStr = new Date(now).toISOString().split('T')[0];
+        const todayStr = localDateStr(now);
 
         await addWorkLog({
           staff_id: loggedStaffId,

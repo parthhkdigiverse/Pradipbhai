@@ -10,8 +10,23 @@ export function DailyProgressPage() {
   const canVerifyRate = hasPermission(currentUserRole, 'Verify & Rate Reports');
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [search, setSearch] = useState("");
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
+  // Use local date (IST-safe) - not UTC, to avoid date shift issues on VPS
+  const getLocalDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [endDate, setEndDate] = useState(getLocalDateStr);
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [activeTab, setActiveTab] = useState<"reports" | "employeeRatings">("reports");
   
@@ -25,21 +40,35 @@ export function DailyProgressPage() {
   // Filtered daily reports by search, status, date, and user role
   const filteredRecords = records.filter(rec => {
     const empName = rec?.employeeName || rec?.employee_name || "";
-    const matchesSearch = empName.toLowerCase().includes((search || "").toLowerCase());
+    const matchesSearch = !search || empName.toLowerCase().includes(search.toLowerCase().trim());
     const status = rec?.verificationStatus || rec?.verification_status || "Pending";
     const matchesStatus = statusFilter === "All" || status === statusFilter;
-    const matchesDate = rec?.date ? (rec.date >= startDate && rec.date <= endDate) : true;
+    const matchesDate = !rec?.date || (rec.date >= startDate && rec.date <= endDate);
     
     const currentUserName = (currentUser?.name || localStorage.getItem('userName') || "").toLowerCase().trim();
     const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || "").toLowerCase().trim();
     const recEmail = ((rec as any)?.email || (rec as any)?.employee_email || "").toLowerCase().trim();
     const recName = empName.toLowerCase().trim();
 
+    // Check matching staff record from context
+    const recStaff = (staff || []).find((s: any) => {
+      const sName = (s.name || s.staff_name || "").toLowerCase().trim();
+      return sName && (sName === recName || recName.includes(sName) || sName.includes(recName));
+    });
+    const recStaffEmail = (recStaff?.email || "").toLowerCase().trim();
+
+    // Word token match (e.g. "Parth Lathiya" matches "Parth" or "Lathiya")
+    const nameWords = currentUserName.split(/\s+/).filter(w => w.length >= 2);
+    const recNameWords = recName.split(/\s+/).filter(w => w.length >= 2);
+    const hasWordOverlap = nameWords.some(w => recName.includes(w)) || recNameWords.some(w => currentUserName.includes(w));
+
     const matchesUser = isAdminOrManager || 
       !currentUserName || 
       recName.includes(currentUserName) || 
       currentUserName.includes(recName) || 
-      (currentUserEmail && recEmail && recEmail === currentUserEmail);
+      hasWordOverlap ||
+      (currentUserEmail && recEmail && recEmail === currentUserEmail) ||
+      (currentUserEmail && recStaffEmail && recStaffEmail === currentUserEmail);
 
     return matchesSearch && matchesStatus && matchesDate && matchesUser;
   });

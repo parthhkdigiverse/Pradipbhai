@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
+import { localDateStr } from '../utils/dateUtils';
 
 const API_BASE_URL = '/api';
 
@@ -525,17 +526,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) setInvoices(invoicesRes.value);
       if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
       if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) {
-        setDailyProgressRecords(progressRes.value.map((r: any) => ({
-          ...r,
-          employeeName: r.employee_name || r.employeeName || 'Staff Member',
-          verificationStatus: r.verification_status || r.verificationStatus || 'Pending',
-          managerRemarks: r.manager_remarks || r.managerRemarks || '',
-          verifiedBy: r.verified_by || r.verifiedBy || '',
-          tasksDone: r.tasks_done || r.tasksDone || [],
-          tasksPending: r.tasks_pending || r.tasksPending || [],
-          hoursLogged: r.hours_logged || r.hoursLogged || 0,
-          submittedAt: r.submitted_at || r.submittedAt || ''
-        })));
+        setDailyProgressRecords(progressRes.value.map((r: any) => normalizeDailyProgress(r)));
       }
       if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
@@ -603,7 +594,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!attendance || attendance.length === 0) return;
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const todayAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
     if (todayAtt && todayAtt.punches && todayAtt.punches.length > 0) {
@@ -758,10 +749,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const parseTaskArray = (raw: any): string[] => {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+      return [raw];
+    }
+    return [];
+  };
+
   const normalizeDailyProgress = (r: any) => {
     if (!r) return r;
-    const tasksDone = Array.isArray(r.tasks_done) ? r.tasks_done : (Array.isArray(r.tasksDone) ? r.tasksDone : []);
-    const tasksPending = Array.isArray(r.tasks_pending) ? r.tasks_pending : (Array.isArray(r.tasksPending) ? r.tasksPending : []);
+    const tasksDone = parseTaskArray(r.tasks_done !== undefined ? r.tasks_done : r.tasksDone);
+    const tasksPending = parseTaskArray(r.tasks_pending !== undefined ? r.tasks_pending : r.tasksPending);
     return {
       ...r,
       employeeName: r.employee_name || r.employeeName || 'Staff Member',
@@ -809,7 +812,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const syncDailyProgressForTask = async (staffName: string, role: string, taskTitle: string, hoursAdded = 0) => {
     if (!staffName || !taskTitle) return;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const existingProg = (dailyProgressRecords || []).find((p: any) => 
       ((p.employeeName || p.employee_name || '')?.toLowerCase() === staffName.toLowerCase()) && p.date === todayStr
     );
@@ -1197,7 +1200,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
     const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-    const todayStr = new Date(endTime).toISOString().split('T')[0];
+    const todayStr = localDateStr(endTime);
     const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
     const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
 
