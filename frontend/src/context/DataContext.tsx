@@ -467,6 +467,69 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // Fetch live API data directly from FastAPI / MySQL backend
+  const normalizeClient = (c: any) => ({
+    ...c,
+    contact: c.contact || c.name || '',
+    clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
+    projects: c.projects || []
+  });
+
+  const normalizeJob = (j: any) => ({
+    ...j,
+    clientId: j.clientId || j.client_id || '',
+    projectId: j.projectId || j.project_id || '',
+    assignedStaffId: j.assignedStaffId || j.assigned_staff_id || '',
+    teamId: j.teamId || j.assigned_staff_id || j.assignedStaffId || '',
+    totalAmount: j.totalAmount !== undefined ? j.totalAmount : (j.total_amount || 0),
+    paidAmount: j.paidAmount !== undefined ? j.paidAmount : 0,
+    status: j.status || 'Pending',
+    title: j.title || 'Untitled Job',
+    type: j.type || 'Designing'
+  });
+
+  const normalizeAttendance = (a: any) => {
+    const rawPunches = a.punches || (a.check_in || a.checkIn ? [{ in: a.check_in || a.checkIn, out: a.check_out || a.checkOut }] : []);
+    const cleanPunches = Array.isArray(rawPunches) ? rawPunches.map((p: any, idx: number) => {
+      if (!p.out && idx < rawPunches.length - 1) {
+        return { ...p, out: rawPunches[idx + 1]?.in || p.in };
+      }
+      return p;
+    }) : [];
+    return {
+      ...a,
+      staffId: a.staff_id || a.staffId,
+      staffName: a.staff_name || a.staffName,
+      checkIn: a.check_in || a.checkIn,
+      checkOut: a.check_out || a.checkOut,
+      punches: cleanPunches,
+      isLate: a.is_late !== undefined ? a.is_late : a.isLate,
+      lateMinutes: a.late_minutes !== undefined ? a.late_minutes : a.lateMinutes,
+      penaltyAmount: a.penalty_amount !== undefined ? a.penalty_amount : a.penaltyAmount,
+      warningNote: a.warning_note || a.warningNote
+    };
+  };
+
+  const normalizeLeaveRequest = (l: any) => ({
+    ...l,
+    staffId: l.staff_id || l.staffId,
+    staffName: l.staff_name || l.staffName,
+    fromDate: l.from_date || l.fromDate,
+    toDate: l.to_date || l.toDate,
+    appliedOn: l.applied_on || l.appliedOn,
+    reviewedBy: l.reviewed_by || l.reviewedBy,
+    reviewNote: l.review_note || l.reviewNote,
+    reviewedOn: l.reviewed_on || l.reviewedOn
+  });
+
+  const normalizeWorkLog = (w: any) => ({
+    ...w,
+    userName: w.staff_name || w.userName,
+    jobId: w.job_id || w.jobId,
+    jobTitle: w.job_title || w.jobTitle,
+    startTime: w.start_time || w.startTime,
+    endTime: w.end_time || w.endTime
+  });
+
   const refreshApiData = async () => {
     try {
       const headers = getAuthHeaders();
@@ -502,28 +565,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ]);
 
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) {
-        setClients(clientsRes.value.map((c: any) => ({
-          ...c,
-          contact: c.contact || c.name || '',
-          clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
-          projects: c.projects || []
-        })));
+        setClients(clientsRes.value.map(normalizeClient));
       }
       if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
-        setJobs(jobsRes.value.map((j: any) => ({
-          ...j,
-          clientId: j.clientId || j.client_id || '',
-          projectId: j.projectId || j.project_id || '',
-          assignedStaffId: j.assignedStaffId || j.assigned_staff_id || '',
-          teamId: j.teamId || j.assigned_staff_id || j.assignedStaffId || '',
-          totalAmount: j.totalAmount !== undefined ? j.totalAmount : (j.total_amount || 0),
-          paidAmount: j.paidAmount !== undefined ? j.paidAmount : 0,
-          status: j.status || 'Pending',
-          title: j.title || 'Untitled Job',
-          type: j.type || 'Designing'
-        })));
+        setJobs(jobsRes.value.map(normalizeJob));
       }
-      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) setInvoices(invoicesRes.value);
+      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) {
+        setInvoices(invoicesRes.value.map(normalizeInvoice));
+      }
       if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
       if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) {
         setDailyProgressRecords(progressRes.value.map((r: any) => normalizeDailyProgress(r)));
@@ -531,52 +580,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (leadsRes.status === 'fulfilled' && Array.isArray(leadsRes.value)) setLeads(leadsRes.value);
       if (staffRes.status === 'fulfilled' && Array.isArray(staffRes.value)) setStaff(staffRes.value);
       if (attRes.status === 'fulfilled' && Array.isArray(attRes.value)) {
-        setAttendance(attRes.value.map((a: any) => {
-          const rawPunches = a.punches || (a.check_in || a.checkIn ? [{ in: a.check_in || a.checkIn, out: a.check_out || a.checkOut }] : []);
-          const cleanPunches = Array.isArray(rawPunches) ? rawPunches.map((p: any, idx: number) => {
-            if (!p.out && idx < rawPunches.length - 1) {
-              return { ...p, out: rawPunches[idx + 1]?.in || p.in };
-            }
-            return p;
-          }) : [];
-          return {
-            ...a,
-            staffId: a.staff_id || a.staffId,
-            staffName: a.staff_name || a.staffName,
-            checkIn: a.check_in || a.checkIn,
-            checkOut: a.check_out || a.checkOut,
-            punches: cleanPunches,
-            isLate: a.is_late !== undefined ? a.is_late : a.isLate,
-            lateMinutes: a.late_minutes !== undefined ? a.late_minutes : a.lateMinutes,
-            penaltyAmount: a.penalty_amount !== undefined ? a.penaltyAmount : a.penaltyAmount,
-            warningNote: a.warning_note || a.warningNote
-          };
-        }));
+        setAttendance(attRes.value.map(normalizeAttendance));
       }
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
       if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
-        setLeaveRequests(leaveRes.value.map((l: any) => ({
-          ...l,
-          staffId: l.staff_id || l.staffId,
-          staffName: l.staff_name || l.staffName,
-          fromDate: l.from_date || l.fromDate,
-          toDate: l.to_date || l.toDate,
-          appliedOn: l.applied_on || l.appliedOn,
-          reviewedBy: l.reviewed_by || l.reviewedBy,
-          reviewNote: l.review_note || l.reviewNote,
-          reviewedOn: l.reviewed_on || l.reviewedOn
-        })));
+        setLeaveRequests(leaveRes.value.map(normalizeLeaveRequest));
       }
       if (workRes.status === 'fulfilled' && Array.isArray(workRes.value)) {
-        setWorkLogs(workRes.value.map((w: any) => ({
-          ...w,
-          userName: w.staff_name || w.userName,
-          jobId: w.job_id || w.jobId,
-          jobTitle: w.job_title || w.jobTitle,
-          startTime: w.start_time || w.startTime,
-          endTime: w.end_time || w.endTime
-        })));
+        setWorkLogs(workRes.value.map(normalizeWorkLog));
       }
       if (venRes.status === 'fulfilled' && Array.isArray(venRes.value)) setVendors(venRes.value);
       if (permRes.status === 'fulfilled' && permRes.value && typeof permRes.value === 'object') {
@@ -641,21 +653,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
         name: clientData.contact || clientData.company || 'Unknown'
       };
       const data = await apiFetch(`${API_BASE_URL}/clients`, { method: 'POST', body: JSON.stringify(payload) });
-      setClients(prev => [data, ...prev]);
-      return data;
+      const norm = normalizeClient(data);
+      setClients(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      setClients(prev => [clientData, ...prev]);
-      return clientData;
+      const norm = normalizeClient(clientData);
+      setClients(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
   const updateClient = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setClients(prev => prev.map(c => c.id === id ? data : c));
-      return data;
+      const norm = normalizeClient(data);
+      setClients(prev => prev.map(c => c.id === id ? norm : c));
+      return norm;
     } catch {
-      setClients(prev => prev.map(c => c.id === id ? { ...c, ...updateData } : c));
+      setClients(prev => prev.map(c => c.id === id ? normalizeClient({ ...c, ...updateData }) : c));
     }
   };
 
@@ -668,22 +683,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addJob = async (jobData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/jobs`, { method: 'POST', body: JSON.stringify(jobData) });
-      setJobs(prev => [data, ...prev]);
-      return data;
+      const norm = normalizeJob(data);
+      setJobs(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      setJobs(prev => [jobData, ...prev]);
-      return jobData;
+      const norm = normalizeJob(jobData);
+      setJobs(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
   const updateJob = async (id: string, updateData: any) => {
     let resultData: any;
     try {
-      resultData = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      const data = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      resultData = normalizeJob(data);
       setJobs(prev => prev.map(j => j.id === id ? resultData : j));
     } catch {
-      resultData = { ...updateData };
-      setJobs(prev => prev.map(j => j.id === id ? { ...j, ...updateData } : j));
+      setJobs(prev => prev.map(j => {
+        if (j.id === id) {
+          resultData = normalizeJob({ ...j, ...updateData });
+          return resultData;
+        }
+        return j;
+      }));
     }
 
     // Auto-sync task into daily_progress in MySQL database if status is Under Review / Completed / Done
@@ -704,25 +727,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setJobs(prev => prev.filter(j => j.id !== id));
   };
 
+  const normalizeInvoice = (inv: any) => ({
+    ...inv,
+    invoiceNumber: inv.invoice_number || inv.invoiceNumber || '',
+    clientId: inv.client_id || inv.clientId || '',
+    jobIds: inv.job_ids || inv.jobIds || [],
+    items: inv.custom_items || inv.items || [],
+    issueDate: inv.date || inv.issueDate || '',
+    dueDate: inv.due_date || inv.dueDate || ''
+  });
+
   // Invoices API
   const addInvoice = async (invoiceData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/invoices`, { method: 'POST', body: JSON.stringify(invoiceData) });
-      setInvoices(prev => [data, ...prev]);
-      return data;
+      const payload = {
+        ...invoiceData,
+        invoice_number: invoiceData.invoiceNumber,
+        client_id: invoiceData.clientId,
+        job_ids: invoiceData.jobIds,
+        custom_items: invoiceData.items,
+        date: invoiceData.issueDate,
+        due_date: invoiceData.dueDate
+      };
+      const data = await apiFetch(`${API_BASE_URL}/invoices`, { method: 'POST', body: JSON.stringify(payload) });
+      const norm = normalizeInvoice(data);
+      setInvoices(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      setInvoices(prev => [invoiceData, ...prev]);
-      return invoiceData;
+      const norm = normalizeInvoice(invoiceData);
+      setInvoices(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
   const updateInvoice = async (id: string, updateData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setInvoices(prev => prev.map(inv => inv.id === id ? data : inv));
-      return data;
+      const payload = {
+        ...updateData,
+        invoice_number: updateData.invoiceNumber,
+        client_id: updateData.clientId,
+        job_ids: updateData.jobIds,
+        custom_items: updateData.items,
+        date: updateData.issueDate,
+        due_date: updateData.dueDate
+      };
+      const data = await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      const norm = normalizeInvoice(data);
+      setInvoices(prev => prev.map(inv => inv.id === id ? norm : inv));
+      return norm;
     } catch {
-      setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, ...updateData } : inv));
+      setInvoices(prev => prev.map(inv => inv.id === id ? normalizeInvoice({ ...inv, ...updateData }) : inv));
     }
   };
 
@@ -990,25 +1044,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           applied_on: leaveData.appliedOn
         })
       });
-      const mapped = {
-        ...data,
-        staffId: data.staff_id || data.staffId || leaveData.staffId,
-        staffName: data.staff_name || data.staffName || leaveData.staffName,
-        fromDate: data.from_date || data.fromDate || leaveData.fromDate,
-        toDate: data.to_date || data.toDate || leaveData.toDate,
-        days: data.days !== undefined ? data.days : leaveData.days,
-        isHalfDay: data.is_half_day ?? data.isHalfDay ?? leaveData.isHalfDay ?? false,
-        halfDaySession: data.half_day_session || data.halfDaySession || leaveData.halfDaySession,
-        appliedOn: data.applied_on || data.appliedOn || leaveData.appliedOn,
-        reviewedBy: data.reviewed_by || data.reviewedBy,
-        reviewNote: data.review_note || data.reviewNote,
-        reviewedOn: data.reviewed_on || data.reviewedOn
-      };
-      setLeaveRequests(prev => [mapped, ...prev]);
-      return mapped;
+      const norm = normalizeLeaveRequest(data);
+      setLeaveRequests(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      setLeaveRequests(prev => [leaveData, ...prev]);
-      return leaveData;
+      const norm = normalizeLeaveRequest({ ...leaveData, id: leaveData.id || `leave-${Date.now()}` });
+      setLeaveRequests(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
@@ -1020,21 +1062,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateLeaveRequest = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      const mapped = {
-        ...data,
-        staffId: data.staff_id || data.staffId,
-        staffName: data.staff_name || data.staffName,
-        fromDate: data.from_date || data.fromDate,
-        toDate: data.to_date || data.toDate,
-        appliedOn: data.applied_on || data.appliedOn,
-        reviewedBy: data.reviewed_by || data.reviewedBy,
-        reviewNote: data.review_note || data.reviewNote,
-        reviewedOn: data.reviewed_on || data.reviewedOn
-      };
-      setLeaveRequests(prev => prev.map(r => r.id === id ? mapped : r));
-      return mapped;
+      const norm = normalizeLeaveRequest(data);
+      setLeaveRequests(prev => prev.map(r => r.id === id ? norm : r));
+      return norm;
     } catch {
-      setLeaveRequests(prev => prev.map(r => r.id === id ? { ...r, ...updateData } : r));
+      setLeaveRequests(prev => prev.map(r => r.id === id ? normalizeLeaveRequest({ ...r, ...updateData }) : r));
     }
   };
 
@@ -1069,19 +1101,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         hours: (logData.duration || 0) / 3600
       };
       const data = await apiFetch(`${API_BASE_URL}/worklogs`, { method: 'POST', body: JSON.stringify(payload) });
-      const mappedData = {
-        ...data,
-        userName: data.staff_name,
-        jobId: data.job_id,
-        jobTitle: data.job_title,
-        startTime: data.start_time,
-        endTime: data.end_time
-      };
-      setWorkLogs(prev => [mappedData, ...prev]);
-      return mappedData;
+      const norm = normalizeWorkLog(data);
+      setWorkLogs(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      setWorkLogs(prev => [logData, ...prev]);
-      return logData;
+      const norm = normalizeWorkLog({ ...logData, id: logData.id || `log-${Date.now()}` });
+      setWorkLogs(prev => [norm, ...prev]);
+      return norm;
     }
   };
 
