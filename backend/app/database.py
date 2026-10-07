@@ -240,6 +240,24 @@ async def init_db():
                     except Exception as e:
                         print(f"⚠️ Column addition notice for daily_progress.{col_name}: {e}")
 
+        if "chat_messages" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("chat_messages")]
+            needed_chat_cols = [
+                ("attachment", "JSON NULL"),
+                ("reply_to", "JSON NULL"),
+                ("reactions", "JSON NULL"),
+                ("is_starred", "BOOLEAN DEFAULT FALSE"),
+                ("is_forwarded", "BOOLEAN DEFAULT FALSE"),
+                ("is_edited", "BOOLEAN DEFAULT FALSE"),
+                ("created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP")
+            ]
+            for col_name, col_type in needed_chat_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE chat_messages ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for chat_messages.{col_name}: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
 
