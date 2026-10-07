@@ -237,7 +237,14 @@ export function ChatPage() {
 
     return () => {
       clearTimeout(reconnectTimer);
-      if (ws) ws.close();
+      if (ws) {
+        // Delay close slightly to prevent "closed before connection established" warning in Strict Mode
+        setTimeout(() => {
+          if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+            ws.close();
+          }
+        }, 1000);
+      }
     };
   }, [currentUserId]);
 
