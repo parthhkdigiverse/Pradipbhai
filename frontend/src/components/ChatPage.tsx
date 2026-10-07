@@ -188,8 +188,11 @@ export function ChatPage() {
     if (!activeContactId) return;
     fetchRemoteMessages(activeContactId);
     const interval = setInterval(() => {
-      fetchRemoteMessages(activeContactId);
-    }, 3000);
+      // Only poll if the user is actively looking at the tab
+      if (document.visibilityState === 'visible') {
+        fetchRemoteMessages(activeContactId);
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, [activeContactId]);
 

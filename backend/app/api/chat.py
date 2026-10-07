@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_, or_
@@ -39,9 +39,14 @@ class UpdateMessageSchema(BaseModel):
 @router.get("/{contact_id}")
 async def get_chat_messages(
     contact_id: str, 
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user: Any = Depends(get_current_user)
 ):
+    # Disable caching for real-time chat fetching
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     user_id = str(getattr(current_user, 'id', '')) or str(getattr(current_user, 'email', ''))
     user_email = str(getattr(current_user, 'email', ''))
     target_id = str(contact_id)
