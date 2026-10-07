@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_, or_
@@ -10,6 +10,45 @@ from app.models.chat import ChatMessage
 from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        if user_id not in self.active_connections:
+            self.active_connections[user_id] = []
+        self.active_connections[user_id].append(websocket)
+
+    def disconnect(self, websocket: WebSocket, user_id: str):
+        if user_id in self.active_connections:
+            if websocket in self.active_connections[user_id]:
+                self.active_connections[user_id].remove(websocket)
+            if not self.active_connections[user_id]:
+                del self.active_connections[user_id]
+
+    async def send_personal_message(self, message: dict, user_id: str):
+        if user_id in self.active_connections:
+            for connection in self.active_connections[user_id]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    pass
+
+manager = ConnectionManager()
+
+@router.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    await manager.connect(websocket, user_id)
+    try:
+        while True:
+            # We just keep the connection alive, the client doesn't need to send messages via WS
+            # They use the POST API to send, which triggers push
+            data = await websocket.receive_text()
+            # Could process typing indicators here in the future
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_id)
 
 class AttachmentSchema(BaseModel):
     name: str
@@ -114,10 +153,10 @@ async def create_chat_message(
     await db.commit()
     await db.refresh(msg)
     
-    return {
+    msg_dict = {
         "id": msg.id,
         "text": msg.text,
-        "sender": "me",
+        "sender": "them", # From the perspective of the receiver
         "time": msg.time,
         "status": msg.status,
         "attachment": msg.attachment,
@@ -127,6 +166,15 @@ async def create_chat_message(
         "isForwarded": msg.is_forwarded,
         "isEdited": msg.is_edited
     }
+    
+    # Notify target user via websocket
+    await manager.send_personal_message({"type": "new_message", "contactId": sender_id, "message": msg_dict}, str(contact_id))
+    
+    # Also notify other tabs of the sender
+    msg_dict_me = {**msg_dict, "sender": "me"}
+    await manager.send_personal_message({"type": "new_message", "contactId": str(contact_id), "message": msg_dict_me}, sender_id)
+
+    return msg_dict_me
 
 @router.put("/message/{msg_id}")
 async def update_chat_message(msg_id: str, payload: UpdateMessageSchema, db: AsyncSession = Depends(get_db)):
@@ -147,7 +195,7 @@ async def update_chat_message(msg_id: str, payload: UpdateMessageSchema, db: Asy
     await db.commit()
     await db.refresh(msg)
     
-    return {
+    msg_dict = {
         "id": msg.id,
         "text": msg.text,
         "sender": msg.sender,
@@ -160,6 +208,12 @@ async def update_chat_message(msg_id: str, payload: UpdateMessageSchema, db: Asy
         "isForwarded": msg.is_forwarded,
         "isEdited": msg.is_edited
     }
+    
+    # Send update to both participants
+    await manager.send_personal_message({"type": "update_message", "contactId": msg.sender, "message": msg_dict}, str(msg.contact_id))
+    await manager.send_personal_message({"type": "update_message", "contactId": str(msg.contact_id), "message": msg_dict}, msg.sender)
+
+    return msg_dict
 
 @router.delete("/message/{msg_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat_message(msg_id: str, db: AsyncSession = Depends(get_db)):
@@ -167,5 +221,13 @@ async def delete_chat_message(msg_id: str, db: AsyncSession = Depends(get_db)):
     msg = result.scalar_one_or_none()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
+        
+    sender = msg.sender
+    contact_id = str(msg.contact_id)
+    
     await db.delete(msg)
     await db.commit()
+    
+    # Notify both participants of deletion
+    await manager.send_personal_message({"type": "delete_message", "contactId": sender, "messageId": msg_id}, contact_id)
+    await manager.send_personal_message({"type": "delete_message", "contactId": contact_id, "messageId": msg_id}, sender)

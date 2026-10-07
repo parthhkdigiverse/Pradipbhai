@@ -185,15 +185,66 @@ export function ChatPage() {
   };
 
   useEffect(() => {
+    if (!currentUserId) return;
+
+    // Establish WebSocket connection
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/chat/ws/${currentUserId}`;
+    
+    let ws: WebSocket | null = null;
+    let reconnectTimer: any;
+
+    const connectWebSocket = () => {
+      ws = new WebSocket(wsUrl);
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const { type, contactId, message, messageId } = data;
+          
+          if (type === 'new_message') {
+            setMessages(prev => {
+              const currentList = prev[contactId] || [];
+              // Prevent duplicates
+              if (currentList.some(m => m.id === message.id)) return prev;
+              return { ...prev, [contactId]: [...currentList, message] };
+            });
+            // Auto-scroll on incoming message
+            setTimeout(() => scrollToBottom(), 100);
+          } else if (type === 'update_message') {
+            setMessages(prev => ({
+              ...prev,
+              [contactId]: (prev[contactId] || []).map(m => m.id === message.id ? message : m)
+            }));
+          } else if (type === 'delete_message') {
+            setMessages(prev => ({
+              ...prev,
+              [contactId]: (prev[contactId] || []).filter(m => m.id !== messageId)
+            }));
+          }
+        } catch (e) {
+          console.warn("Error processing websocket message", e);
+        }
+      };
+
+      ws.onclose = () => {
+        // Auto-reconnect after 3 seconds
+        reconnectTimer = setTimeout(() => connectWebSocket(), 3000);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
+  }, [currentUserId]);
+
+  useEffect(() => {
     if (!activeContactId) return;
+    // Initial fetch to load history when clicking a contact
     fetchRemoteMessages(activeContactId);
-    const interval = setInterval(() => {
-      // Only poll if the user is actively looking at the tab
-      if (document.visibilityState === 'visible') {
-        fetchRemoteMessages(activeContactId);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
   }, [activeContactId]);
 
   // Handle Send or Update Message
@@ -260,10 +311,24 @@ export function ChatPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        fetchRemoteMessages(activeContactId);
+        const result = await res.json();
+        setMessages(prev => {
+          const currentList = prev[activeContactId] || [];
+          // If websocket already inserted the real one, just remove the temp one
+          if (currentList.some(m => m.id === result.id)) {
+            return { ...prev, [activeContactId]: currentList.filter(m => m.id !== tempMsg.id) };
+          }
+          // Otherwise, replace temp with real
+          return { ...prev, [activeContactId]: currentList.map(m => m.id === tempMsg.id ? result : m) };
+        });
       }
     } catch (err) {
       console.warn("Failed to send chat message:", err);
+      // Remove optimistic message on failure
+      setMessages(prev => ({
+        ...prev,
+        [activeContactId]: (prev[activeContactId] || []).filter(m => m.id !== tempMsg.id)
+      }));
     }
   };
 
