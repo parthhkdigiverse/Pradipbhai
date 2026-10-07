@@ -326,7 +326,8 @@ export function InvoicesPage() {
 
   return (
     <div className="w-full relative">
-      <div className="flex items-center justify-between mb-6">
+      <div className="print:hidden">
+        <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Invoices</h1>
         </div>
@@ -811,6 +812,7 @@ export function InvoicesPage() {
           </div>
         </div>
       )}
+      </div> {/* End print:hidden wrapper */}
 
       {/* Invoice Preview Modal */}
       {selectedPreviewInvoice && (

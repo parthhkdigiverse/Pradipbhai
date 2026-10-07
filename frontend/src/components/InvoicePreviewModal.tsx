@@ -10,10 +10,10 @@ export function InvoicePreviewModal({ invoice, onClose }: { invoice: any, onClos
   const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
+    <div className="fixed inset-0 z-[100] flex justify-end print:absolute print:inset-0 print:block print:w-full print:h-auto print:bg-white">
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity print:hidden" onClick={onClose}></div>
       
-      <div className="relative bg-white shadow-2xl w-full max-w-4xl h-full overflow-y-auto animate-in slide-in-from-right duration-300 flex flex-col">
+      <div className="relative bg-white shadow-2xl w-full max-w-4xl h-full overflow-y-auto animate-in slide-in-from-right duration-300 flex flex-col print:shadow-none print:max-w-none print:w-full print:h-auto print:overflow-visible print:block">
         {/* Toolbar */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0 sticky top-0 z-10 print:hidden">
           <h2 className="text-lg font-bold text-gray-800">Invoice Preview</h2>
@@ -28,8 +28,8 @@ export function InvoicePreviewModal({ invoice, onClose }: { invoice: any, onClos
         </div>
 
         {/* A4 Document Area */}
-        <div className="p-8 bg-gray-100 flex-1 overflow-y-auto flex justify-center print:p-0 print:bg-white print:overflow-visible">
-          <div className="bg-white w-full max-w-[210mm] min-h-[297mm] shadow-md border border-gray-300 text-black font-sans print:shadow-none print:border-none print:m-0 print:p-0 flex flex-col relative text-[11px] leading-tight">
+        <div className="p-8 bg-gray-100 flex-1 overflow-y-auto flex justify-center print:p-0 print:bg-white print:overflow-visible print:block">
+          <div id="invoice-print-area" className="bg-white w-full max-w-[210mm] min-h-[296mm] shadow-md border border-gray-300 text-black font-sans print:shadow-none print:border-none print:m-0 print:p-0 flex flex-col relative text-[11px] leading-tight print:min-h-[296mm] print:w-[210mm] mx-auto print:mx-0">
             {/* PDF Replica Content */}
             
             {/* Header */}
@@ -218,8 +218,8 @@ export function InvoicePreviewModal({ invoice, onClose }: { invoice: any, onClos
               </div>
               <div className="w-[40%] p-2 flex flex-col justify-between items-center relative">
                 <p className="w-full text-center mt-2">For, ALPHA CREATIVE HUB</p>
-                <div className="my-8">
-                   <span className="text-blue-800/40 text-4xl transform -rotate-12 select-none inline-block font-bold">R.B.</span>
+                <div className="my-8 h-10">
+                   {/* Signature space */}
                 </div>
                 <p className="w-full text-center border-t border-black pt-1">Authorized Signature</p>
               </div>

@@ -220,3 +220,15 @@ img, svg, canvas {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 999px;
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: white !important;
+  }
+}
