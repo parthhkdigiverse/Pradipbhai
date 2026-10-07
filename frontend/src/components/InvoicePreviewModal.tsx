@@ -63,7 +63,7 @@ export function InvoicePreviewModal({ invoice, onClose }: { invoice: any, onClos
             {/* Details Grid */}
             <div className="border-t border-black grid grid-cols-2 divide-x divide-black">
               <div className="p-2 space-y-1">
-                <div className="flex"><span className="w-24">Invoice No.</span><span className="font-bold">: {invoice.invoiceNumber || 'INV-PREVIEW'}</span></div>
+                <div className="flex"><span className="w-24">Invoice No.</span><span className="font-bold">: {invoice.invoiceNumber || (invoice.invoiceType === 'Retail' ? 'RET-PREVIEW' : 'TAX-PREVIEW')}</span></div>
                 <div className="flex"><span className="w-24">Invoice Date</span><span className="font-bold">: {invoice.issueDate || new Date().toISOString().split('T')[0]}</span></div>
                 <div className="flex"><span className="w-24">Terms</span><span className="font-bold">: Due on Receipt</span></div>
                 <div className="flex"><span className="w-24">Due Date</span><span className="font-bold">: {invoice.dueDate || '-'}</span></div>

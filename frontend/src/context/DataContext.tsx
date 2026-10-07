@@ -132,6 +132,12 @@ interface DataContextType {
   updateLeaveRequest: (id: string, updateData: any) => Promise<any>;
   deleteLeaveRequest: (id: string) => Promise<void>;
 
+  fieldDuties: any[];
+  setFieldDuties: React.Dispatch<React.SetStateAction<any[]>>;
+  addFieldDuty: (dutyData: any) => Promise<any>;
+  updateFieldDuty: (id: string, updateData: any) => Promise<any>;
+  deleteFieldDuty: (id: string) => Promise<void>;
+
   leaveBalances: LeaveBalance[];
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
   
@@ -424,6 +430,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
   const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>([]);
+  const [fieldDuties, setFieldDuties] = useState<any[]>([]);
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
@@ -547,7 +554,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -562,6 +569,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/vendors`),
         fetchWithAuth(`${API_BASE_URL}/permissions`),
         fetchWithAuth(`${API_BASE_URL}/products`),
+        fetchWithAuth(`${API_BASE_URL}/field-duties`),
       ]);
 
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) {
@@ -584,6 +592,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) setHolidays(holRes.value);
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) setProducts(prodRes.value);
+      if (fdRes.status === 'fulfilled' && Array.isArray(fdRes.value)) setFieldDuties(fdRes.value);
       if (leaveRes.status === 'fulfilled' && Array.isArray(leaveRes.value)) {
         setLeaveRequests(leaveRes.value.map(normalizeLeaveRequest));
       }
@@ -734,7 +743,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     jobIds: inv.job_ids || inv.jobIds || [],
     items: inv.custom_items || inv.items || [],
     issueDate: inv.date || inv.issueDate || '',
-    dueDate: inv.due_date || inv.dueDate || ''
+    dueDate: inv.due_date || inv.dueDate || '',
+    invoiceType: inv.invoice_type || inv.invoiceType || 'Tax',
+    taxRate: inv.tax_rate || inv.taxRate || '18'
   });
 
   // Invoices API
@@ -747,7 +758,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         job_ids: invoiceData.jobIds,
         custom_items: invoiceData.items,
         date: invoiceData.issueDate,
-        due_date: invoiceData.dueDate
+        due_date: invoiceData.dueDate,
+        invoice_type: invoiceData.invoiceType,
+        tax_rate: invoiceData.taxRate
       };
       const data = await apiFetch(`${API_BASE_URL}/invoices`, { method: 'POST', body: JSON.stringify(payload) });
       const norm = normalizeInvoice(data);
@@ -769,7 +782,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         job_ids: updateData.jobIds,
         custom_items: updateData.items,
         date: updateData.issueDate,
-        due_date: updateData.dueDate
+        due_date: updateData.dueDate,
+        invoice_type: updateData.invoiceType,
+        tax_rate: updateData.taxRate
       };
       const data = await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       const norm = normalizeInvoice(data);
@@ -1143,6 +1158,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setVendors(prev => prev.filter(v => v.id !== id));
   };
 
+  // Field Duties API
+  const addFieldDuty = async (dutyData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/field-duties`, { method: 'POST', body: JSON.stringify(dutyData) });
+      setFieldDuties(prev => [...prev, data]);
+      return data;
+    } catch {
+      setFieldDuties(prev => [...prev, dutyData]);
+      return dutyData;
+    }
+  };
+
+  const updateFieldDuty = async (id: string, updateData: any) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/field-duties/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      setFieldDuties(prev => prev.map(v => v.id === id ? data : v));
+      return data;
+    } catch {
+      setFieldDuties(prev => prev.map(v => v.id === id ? { ...v, ...updateData } : v));
+    }
+  };
+
+  const deleteFieldDuty = async (id: string) => {
+    try { await apiFetch(`${API_BASE_URL}/field-duties/${id}`, { method: 'DELETE' }); } catch {}
+    setFieldDuties(prev => prev.filter(v => v.id !== id));
+  };
+
   const convertLeadToClient = (lead: any) => {
     if (!autoConvertLeads) return;
     const newClient = {
@@ -1307,6 +1349,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setIsPunchedIn,
       punchInTime,
       setPunchInTime,
+      fieldDuties, setFieldDuties, addFieldDuty, updateFieldDuty, deleteFieldDuty,
       activeJobTracker,
       setActiveJobTracker,
       workLogs,

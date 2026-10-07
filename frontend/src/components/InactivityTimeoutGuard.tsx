@@ -7,7 +7,7 @@ const WARNING_COUNTDOWN_SECONDS = 60;
 
 export function InactivityTimeoutGuard() {
   const { inactivityTimeoutEnabled, inactivityTimeoutMinutes } = useSettings();
-  const { isPunchedIn, activeJobTracker, performAutoPunchOut, currentUserRole } = useData();
+  const { isPunchedIn, activeJobTracker, performAutoPunchOut, currentUserRole, fieldDuties } = useData();
   const [showWarning, setShowWarning] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(WARNING_COUNTDOWN_SECONDS);
   
@@ -15,7 +15,7 @@ export function InactivityTimeoutGuard() {
   const warningActiveRef = useRef<boolean>(false);
   const isAutoLoggingOutRef = useRef<boolean>(false);
 
-  const isFieldDutyActive = isPunchedIn && activeJobTracker?.jobId?.startsWith('activity-');
+  const isFieldDutyActive = isPunchedIn && (activeJobTracker?.jobId?.startsWith('activity-') || activeJobTracker?.jobId?.startsWith('fd-'));
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('authToken');
@@ -74,6 +74,9 @@ export function InactivityTimeoutGuard() {
 
       // Auto logout at allowed end time ONLY applies to field/courier duties, NOT general jobs
       if (!isFieldDutyActive) return;
+
+      const currentDuty = (fieldDuties || []).find((d: any) => d.id === activeJobTracker?.jobId);
+      if (currentDuty && currentDuty.auto_logout === false) return;
 
       const cachedRestrictions = localStorage.getItem('accessRestrictions');
       let endTime = '18:00';

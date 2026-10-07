@@ -21,7 +21,7 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
         const total = subtotal + tax;
         setSelectedPreviewInvoice({
           id: 'preview-' + targetJob.id,
-          invoiceNumber: `INV-${targetJob.id.toUpperCase()}`,
+          invoiceNumber: `TAX-${targetJob.id.toUpperCase()}`,
           clientId: targetJob.clientId,
           jobIds: [targetJob.id],
           issueDate: new Date().toISOString().split('T')[0],

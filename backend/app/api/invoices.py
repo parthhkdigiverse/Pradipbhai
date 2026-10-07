@@ -39,7 +39,9 @@ async def create_invoice(invoice_in: InvoiceCreate, db: AsyncSession = Depends(g
         total=invoice_in.total or 0.0,
         status=invoice_in.status or "Unpaid",
         date=invoice_in.date,
-        due_date=invoice_in.due_date
+        due_date=invoice_in.due_date,
+        invoice_type=invoice_in.invoice_type,
+        tax_rate=invoice_in.tax_rate
     )
     db.add(invoice)
     await db.commit()

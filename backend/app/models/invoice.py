@@ -16,6 +16,8 @@ class Invoice(Base):
     status: Mapped[str] = mapped_column(String(50), default="Unpaid") # Paid, Unpaid, Overdue
     date: Mapped[str] = mapped_column(String(50), nullable=True)
     due_date: Mapped[str] = mapped_column(String(50), nullable=True)
+    invoice_type: Mapped[str] = mapped_column(String(50), default="Tax")
+    tax_rate: Mapped[str] = mapped_column(String(10), default="18")
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

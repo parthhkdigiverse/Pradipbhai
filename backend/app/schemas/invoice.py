@@ -12,6 +12,8 @@ class InvoiceBase(BaseModel):
     status: Optional[str] = "Unpaid"
     date: Optional[str] = None
     due_date: Optional[str] = None
+    invoice_type: Optional[str] = "Tax"
+    tax_rate: Optional[str] = "18"
 
 class InvoiceCreate(InvoiceBase):
     id: Optional[str] = None
@@ -27,6 +29,8 @@ class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     date: Optional[str] = None
     due_date: Optional[str] = None
+    invoice_type: Optional[str] = None
+    tax_rate: Optional[str] = None
 
 class InvoiceOut(InvoiceBase):
     id: str

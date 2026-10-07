@@ -22,6 +22,7 @@ from app.api.auth import router as auth_router
 from app.api.permissions import router as permissions_router
 from app.api.restrictions import router as restrictions_router
 from app.api.chat import router as chat_router
+from app.api.field_duties import router as field_duties_router
 
 # Lifespan event handler for startup/shutdown
 @asynccontextmanager
@@ -68,6 +69,7 @@ app.include_router(products_router, prefix="/api", dependencies=[Depends(get_cur
 app.include_router(permissions_router, prefix="/api/permissions", dependencies=[Depends(get_current_user)])
 app.include_router(restrictions_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(chat_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(field_duties_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 @app.get("/api/health")
 async def health_check():

@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { localDateStr } from '../utils/dateUtils';
 
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
-  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen } = useData();
+  const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
@@ -223,10 +223,9 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           finalJobTitle = job.title;
           const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
           await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
-        } else if (finalJobId.startsWith('activity-')) {
-          if (finalJobId === 'activity-courier-drop') finalJobTitle = '📦 Courier Drop-off';
-          else if (finalJobId === 'activity-courier-collect') finalJobTitle = '📦 Courier Collection / Pickup';
-          else if (finalJobId === 'activity-outdoor-visit') finalJobTitle = '🚗 Client Visit / Outdoor Duty';
+        } else if (finalJobId.startsWith('activity-') || finalJobId.startsWith('fd-')) {
+          const duty = (fieldDuties || []).find(d => d.id === finalJobId);
+          if (duty) finalJobTitle = duty.name;
           else finalJobTitle = 'Field Duty';
         } else {
           finalJobTitle = 'General Work';
@@ -423,11 +422,10 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           trackedTime: (prevJob.trackedTime || 0) + elapsed,
           status: 'Pending'
         });
-      } else if (activeJobTracker.jobId.startsWith('activity-')) {
+      } else if (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-')) {
         let prevTitle = 'Field Duty';
-        if (activeJobTracker.jobId === 'activity-courier-drop') prevTitle = '📦 Courier Drop-off';
-        else if (activeJobTracker.jobId === 'activity-courier-collect') prevTitle = '📦 Courier Collection / Pickup';
-        else if (activeJobTracker.jobId === 'activity-outdoor-visit') prevTitle = '🚗 Client Visit / Outdoor Duty';
+        const duty = (fieldDuties || []).find(d => d.id === activeJobTracker.jobId);
+        if (duty) prevTitle = duty.name;
 
         const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
         const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
@@ -496,10 +494,9 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         {activeJobTracker && (() => {
           const activeJob = jobs.find(j => j.id === activeJobTracker.jobId);
           let title = activeJob?.title;
-          if (!title && activeJobTracker.jobId.startsWith('activity-')) {
-            if (activeJobTracker.jobId === 'activity-courier-drop') title = '📦 Courier Drop-off';
-            else if (activeJobTracker.jobId === 'activity-courier-collect') title = '📦 Courier Collection';
-            else if (activeJobTracker.jobId === 'activity-outdoor-visit') title = '🚗 Client Visit';
+          if (!title && (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-'))) {
+            const duty = (fieldDuties || []).find(d => d.id === activeJobTracker.jobId);
+            if (duty) title = duty.name;
             else title = 'Field Duty';
           }
           return (
@@ -686,9 +683,9 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
               >
                 <option value="" disabled>Select Job or Duty...</option>
                 <optgroup label="🚚 Out-of-Office / Courier Duty">
-                  <option value="activity-courier-drop">📦 Courier Drop-off (Field Duty)</option>
-                  <option value="activity-courier-collect">📦 Courier Collection / Pickup</option>
-                  <option value="activity-outdoor-visit">🚗 Client Visit / Outdoor Duty</option>
+                  {(fieldDuties || []).map(duty => (
+                    <option key={duty.id} value={duty.id}>{duty.name}</option>
+                  ))}
                 </optgroup>
                 <optgroup label="📋 Assigned In-Office Jobs">
                   {jobs

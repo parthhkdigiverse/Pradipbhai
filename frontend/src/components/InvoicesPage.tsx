@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX , ChevronDown } from 'lucide-react';
+import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX , ChevronDown, Edit2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
@@ -13,6 +13,7 @@ export function InvoicesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
+  const [filterType, setFilterType] = useState('All');
 
   // Quick Add Client Modal State
   const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
@@ -25,6 +26,7 @@ export function InvoicesPage() {
     setSearchTerm('');
     setFilterStatus('All');
     setFilterClient('All');
+    setFilterType('All');
     setFilterDateFrom('');
     setFilterDateTo('');
   };
@@ -34,6 +36,7 @@ export function InvoicesPage() {
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [customItems, setCustomItems] = useState<{ id: string; description: string; quantity: number; rate: number }[]>([]);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
@@ -124,13 +127,14 @@ export function InvoicesPage() {
                           (inv.dueDate && inv.dueDate.includes(sLower));
       const matchStatus = filterStatus === 'All' || inv.status === filterStatus;
       const matchClient = filterClient === 'All' || inv.clientId === filterClient;
+      const matchType = filterType === 'All' || inv.invoiceType === filterType;
       
       const matchDateFrom = !filterDateFrom || (inv.issueDate && new Date(inv.issueDate) >= new Date(filterDateFrom));
       const matchDateTo = !filterDateTo || (inv.issueDate && new Date(inv.issueDate) <= new Date(filterDateTo));
       
-      return matchSearch && matchStatus && matchClient && matchDateFrom && matchDateTo;
+      return matchSearch && matchStatus && matchClient && matchType && matchDateFrom && matchDateTo;
     });
-  }, [invoices, searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo, clients]);
+  }, [invoices, searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo, clients]);
 
   // Derived calculations for the modal
   const availableJobs = useMemo(() => {
@@ -161,6 +165,7 @@ export function InvoicesPage() {
   const modalTotal = modalSubtotal + modalTax;
 
   const handleOpenModal = () => {
+    setEditingInvoiceId(null);
     setSelectedClientId('');
     setSelectedJobIds([]);
     setCustomItems([]);
@@ -173,8 +178,32 @@ export function InvoicesPage() {
     setIsModalOpen(true);
   };
 
+  const handleEditInvoice = (invoice: any) => {
+    setEditingInvoiceId(invoice.id);
+    setSelectedClientId(invoice.clientId || '');
+    setSelectedJobIds(invoice.jobIds || []);
+    
+    // Extract custom items (those not marked as isJob)
+    const cItems = (invoice.items || []).filter((item: any) => !item.isJob).map((item: any) => ({
+      id: item.id || Math.random().toString(36).substr(2, 9),
+      description: item.description || '',
+      quantity: item.quantity || 1,
+      rate: item.rate || 0
+    }));
+    setCustomItems(cItems);
+
+    setFormData({
+      issueDate: invoice.issueDate || new Date().toISOString().split('T')[0],
+      dueDate: invoice.dueDate || '',
+      taxRate: invoice.taxRate || '18',
+      invoiceType: invoice.invoiceType || 'Tax',
+    });
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingInvoiceId(null);
   };
 
   const toggleJobSelection = (jobId: string) => {
@@ -232,32 +261,53 @@ export function InvoicesPage() {
 
     const allItems = [...jobInvoiceItems, ...customInvoiceItems];
 
-    const newInvoiceNumber = `INV-${(invoices.length + 1).toString().padStart(3, '0')}`;
+    if (editingInvoiceId) {
+      const existingInvoice = invoices.find(i => i.id === editingInvoiceId);
+      updateInvoice(editingInvoiceId, {
+        invoiceNumber: existingInvoice?.invoiceNumber || '',
+        clientId: selectedClientId,
+        jobIds: selectedJobIds,
+        items: allItems,
+        issueDate: formData.issueDate,
+        dueDate: formData.dueDate,
+        subtotal: modalSubtotal,
+        tax: modalTax,
+        total: modalTotal,
+        invoiceType: formData.invoiceType,
+        taxRate: formData.taxRate,
+      });
+    } else {
+      const typeInvoicesCount = invoices.filter(i => i.invoiceType === formData.invoiceType).length;
+      const prefix = formData.invoiceType === 'Retail' ? 'RET' : 'TAX';
+      const newInvoiceNumber = `${prefix}-${(typeInvoicesCount + 1).toString().padStart(3, '0')}`;
 
-    const newInvoice = {
-      id: Math.random().toString(36).substr(2, 9),
-      invoiceNumber: newInvoiceNumber,
-      clientId: selectedClientId,
-      jobIds: selectedJobIds,
-      items: allItems,
-      issueDate: formData.issueDate,
-      dueDate: formData.dueDate,
-      subtotal: modalSubtotal,
-      tax: modalTax,
-      total: modalTotal,
-      status: 'Sent',
-      invoiceType: formData.invoiceType,
-      taxRate: formData.taxRate
-    };
+      const newInvoice = {
+        id: Math.random().toString(36).substr(2, 9),
+        invoiceNumber: newInvoiceNumber,
+        clientId: selectedClientId,
+        jobIds: selectedJobIds,
+        items: allItems,
+        issueDate: formData.issueDate,
+        dueDate: formData.dueDate,
+        subtotal: modalSubtotal,
+        tax: modalTax,
+        total: modalTotal,
+        status: 'Sent',
+        invoiceType: formData.invoiceType,
+        taxRate: formData.taxRate
+      };
 
-    addInvoice({
-      ...newInvoice,
-      invoice_number: newInvoice.invoiceNumber,
-      client_id: newInvoice.clientId,
-      job_ids: newInvoice.jobIds,
-      custom_items: newInvoice.items
-    });
+      addInvoice({
+        ...newInvoice,
+        invoice_number: newInvoice.invoiceNumber,
+        client_id: newInvoice.clientId,
+        job_ids: newInvoice.jobIds,
+        custom_items: newInvoice.items
+      });
+    }
+    
     setIsModalOpen(false);
+    setEditingInvoiceId(null);
   };
 
   const updateInvoiceStatus = (id: string, status: string) => {
@@ -321,7 +371,7 @@ export function InvoicesPage() {
             Filter Invoices
           </h3>
           <div className="flex items-center gap-4">
-            {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+            {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterType !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
               <button 
                 onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                 className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
@@ -335,7 +385,19 @@ export function InvoicesPage() {
         </button>
         <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
           <div className="px-4 pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Type</label>
+            <SearchableSelect
+              value={filterType}
+              onChange={setFilterType}
+              options={[
+                { value: 'All', label: 'All Types' },
+                { value: 'Tax', label: 'Tax Invoice' },
+                { value: 'Retail', label: 'Retail Invoice' }
+              ]}
+            />
+          </div>
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
             <SearchableSelect
@@ -451,6 +513,15 @@ export function InvoicesPage() {
                             <CheckCircle className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {canCreateEditInvoices && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice); }}
+                            className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-colors"
+                            title="Edit Invoice"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                        )}
                         <button 
                           className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
                           title="Download PDF"
@@ -490,7 +561,7 @@ export function InvoicesPage() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={handleCloseModal}></div>
           <div className="relative glass-panel border-l border-white/60 shadow-2xl w-full max-w-xl h-full overflow-hidden animate-in slide-in-from-right duration-300 flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-white/40 bg-white/30 flex-shrink-0">
-              <h2 className="text-lg font-bold text-gray-800">Create Invoice</h2>
+              <h2 className="text-lg font-bold text-gray-800">{editingInvoiceId ? 'Edit Invoice' : 'Create Invoice'}</h2>
               <button onClick={handleCloseModal} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -731,7 +802,7 @@ export function InvoicesPage() {
                 </button>
                 <button type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all flex items-center gap-2">
                   <FileCheck className="w-4 h-4" />
-                  Generate Invoice
+                  {editingInvoiceId ? 'Update Invoice' : 'Generate Invoice'}
                 </button>
               </div>
             </form>

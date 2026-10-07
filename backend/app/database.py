@@ -240,6 +240,19 @@ async def init_db():
                     except Exception as e:
                         print(f"⚠️ Column addition notice for daily_progress.{col_name}: {e}")
 
+        if "invoices" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("invoices")]
+            needed_inv_cols = [
+                ("invoice_type", "VARCHAR(50) DEFAULT 'Tax'"),
+                ("tax_rate", "VARCHAR(10) DEFAULT '18'")
+            ]
+            for col_name, col_type in needed_inv_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE invoices ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for invoices.{col_name}: {e}")
+
         if "chat_messages" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("chat_messages")]
             needed_chat_cols = [
@@ -257,6 +270,14 @@ async def init_db():
                         sync_conn.execute(text(f"ALTER TABLE chat_messages ADD COLUMN `{col_name}` {col_type}"))
                     except Exception as e:
                         print(f"⚠️ Column addition notice for chat_messages.{col_name}: {e}")
+
+        if "field_duties" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("field_duties")]
+            if "auto_logout" not in columns:
+                try:
+                    sync_conn.execute(text("ALTER TABLE field_duties ADD COLUMN `auto_logout` BOOLEAN DEFAULT TRUE"))
+                except Exception as e:
+                    print(f"⚠️ Column addition notice for field_duties.auto_logout: {e}")
 
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
@@ -410,6 +431,13 @@ async def init_db():
                     verified_by=None
                 )
                 session.add_all([dp1, dp2])
+
+            fd_result = await session.execute(select(models.FieldDuty))
+            if not fd_result.scalars().first():
+                fd1 = models.FieldDuty(id="activity-courier-drop", name="📦 Courier Drop-off (Field Duty)")
+                fd2 = models.FieldDuty(id="activity-courier-collect", name="📦 Courier Collection / Pickup")
+                fd3 = models.FieldDuty(id="activity-outdoor-visit", name="🚗 Client Visit / Outdoor Duty")
+                session.add_all([fd1, fd2, fd3])
 
             await session.commit()
         except Exception as e:

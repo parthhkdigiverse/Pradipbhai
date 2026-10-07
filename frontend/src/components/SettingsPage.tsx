@@ -7,7 +7,7 @@ import type { DateFormat, TimeFormat } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 
 export function SettingsPage() {
-  const { currentUserRole, hasPermission } = useData();
+  const { currentUserRole, hasPermission, fieldDuties, addFieldDuty, deleteFieldDuty, updateFieldDuty } = useData();
   const canChangeSettings = hasPermission(currentUserRole, 'Change System Settings');
 
   const { 
@@ -451,6 +451,74 @@ export function SettingsPage() {
             <p className="mt-4 text-[11px] text-gray-500 bg-primary/10 p-3 rounded-lg border border-primary/20">
               When enabled, changing a lead's status to "Client Won" will automatically create a new client record.
             </p>
+          </div>
+        </div>
+
+        {/* Field Duties Settings */}
+        <div className="glass-panel border border-white/60 rounded-2xl shadow-xl shadow-primary/20 p-6 relative overflow-hidden h-fit">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🚚</span>
+              <h2 className="text-xl font-bold text-gray-800">Field Duties</h2>
+            </div>
+          </div>
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            {fieldDuties?.map(duty => (
+              <div key={duty.id} className="flex flex-col gap-2 p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700 truncate mr-2" title={duty.name}>{duty.name}</span>
+                  <button onClick={() => deleteFieldDuty(duty.id)} className="text-red-400 hover:text-red-600 transition-colors shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer mt-1">
+                  <input 
+                    type="checkbox" 
+                    checked={duty.auto_logout !== false}
+                    onChange={(e) => updateFieldDuty(duty.id, { name: duty.name, auto_logout: e.target.checked })} 
+                    className="w-3.5 h-3.5 text-primary rounded border-gray-300"
+                  />
+                  <span className="text-xs text-gray-500 font-medium">Auto Logout at End Time</span>
+                </label>
+              </div>
+            ))}
+            {(!fieldDuties || fieldDuties.length === 0) && (
+              <p className="text-xs text-gray-500 text-center py-2">No duties found</p>
+            )}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                placeholder="e.g. 📦 Courier Drop-off" 
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50"
+                id="new-duty-input"
+              />
+              <button 
+                onClick={() => {
+                  const input = document.getElementById('new-duty-input') as HTMLInputElement;
+                  const checkbox = document.getElementById('new-duty-autologout') as HTMLInputElement;
+                  const val = input.value.trim();
+                  if (val) {
+                    addFieldDuty({ name: val, id: `fd-${Date.now()}`, auto_logout: checkbox.checked });
+                    input.value = '';
+                    checkbox.checked = true;
+                  }
+                }}
+                className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold shadow-md hover:bg-primary/90 transition-colors"
+              >
+                Add
+              </button>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer px-1">
+              <input 
+                type="checkbox" 
+                defaultChecked={true}
+                id="new-duty-autologout"
+                className="w-4 h-4 text-primary rounded border-gray-300"
+              />
+              <span className="text-xs font-semibold text-gray-700">Auto Logout at End Time</span>
+            </label>
           </div>
         </div>
 

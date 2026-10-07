@@ -15,6 +15,7 @@ from app.models.worklog import WorkLog
 
 from app.models.permission import RolePermission
 from app.models.restriction import AccessRestriction
+from app.models.field_duty import FieldDuty
 
 __all__ = [
     "Client",
