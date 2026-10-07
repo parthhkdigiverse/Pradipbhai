@@ -203,6 +203,8 @@ export function JobsPage() {
           (currentUser?.email && job.assignedStaffEmail && job.assignedStaffEmail.toLowerCase() === currentUser.email.toLowerCase())
         );
         if (!isAssigned) return false;
+        // Hide Printing jobs that are awaiting the design phase completion
+        if (job.status === 'Awaiting Design') return false;
       }
 
       const sLower = searchTerm.toLowerCase();
@@ -320,13 +322,40 @@ export function JobsPage() {
     if (editingJobId) {
       updateJob(editingJobId, jobData);
     } else {
-      const newJob = {
-        id: `job-${Date.now()}`,
-        createdBy: 'Admin',
-        createdAt: new Date().toISOString().split('T')[0],
-        ...jobData
-      };
-      addJob(newJob);
+      if (newJobType === 'Des+Print') {
+        const designJobId = `job-${Date.now()}-d`;
+        // Create Designing Job
+        const designJob = {
+          ...jobData,
+          id: designJobId,
+          createdBy: 'Admin',
+          createdAt: new Date().toISOString().split('T')[0],
+          type: 'Des+Print',
+          title: `[DESIGN] ${jobData.title}`
+        };
+        // Create Printing Job
+        const printJob = {
+          ...jobData,
+          id: `job-${Date.now()}-p`,
+          createdBy: 'System (Auto)',
+          createdAt: new Date().toISOString().split('T')[0],
+          type: 'Des+Print',
+          title: `[PRINT] ${jobData.title}`,
+          status: 'Awaiting Design',
+          delayReason: designJobId, // Use delayReason field to store the linked design job ID temporarily
+          teamId: '' // Print job should remain unassigned initially
+        };
+        addJob(designJob);
+        addJob(printJob);
+      } else {
+        const newJob = {
+          ...jobData,
+          id: `job-${Date.now()}`,
+          createdBy: 'Admin',
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+        addJob(newJob);
+      }
     }
     handleCloseModal();
   };
@@ -455,6 +484,14 @@ export function JobsPage() {
       setActiveJobTracker(null);
     }
     setTimeout(() => openPunchInModal(), 200);
+
+    // Wake up linked Printing jobs that were created simultaneously
+    if (job.type === 'Designing' || job.type === 'Des+Print') {
+      const linkedPrintJobs = jobs.filter(j => j.status === 'Awaiting Design' && j.delayReason === jobId);
+      for (const pJob of linkedPrintJobs) {
+        await updateJob(pJob.id, { status: 'Pending', delayReason: '' });
+      }
+    }
 
     // Auto-create Printing job when a Designing job of a Des+Print project is approved
     if (job.type === 'Designing' && job.projectId) {
@@ -1153,6 +1190,22 @@ export function JobsPage() {
             </div>
             
             <form onSubmit={handleSaveJob} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              
+              {/* Job Type Changer (Editing) */}
+              {editingJobId && newJobType !== 'Des+Print' && (
+                <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl mb-4 flex items-center justify-between">
+                  <label className="text-sm font-bold text-indigo-900">Current Job Type:</label>
+                  <select 
+                    value={newJobType} 
+                    onChange={(e) => setNewJobType(e.target.value as 'Designing' | 'Printing')}
+                    className="px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                  >
+                    <option value="Designing">✏️ Designing Job</option>
+                    <option value="Printing">🖨️ Printing Job</option>
+                  </select>
+                </div>
+              )}
+
               {/* Auto Alert Banner */}
               {(() => {
                 const selectedClient = clients.find(c => c.id === formData.clientId);
