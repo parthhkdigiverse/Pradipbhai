@@ -38,7 +38,9 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.websocket("/ws/{user_id}")
+ws_router = APIRouter(prefix="/chat/ws", tags=["Chat WebSockets"])
+
+@ws_router.websocket("/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
     await manager.connect(websocket, user_id)
     try:
