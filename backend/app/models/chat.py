@@ -6,9 +6,9 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    contact_id: Mapped[int] = mapped_column(String(50), nullable=False)
+    contact_id: Mapped[str] = mapped_column(String(50), nullable=False)
     text: Mapped[str] = mapped_column(String(2000), nullable=True)
-    sender: Mapped[str] = mapped_column(String(20), nullable=False) # "me" | "them"
+    sender: Mapped[str] = mapped_column(String(100), nullable=False) # "me" | "them" or User ID/Email
     time: Mapped[str] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="sent") # "sent", "delivered", "read"
     attachment: Mapped[dict] = mapped_column(JSON, nullable=True) # { name, url, type, size }

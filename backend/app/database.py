@@ -270,6 +270,11 @@ async def init_db():
                         sync_conn.execute(text(f"ALTER TABLE chat_messages ADD COLUMN `{col_name}` {col_type}"))
                     except Exception as e:
                         print(f"⚠️ Column addition notice for chat_messages.{col_name}: {e}")
+            try:
+                # Force resize sender column to support longer UUIDs or Emails
+                sync_conn.execute(text("ALTER TABLE chat_messages MODIFY COLUMN sender VARCHAR(100) NOT NULL"))
+            except Exception as e:
+                print(f"⚠️ Column modification notice for chat_messages.sender: {e}")
 
         if "field_duties" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("field_duties")]
