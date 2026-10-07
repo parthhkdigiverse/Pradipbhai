@@ -104,15 +104,7 @@ export function InvoicesPage() {
     setCustomItems(prev => prev.filter(item => item.id !== id));
   };
 
-  // Calculate totals
-  const totalOutstanding = useMemo(() => {
-    return (invoices || []).filter(i => i && i.status !== 'Paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
-  }, [invoices]);
-
-  const totalOverdue = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return (invoices || []).filter(i => i && i.status !== 'Paid' && i.dueDate < today).reduce((sum, inv) => sum + (inv.total || 0), 0);
-  }, [invoices]);
+  // Calculations moved below filteredInvoices
 
   const filteredInvoices = useMemo(() => {
     return (invoices || []).filter(inv => {
@@ -135,6 +127,16 @@ export function InvoicesPage() {
       return matchSearch && matchStatus && matchClient && matchType && matchDateFrom && matchDateTo;
     });
   }, [invoices, searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo, clients]);
+
+  // Calculate totals based on filtered invoices
+  const totalOutstanding = useMemo(() => {
+    return (filteredInvoices || []).filter(i => i && i.status !== 'Paid').reduce((sum, inv) => sum + (inv.total || 0), 0);
+  }, [filteredInvoices]);
+
+  const totalOverdue = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return (filteredInvoices || []).filter(i => i && i.status !== 'Paid' && i.dueDate < today).reduce((sum, inv) => sum + (inv.total || 0), 0);
+  }, [filteredInvoices]);
 
   // Derived calculations for the modal
   const availableJobs = useMemo(() => {
