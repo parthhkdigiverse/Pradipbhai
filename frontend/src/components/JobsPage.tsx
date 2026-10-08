@@ -41,6 +41,23 @@ export function JobsPage() {
   const [completionWorkLink, setCompletionWorkLink] = useState('');
   const [completionWorkLocation, setCompletionWorkLocation] = useState('');
 
+  // Inline Cell Editing State
+  const [inlineCell, setInlineCell] = useState<{ jobId: string; field: string } | null>(null);
+  const [inlineValue, setInlineValue] = useState<string>('');
+
+  const handleSaveInlineEdit = async (jobId: string, field: string, val: any) => {
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return;
+
+    let patch: any = { [field]: val };
+    if (field === 'totalAmount' || field === 'paidAmount') {
+      patch[field] = parseFloat(val) || 0;
+    }
+
+    await updateJob(jobId, patch);
+    setInlineCell(null);
+  };
+
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'jobs') {
       const { filterKey, filterValue } = activeFilterIntent;
@@ -900,7 +917,38 @@ export function JobsPage() {
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex flex-col">
-                        <span className="font-bold text-primary text-sm hover:underline cursor-pointer">{job.title}</span>
+                        {inlineCell?.jobId === job.id && inlineCell?.field === 'title' ? (
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <input 
+                              type="text" 
+                              autoFocus
+                              value={inlineValue} 
+                              onChange={e => setInlineValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveInlineEdit(job.id, 'title', inlineValue);
+                                if (e.key === 'Escape') setInlineCell(null);
+                              }}
+                              onBlur={() => handleSaveInlineEdit(job.id, 'title', inlineValue)}
+                              className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none w-full shadow-sm font-semibold"
+                            />
+                          </div>
+                        ) : (
+                          <span 
+                            onDoubleClick={(e) => {
+                              if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                              e.stopPropagation();
+                              setInlineCell({ jobId: job.id, field: 'title' });
+                              setInlineValue(job.title || '');
+                            }}
+                            className="font-bold text-primary text-sm hover:underline cursor-pointer flex items-center gap-1 group/title"
+                            title="Double-click to edit title"
+                          >
+                            {job.title}
+                            {hasPermission(currentUserRole, 'Edit Job') && (
+                              <Edit className="w-3 h-3 text-gray-400 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
+                            )}
+                          </span>
+                        )}
                         {(job.workLink || job.workLocation || job.delayReason) && (
                           <div className="flex items-center gap-1.5 flex-wrap mt-1">
                             {job.workLink && (
@@ -1039,10 +1087,66 @@ export function JobsPage() {
                       )}
                     </td>
                     <td className="py-4 px-6">
-                      <span className="text-[11px] font-medium text-gray-600 bg-gray-100/80 px-2 py-1 rounded">{getStaffName(job.teamId)}</span>
+                      {inlineCell?.jobId === job.id && inlineCell?.field === 'teamId' ? (
+                        <select
+                          autoFocus
+                          value={inlineValue}
+                          onChange={e => handleSaveInlineEdit(job.id, 'teamId', e.target.value)}
+                          onBlur={() => setInlineCell(null)}
+                          onClick={e => e.stopPropagation()}
+                          className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none shadow-sm font-medium"
+                        >
+                          <option value="">Unassigned</option>
+                          {staff.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span 
+                          onDoubleClick={(e) => {
+                            if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                            e.stopPropagation();
+                            setInlineCell({ jobId: job.id, field: 'teamId' });
+                            setInlineValue(job.teamId || '');
+                          }}
+                          className="text-[11px] font-medium text-gray-600 bg-gray-100/80 hover:bg-gray-200 px-2 py-1 rounded cursor-pointer transition-colors inline-flex items-center gap-1 group/staff"
+                          title="Double-click to change staff"
+                        >
+                          {getStaffName(job.teamId) || 'Unassigned'}
+                          {hasPermission(currentUserRole, 'Edit Job') && (
+                            <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/staff:opacity-100 transition-opacity shrink-0" />
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-gray-600 font-medium whitespace-nowrap">
-                      {job.dueDate || '-'}
+                      {inlineCell?.jobId === job.id && inlineCell?.field === 'dueDate' ? (
+                        <input 
+                          type="date"
+                          autoFocus
+                          value={inlineValue}
+                          onChange={e => handleSaveInlineEdit(job.id, 'dueDate', e.target.value)}
+                          onBlur={() => setInlineCell(null)}
+                          onClick={e => e.stopPropagation()}
+                          className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none shadow-sm"
+                        />
+                      ) : (
+                        <span 
+                          onDoubleClick={(e) => {
+                            if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                            e.stopPropagation();
+                            setInlineCell({ jobId: job.id, field: 'dueDate' });
+                            setInlineValue(job.dueDate || '');
+                          }}
+                          className="cursor-pointer hover:text-primary transition-colors inline-flex items-center gap-1 group/date"
+                          title="Double-click to edit due date"
+                        >
+                          {job.dueDate || '-'}
+                          {hasPermission(currentUserRole, 'Edit Job') && (
+                            <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/date:opacity-100 transition-opacity shrink-0" />
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">
                       {(() => {
@@ -1091,11 +1195,35 @@ export function JobsPage() {
                     </td>
                     {currentUserRole !== 'Employee' && (
                       <td className="py-4 px-6 text-center whitespace-nowrap">
-                        <span className={`whitespace-nowrap inline-block px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm ${
-                          job.paymentStatus === 'Paid' ? 'bg-emerald-500' : 'bg-rose-500'
-                        }`}>
-                          {job.paymentStatus}
-                        </span>
+                        {inlineCell?.jobId === job.id && inlineCell?.field === 'paymentStatus' ? (
+                          <select
+                            autoFocus
+                            value={inlineValue}
+                            onChange={e => handleSaveInlineEdit(job.id, 'paymentStatus', e.target.value)}
+                            onBlur={() => setInlineCell(null)}
+                            onClick={e => e.stopPropagation()}
+                            className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none shadow-sm"
+                          >
+                            <option value="Unpaid">Unpaid</option>
+                            <option value="Partial">Partial</option>
+                            <option value="Paid">Paid</option>
+                          </select>
+                        ) : (
+                          <span 
+                            onDoubleClick={(e) => {
+                              if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                              e.stopPropagation();
+                              setInlineCell({ jobId: job.id, field: 'paymentStatus' });
+                              setInlineValue(job.paymentStatus || 'Unpaid');
+                            }}
+                            className={`whitespace-nowrap inline-block px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity ${
+                              job.paymentStatus === 'Paid' ? 'bg-emerald-500' : job.paymentStatus === 'Partial' ? 'bg-amber-500' : 'bg-rose-500'
+                            }`}
+                            title="Double-click to edit payment status"
+                          >
+                            {job.paymentStatus}
+                          </span>
+                        )}
                       </td>
                     )}
                     <td className="py-4 px-6 text-center">
