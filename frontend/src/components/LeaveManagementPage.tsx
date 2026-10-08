@@ -175,8 +175,8 @@ export function LeaveManagementPage() {
 
   const balanceCards = [
     { label: 'Earned (Paid)', total: earnedPaidQuota, used: myUsed.Earned, remaining: remainingEarnedPaidDays, color: LEAVE_COLORS.Earned, note: '15 Paid Days / Yr' },
-    { label: 'Casual', total: 'Unlimited', used: myUsed.Casual, remaining: 'Unlimited', color: LEAVE_COLORS.Casual, note: 'Payroll Deductible' },
-    { label: 'Sick', total: 'Unlimited', used: myUsed.Sick, remaining: 'Unlimited', color: LEAVE_COLORS.Sick, note: 'Payroll Deductible' },
+    { label: 'Casual', total: 'Available as Needed', used: myUsed.Casual, remaining: 'Available as Needed', color: LEAVE_COLORS.Casual, note: 'Payroll Deductible' },
+    { label: 'Sick', total: 'Available as Needed', used: myUsed.Sick, remaining: 'Available as Needed', color: LEAVE_COLORS.Sick, note: 'Payroll Deductible' },
   ];
 
   return (
@@ -263,8 +263,10 @@ export function LeaveManagementPage() {
                     <span className="text-xs text-gray-400 font-semibold">{card.note}</span>
                   </div>
                   <div className="flex items-end gap-2 mb-3">
-                    <span className="text-3xl font-black text-gray-800">{card.remaining}</span>
-                    <span className="text-sm text-gray-400 font-semibold mb-1">remaining</span>
+                    <span className={typeof card.remaining === 'number' ? "text-3xl font-black text-gray-800" : "text-lg font-bold text-gray-800"}>{card.remaining}</span>
+                    {typeof card.remaining === 'number' && (
+                      <span className="text-sm text-gray-400 font-semibold mb-1">remaining</span>
+                    )}
                   </div>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div
