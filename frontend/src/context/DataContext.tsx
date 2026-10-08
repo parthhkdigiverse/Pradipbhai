@@ -576,7 +576,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setClients(clientsRes.value.map(normalizeClient));
       }
       if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
-        setJobs(jobsRes.value.map(normalizeJob));
+        const normalized = jobsRes.value.map(normalizeJob);
+        normalized.sort((a: any, b: any) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
+        setJobs(normalized);
       }
       if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) {
         setInvoices(invoicesRes.value.map(normalizeInvoice));

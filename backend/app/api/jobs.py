@@ -10,7 +10,7 @@ router = APIRouter(prefix="/jobs", tags=["Jobs"])
 
 @router.get("", response_model=List[JobOut])
 async def get_jobs(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Job))
+    result = await db.execute(select(Job).order_by(Job.createdAt.desc()))
     return result.scalars().all()
 
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
