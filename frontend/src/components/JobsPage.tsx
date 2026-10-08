@@ -419,9 +419,13 @@ export function JobsPage() {
   };
 
   const enforceSingleProgressJob = async (newProgressJobId: string) => {
+    const newJob = jobs.find((j: any) => j.id === newProgressJobId);
+    if (newJob?.type === 'Printing') return;
+
     const otherProgressJobs = jobs.filter((j: any) => 
       j.id !== newProgressJobId && 
       j.status === 'Progress' && 
+      j.type !== 'Printing' &&
       (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === currentStaffId)
     );
 
@@ -453,7 +457,13 @@ export function JobsPage() {
       // Stop previous tracker
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
       const prev = jobs.find((j: any) => j.id === activeJobTracker.jobId);
-      if (prev) await updateJob(activeJobTracker.jobId, { trackedTime: (prev.trackedTime || 0) + elapsed, status: 'Pending' });
+      if (prev) {
+        const updatePayload: any = { trackedTime: (prev.trackedTime || 0) + elapsed };
+        if (prev.type !== 'Printing') {
+          updatePayload.status = 'Pending';
+        }
+        await updateJob(activeJobTracker.jobId, updatePayload);
+      }
     }
     setActiveJobTracker({ jobId, startTime: Date.now() });
     await updateJob(jobId, { status: 'Progress' });
@@ -506,7 +516,6 @@ export function JobsPage() {
             createdAt: new Date().toISOString().split('T')[0],
             title: `[PRINT] ${job.title.replace(/^\[DESIGN\]\s*/i, '')}`,
             type: 'Printing',
-            description: `Auto-created Printing job after Designing was approved by Admin for project: ${job.projectId}`,
             clientId: job.clientId,
             projectId: job.projectId,
             status: 'Pending',
@@ -846,7 +855,7 @@ export function JobsPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input 
             type="text" 
-            placeholder="Search by job title or description..." 
+            placeholder="Search by job title..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"

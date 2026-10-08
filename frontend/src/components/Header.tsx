@@ -689,7 +689,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 </optgroup>
                 <optgroup label="📋 Assigned In-Office Jobs">
                   {jobs
-                    .filter(j => j.status !== 'Done' && j.status !== 'Completed' && j.status !== 'Under Review' && j.status !== 'Awaiting Design' && j.id !== activeJobTracker?.jobId)
+                    .filter(j => j.type !== 'Printing' && j.type?.toLowerCase() !== 'printing' && j.status !== 'Done' && j.status !== 'Completed' && j.status !== 'Under Review' && j.status !== 'Awaiting Design' && j.id !== activeJobTracker?.jobId)
                     .filter(j => {
                       if (currentUserRole === 'Admin' || currentUserRole === 'Manager') return true;
                       const staffId = currentUser?.id || staff.find(s => s.email?.toLowerCase() === (currentUser?.email || '').toLowerCase())?.id;
