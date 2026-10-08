@@ -54,7 +54,6 @@ export function JobsPage() {
 
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
     clientId: '',
     projectId: '',
     productId: '',
@@ -214,7 +213,6 @@ export function JobsPage() {
       const printerName = vendors.find(v => v.id === job.printerId)?.name || '';
       
       const matchSearch = (job.title || '').toLowerCase().includes(sLower) || 
-                          (job.description || '').toLowerCase().includes(sLower) ||
                           (job.status || '').toLowerCase().includes(sLower) ||
                           (job.paymentStatus || '').toLowerCase().includes(sLower) ||
                           (job.type || '').toLowerCase().includes(sLower) ||
@@ -249,7 +247,6 @@ export function JobsPage() {
       if (job) {
         setFormData({
           title: job.title,
-          description: job.description,
           clientId: job.clientId || '',
           projectId: job.projectId || '',
           productId: job.productId || '',
@@ -275,7 +272,6 @@ export function JobsPage() {
     } else {
       setFormData({
         title: '',
-        description: '',
         clientId: '',
         projectId: '',
         productId: '',
@@ -869,7 +865,7 @@ export function JobsPage() {
                 <th className="py-4 px-6 w-32">Created By</th>
                 <th className="py-4 px-6 min-w-[200px]">Title</th>
                 <th className="py-4 px-6 text-center">Type</th>
-                <th className="py-4 px-6 min-w-[250px]">Description</th>
+
                 <th className="py-4 px-6">Client & Project</th>
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6 text-center">Docs Sent</th>
@@ -947,9 +943,7 @@ export function JobsPage() {
                         {job.type === 'Des+Print' ? 'Des + Print' : job.type}
                       </span>
                     </td>
-                    <td className="py-4 px-6 text-gray-600 text-[11px] truncate max-w-[250px]" title={job.description}>
-                      {job.description}
-                    </td>
+
                     <td className="py-4 px-6">
                       <div className="flex flex-col">
                         <span className="font-semibold text-gray-700">{getClientName(job.clientId)}</span>
@@ -1454,11 +1448,7 @@ export function JobsPage() {
                 </div>
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Work Description</label>
-                <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 h-24 resize-none" />
-              </div>
+
 
               {/* Printer & Deadline */}
               <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">

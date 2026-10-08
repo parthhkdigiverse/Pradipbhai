@@ -126,7 +126,6 @@ async def init_db():
         if "jobs" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("jobs")]
             needed_cols = [
-                ("description", "VARCHAR(1000) NULL"),
                 ("type", "VARCHAR(50) DEFAULT 'Designing'"),
                 ("clientId", "VARCHAR(50) NULL"),
                 ("projectId", "VARCHAR(50) NULL"),
@@ -153,7 +152,14 @@ async def init_db():
                         sync_conn.execute(text(f"ALTER TABLE jobs ADD COLUMN `{col_name}` {col_type}"))
                     except Exception as e:
                         print(f"⚠️ Column addition notice for jobs.{col_name}: {e}")
-                        
+            # Drop description column if it still exists (no longer used)
+            if "description" in columns:
+                try:
+                    sync_conn.execute(text("ALTER TABLE jobs DROP COLUMN `description`"))
+                    print("✅ Dropped deprecated jobs.description column")
+                except Exception as e:
+                    print(f"⚠️ Could not drop jobs.description: {e}")
+                    
         if "clients" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("clients")]
             needed_cols = [
@@ -350,7 +356,6 @@ async def init_db():
                 j1 = models.Job(
                     id="JOB-2026-001",
                     title="Brand Identity & Logo Design",
-                    description="Complete brand identity guidelines, logo vectors, and social media kit",
                     type="Designing",
                     clientId="client-001",
                     teamId="emp-001",
@@ -368,7 +373,6 @@ async def init_db():
                 j2 = models.Job(
                     id="JOB-2026-002",
                     title="Corporate Brochure Printing",
-                    description="1000 copies of 16-page glossy corporate brochure",
                     type="Printing",
                     clientId="client-002",
                     teamId="emp-002",
@@ -386,7 +390,6 @@ async def init_db():
                 j3 = models.Job(
                     id="JOB-2026-003",
                     title="Website Redesign & UI Assets",
-                    description="Full responsive website redesign and promotional banner graphics",
                     type="Des+Print",
                     clientId="client-001",
                     teamId="emp-admin",

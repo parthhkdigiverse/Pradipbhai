@@ -4,7 +4,6 @@ from pydantic import BaseModel, ConfigDict
 class JobBase(BaseModel):
     id: str
     title: Optional[str] = None
-    description: Optional[str] = None
     type: Optional[str] = "Designing"
     clientId: Optional[str] = None
     projectId: Optional[str] = None
@@ -31,7 +30,6 @@ class JobCreate(JobBase):
 
 class JobUpdate(BaseModel):
     title: Optional[str] = None
-    description: Optional[str] = None
     type: Optional[str] = None
     clientId: Optional[str] = None
     projectId: Optional[str] = None

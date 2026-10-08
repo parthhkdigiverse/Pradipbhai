@@ -7,7 +7,6 @@ class Job(Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=True)
-    description: Mapped[str] = mapped_column(String(1000), nullable=True)
     type: Mapped[str] = mapped_column(String(50), default="Designing")
     clientId: Mapped[str] = mapped_column(String(50), nullable=True)
     projectId: Mapped[str] = mapped_column(String(50), nullable=True)
