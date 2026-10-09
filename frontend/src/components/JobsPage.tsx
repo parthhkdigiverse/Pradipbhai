@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, Calendar, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
@@ -256,6 +256,29 @@ export function JobsPage() {
   const totalFilteredJobAmount = useMemo(() => {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
   }, [filteredJobs]);
+
+  const statusCounts = useMemo(() => {
+    const baseJobs = jobs.filter(job => {
+      if (isEmployee) {
+        const isAssigned = (
+          (currentStaffId && (job.teamId === currentStaffId || job.assignedStaffId === currentStaffId || job.assigned_staff_id === currentStaffId)) ||
+          (currentStaffName && job.createdBy && job.createdBy.toLowerCase() === currentStaffName.toLowerCase()) ||
+          (currentUser?.email && job.assignedStaffEmail && job.assignedStaffEmail.toLowerCase() === currentUser.email.toLowerCase())
+        );
+        if (!isAssigned) return false;
+        if (job.status === 'Awaiting Design') return false;
+      }
+      return true;
+    });
+
+    return {
+      All: baseJobs.length,
+      Pending: baseJobs.filter(j => j.status === 'Pending').length,
+      Progress: baseJobs.filter(j => j.status === 'Progress').length,
+      'Under Review': baseJobs.filter(j => j.status === 'Under Review').length,
+      Completed: baseJobs.filter(j => j.status === 'Completed' || j.status === 'Done').length,
+    };
+  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser]);
 
   const handleOpenModal = (jobType: 'Designing' | 'Printing' | 'Des+Print', jobId: string | null = null) => {
     setNewJobType(jobType);
@@ -754,6 +777,96 @@ export function JobsPage() {
         </div>
       )}
 
+      {/* Quick Status Sorting Icon Buttons Bar (All, Pending, In Progress, Under Review, Completed) */}
+      <div className="glass-panel border border-white/60 rounded-2xl p-2.5 mb-6 bg-white/60 backdrop-blur-md flex items-center justify-between gap-3 shadow-sm overflow-x-auto">
+        <div className="flex items-center gap-3">
+          {[
+            {
+              id: 'All',
+              label: 'All Jobs',
+              icon: LayoutGrid,
+              count: statusCounts.All,
+              activeColor: 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-500/20 scale-105',
+              inactiveColor: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm opacity-90 hover:opacity-100',
+              iconColor: '',
+            },
+            {
+              id: 'Pending',
+              label: 'Pending',
+              icon: Clock,
+              count: statusCounts.Pending,
+              activeColor: 'bg-gray-800 text-white shadow-md shadow-gray-700/30 ring-4 ring-gray-400/20 scale-105',
+              inactiveColor: 'bg-gray-100/90 text-gray-600 hover:bg-gray-200/90 hover:text-gray-900 border border-gray-200/50',
+              iconColor: 'text-gray-600',
+            },
+            {
+              id: 'Progress',
+              label: 'In Progress',
+              icon: RotateCcw,
+              count: statusCounts.Progress,
+              activeColor: 'bg-blue-500 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-400/20 scale-105',
+              inactiveColor: 'bg-blue-50 text-blue-600 hover:bg-blue-100/90 border border-blue-200/50',
+              iconColor: 'text-blue-600',
+            },
+            {
+              id: 'Under Review',
+              label: 'Under Review',
+              icon: Pause,
+              count: statusCounts['Under Review'],
+              activeColor: 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-4 ring-amber-400/20 scale-105',
+              inactiveColor: 'bg-amber-50 text-amber-700 hover:bg-amber-100/90 border border-amber-200/50',
+              iconColor: 'text-amber-700',
+            },
+            {
+              id: 'Completed',
+              label: 'Completed',
+              icon: CheckCircle2,
+              count: statusCounts.Completed,
+              activeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 ring-4 ring-emerald-500/20 scale-105',
+              inactiveColor: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100/90 border border-emerald-200/50',
+              iconColor: 'text-emerald-600',
+            },
+          ].map((btn) => {
+            const Icon = btn.icon;
+            const isActive = filterStatus === btn.id;
+            return (
+              <button
+                key={btn.id}
+                onClick={() => setFilterStatus(btn.id)}
+                title={`${btn.label} (${btn.count})`}
+                className={`relative group w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                  isActive ? btn.activeColor : btn.inactiveColor
+                }`}
+              >
+                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : btn.iconColor}`} />
+                {btn.count > 0 && (
+                  <span className={`absolute -top-1 -right-1 px-1.5 py-0.2 min-w-[18px] text-[10px] font-extrabold rounded-full text-center ${
+                    isActive ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-800 text-white'
+                  }`}>
+                    {btn.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold pr-2">
+          <span>Active Filter:</span>
+          <span className="px-2.5 py-1 bg-gray-100 text-gray-800 rounded-lg font-bold">
+            {filterStatus === 'Progress' ? 'In Progress' : filterStatus}
+          </span>
+          {filterStatus !== 'All' && (
+            <button
+              onClick={() => setFilterStatus('All')}
+              className="text-xs text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer ml-1"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Advanced Filters Panel */}
       <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
         <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
@@ -1228,22 +1341,24 @@ export function JobsPage() {
                     )}
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-1.5 transition-opacity">
-                        {activeJobTracker?.jobId === job.id ? (
-                          <button 
-                            onClick={() => handleStopTracker(job.id)}
-                            className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
-                            title="Stop Tracking & Pause"
-                          >
-                            <Square className="w-3 h-3 fill-current" />
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => handleStartTracker(job.id)}
-                            className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
-                            title="Start Tracking & Progress"
-                          >
-                            <Play className="w-3 h-3 fill-current" />
-                          </button>
+                        {job.status !== 'Completed' && job.status !== 'Done' && job.status !== 'Under Review' && (
+                          activeJobTracker?.jobId === job.id ? (
+                            <button 
+                              onClick={() => handleStopTracker(job.id)}
+                              className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                              title="Stop Tracking & Pause"
+                            >
+                              <Square className="w-3 h-3 fill-current" />
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => handleStartTracker(job.id)}
+                              className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+                              title="Start Tracking & Progress"
+                            >
+                              <Play className="w-3 h-3 fill-current" />
+                            </button>
+                          )
                         )}
                         {hasPermission(currentUserRole, 'Edit Job') && (
                           <button 
