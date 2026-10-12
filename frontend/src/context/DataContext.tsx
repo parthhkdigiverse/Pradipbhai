@@ -193,7 +193,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'View Catalog': true, 'Manage Products': true,
     'View Vendors': true, 'Manage Vendors': true,
     'View Staff': true, 'Create/Edit Staff': true, 'Delete Staff': true,
-    'View Attendance': true, 'Punch In/Out': true,
+    'View Attendance': true, 'Punch In/Out': false,
     'View Work Logs': true, 'Add Work Log': true,
     'View Daily Progress': true, 'Verify & Rate Reports': true,
     'View Payroll': true, 'Manage Payroll': true,
@@ -436,8 +436,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
   const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(null);
   const [isPunchInModalOpen, setIsPunchInModalOpen] = useState<boolean>(false);
-
-  const openPunchInModal = () => setIsPunchInModalOpen(true);
+  const openPunchInModal = () => {
+    if (currentUserRole === 'Admin') return;
+    setIsPunchInModalOpen(true);
+  };
 
   const setActiveJobTracker = (val: { jobId: string, startTime: number } | null | ((prev: { jobId: string, startTime: number } | null) => { jobId: string, startTime: number } | null)) => {
     setActiveJobTrackerState(prev => typeof val === 'function' ? val(prev) : val);
@@ -619,6 +621,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (currentUserRole === 'Admin') {
+      setIsPunchedIn(false);
+      setActiveJobTrackerState(null);
+      return;
+    }
     if (!attendance || attendance.length === 0) return;
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
     const todayStr = localDateStr();

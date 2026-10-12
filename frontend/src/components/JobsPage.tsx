@@ -397,6 +397,7 @@ export function JobsPage() {
   };
 
   const ensurePunchedIn = async () => {
+    if (currentUserRole === 'Admin') return;
     if (!isPunchedIn) {
       const now = Date.now();
       setIsPunchedIn(true);
@@ -529,7 +530,9 @@ export function JobsPage() {
       await updateJob(jobId, { trackedTime: (job?.trackedTime || 0) + elapsed });
       setActiveJobTracker(null);
     }
-    setTimeout(() => openPunchInModal(), 200);
+    if (currentUserRole !== 'Admin') {
+      setTimeout(() => openPunchInModal(), 200);
+    }
 
     // Wake up linked Printing jobs that were created simultaneously
     if (job.type === 'Designing' || job.type === 'Des+Print') {
@@ -657,7 +660,9 @@ export function JobsPage() {
         setActiveJobTracker(null);
       }
       setCompletionModalJobId(null);
-      setTimeout(() => openPunchInModal(), 200);
+      if (currentUserRole !== 'Admin') {
+        setTimeout(() => openPunchInModal(), 200);
+      }
     }
   };
 

@@ -9,7 +9,8 @@ import { localDateStr } from '../utils/dateUtils';
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
-  const canPunch = hasPermission(currentUserRole, 'Punch In/Out');
+  const isAdmin = currentUserRole === 'Admin';
+  const canPunch = !isAdmin && hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -491,7 +492,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       <div className="flex items-center gap-4">
         
         {/* Active Job Tracker */}
-        {activeJobTracker && (() => {
+        {!isAdmin && activeJobTracker && (() => {
           const activeJob = jobs.find(j => j.id === activeJobTracker.jobId);
           let title = activeJob?.title;
           if (!title && (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-'))) {
@@ -660,7 +661,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       </div>
 
       {/* Job Selection / Switch Modal */}
-      {(showJobModal || isPunchInModalOpen) && createPortal(
+      {!isAdmin && (showJobModal || isPunchInModalOpen) && createPortal(
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
