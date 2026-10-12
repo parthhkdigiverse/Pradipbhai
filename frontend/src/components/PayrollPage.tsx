@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, FilterX, Calculator, IndianRupee, FileText, X, Calendar as CalendarIcon, CheckCircle, Umbrella, ChevronDown } from 'lucide-react';
+import { Search, FilterX, Calculator, IndianRupee, FileText, X, CheckCircle, Umbrella, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -297,13 +297,13 @@ export function PayrollPage() {
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Payroll Management</h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm">
-            <CalendarIcon className="w-4 h-4 text-gray-500" />
+          <div className="flex items-center bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm hover:bg-white/80 transition-colors">
             <input 
               type="month" 
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 w-32"
+              onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 cursor-pointer"
             />
           </div>
 
