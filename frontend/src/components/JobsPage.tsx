@@ -51,7 +51,11 @@ export function JobsPage() {
 
     let patch: any = { [field]: val };
     if (field === 'totalAmount' || field === 'paidAmount') {
-      patch[field] = parseFloat(val) || 0;
+      const num = parseFloat(val) || 0;
+      patch[field] = num;
+      const total = field === 'totalAmount' ? num : (job.totalAmount || 0);
+      const paid = field === 'paidAmount' ? num : (job.paidAmount || 0);
+      patch.paymentStatus = total > 0 && paid >= total ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid');
     }
 
     await updateJob(jobId, patch);
@@ -344,15 +348,19 @@ export function JobsPage() {
   const handleSaveJob = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const total = parseFloat(formData.totalAmount) || 0;
+    const paid = parseFloat(formData.paidAmount) || 0;
+    const computedPaymentStatus = total > 0 && paid >= total ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid');
+
     const jobData = {
       ...formData,
       printerId: newJobType === 'Designing' ? '' : formData.printerId,
       vendorEmailSent: newJobType === 'Designing' ? false : formData.vendorEmailSent,
-      totalAmount: parseFloat(formData.totalAmount) || 0,
-      paidAmount: parseFloat(formData.paidAmount) || 0,
+      totalAmount: total,
+      paidAmount: paid,
       estimatedTime: formData.estimatedTime ? parseFloat(formData.estimatedTime) : null,
       type: newJobType,
-      paymentStatus: (parseFloat(formData.paidAmount) || 0) >= (parseFloat(formData.totalAmount) || 0) ? 'Paid' : 'Unpaid',
+      paymentStatus: computedPaymentStatus,
     };
 
     if (editingJobId) {
@@ -1755,14 +1763,26 @@ export function JobsPage() {
 
               {/* Amounts */}
               {currentUserRole !== 'Employee' && (
-                <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Total Amount (₹)</label>
-                    <input type="number" min="0" value={formData.totalAmount} onChange={e => setFormData({...formData, totalAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 font-bold" />
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={formData.totalAmount} 
+                      onChange={e => setFormData({...formData, totalAmount: e.target.value})} 
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 font-bold" 
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Paid Amount (₹)</label>
-                    <input type="number" min="0" value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" />
+                    <input 
+                      type="number" 
+                      min="0" 
+                      value={formData.paidAmount} 
+                      onChange={e => setFormData({...formData, paidAmount: e.target.value})} 
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-emerald-700 font-bold" 
+                    />
                   </div>
                 </div>
               )}
