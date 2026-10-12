@@ -97,7 +97,8 @@ export function LeaveManagementPage() {
 
   // My balance
   const myBalance = leaveBalances.find(b => b.staffId === currentStaff?.id);
-  const earnedPaidQuota = myBalance?.earned ?? 15;
+  const earnedPaidQuota = myBalance?.earned ?? 12;
+  const sickPaidQuota = myBalance?.sick ?? 3;
 
   const myUsed = useMemo(() => {
     const approved = myLeaves.filter(r => r.status === 'Approved');
@@ -108,7 +109,25 @@ export function LeaveManagementPage() {
     };
   }, [myLeaves]);
 
-  const remainingEarnedPaidDays = Math.max(0, earnedPaidQuota - myUsed.Earned);
+  const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+
+  const myThisMonthUsed = useMemo(() => {
+    const approvedThisMonth = myLeaves.filter(r => 
+      r.status === 'Approved' && 
+      ((r.fromDate && r.fromDate.startsWith(currentMonthStr)) || (r.toDate && r.toDate.startsWith(currentMonthStr)))
+    );
+    return {
+      Casual: approvedThisMonth.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Sick:   approvedThisMonth.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Earned: approvedThisMonth.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+    };
+  }, [myLeaves, currentMonthStr]);
+
+  const thisMonthRemainingEarned = Math.max(0, 1 - myThisMonthUsed.Earned);
+  const thisMonthExtraEarned = Math.max(0, myThisMonthUsed.Earned - 1);
+
+  const remainingSickPaidDays = Math.max(0, sickPaidQuota - myUsed.Sick);
+  const extraSickDeductibleDays = Math.max(0, myUsed.Sick - sickPaidQuota);
 
   const handleApply = async () => {
     if (!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || !currentStaff) return;
@@ -174,9 +193,38 @@ export function LeaveManagementPage() {
   };
 
   const balanceCards = [
-    { label: 'Earned (Paid)', total: earnedPaidQuota, used: myUsed.Earned, remaining: remainingEarnedPaidDays, color: LEAVE_COLORS.Earned, note: '15 Paid Days / Yr' },
-    { label: 'Casual', total: 'Available as Needed', used: myUsed.Casual, remaining: 'Available as Needed', color: LEAVE_COLORS.Casual, note: 'Payroll Deductible' },
-    { label: 'Sick', total: 'Available as Needed', used: myUsed.Sick, remaining: 'Available as Needed', color: LEAVE_COLORS.Sick, note: 'Payroll Deductible' },
+    { 
+      label: 'Earned (Paid)', 
+      total: 1, 
+      displayTotal: `${earnedPaidQuota} Days (1/Mo)`, 
+      usedCount: myThisMonthUsed.Earned, 
+      usedDisplay: thisMonthExtraEarned > 0 
+        ? `${myThisMonthUsed.Earned} used this month (1 Paid, ${thisMonthExtraEarned} Deductible)` 
+        : `${myThisMonthUsed.Earned} used this month (${myUsed.Earned} total this year)`, 
+      remaining: `${thisMonthRemainingEarned} Left this Month`, 
+      color: LEAVE_COLORS.Earned, 
+      note: '1 Day / Month (No Carry Forward)' 
+    },
+    { 
+      label: 'Sick Leave', 
+      total: sickPaidQuota, 
+      displayTotal: '3 Paid + As Needed', 
+      usedCount: myUsed.Sick, 
+      usedDisplay: extraSickDeductibleDays > 0 ? `${myUsed.Sick} used (${sickPaidQuota} Paid, ${extraSickDeductibleDays} Deductible)` : `${myUsed.Sick} used (${myUsed.Sick} Paid)`, 
+      remaining: remainingSickPaidDays > 0 ? `${remainingSickPaidDays} Paid Left` : 'As Needed (Salary Deductible)', 
+      color: LEAVE_COLORS.Sick, 
+      note: '3 Paid Days / Yr (No Carry Forward)' 
+    },
+    { 
+      label: 'Casual', 
+      total: 0, 
+      displayTotal: 'Available as Needed', 
+      usedCount: myUsed.Casual, 
+      usedDisplay: `${myUsed.Casual} used (${myThisMonthUsed.Casual} this month)`, 
+      remaining: 'Available as Needed', 
+      color: LEAVE_COLORS.Casual, 
+      note: 'Payroll Deductible' 
+    },
   ];
 
   return (
@@ -214,7 +262,7 @@ export function LeaveManagementPage() {
           </div>
           <div>
             <span className="font-bold text-emerald-950">Annual Leave Policy: </span>
-            <span>Every employee gets <strong className="font-extrabold text-emerald-800">15 Paid Earned Leaves</strong> per year. <strong className="font-extrabold text-emerald-800">Casual</strong> and <strong className="font-extrabold text-emerald-800">Sick</strong> leaves are <strong className="font-extrabold text-emerald-800">unlimited</strong> and will be deducted from payroll as unpaid leaves.</span>
+            <span>Every employee gets <strong className="font-extrabold text-emerald-800">12 Paid Leaves</strong> per year (<strong className="font-extrabold text-emerald-800">1 per month, cannot be carry forwarded</strong>) and <strong className="font-extrabold text-emerald-800">3 Paid Sick Leaves</strong> per year (cannot be carry forwarded). Unused leaves lapse and cannot be accumulated. Additional sick leaves beyond 3 days, earned leaves beyond 1 per month, and casual leaves are available as needed and will be deducted from salary in payroll.</span>
           </div>
         </div>
       </div>
@@ -255,7 +303,7 @@ export function LeaveManagementPage() {
           {/* Balance cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {balanceCards.map(card => {
-              const pct = typeof card.total === 'number' && card.total > 0 ? (card.used / card.total) * 100 : 0;
+              const pct = card.total > 0 ? (card.usedCount / card.total) * 100 : 0;
               return (
                 <div key={card.label} className="glass-panel border border-white/60 rounded-2xl p-5 bg-white/40 backdrop-blur-md">
                   <div className="flex items-center justify-between mb-3">
@@ -274,7 +322,7 @@ export function LeaveManagementPage() {
                       style={{ width: `${Math.min(100, pct)}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1.5 font-semibold">{card.used} used</p>
+                  <p className="text-[10px] text-gray-400 mt-1.5 font-semibold">{card.usedDisplay}</p>
                 </div>
               );
             })}
@@ -498,16 +546,16 @@ export function LeaveManagementPage() {
           {/* Header row with reset button */}
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
-              Edit each employee's annual Earned Paid Leave allocation (Default: 15 Paid Leaves). Casual & Sick leaves are unlimited and payroll-deductible.
+              Edit each employee's annual Paid Leave allocation (12 Earned Leaves, 1 per month - cannot be carry forwarded) &amp; Paid Sick Leave allocation (3 Sick Leaves - cannot be carry forwarded). Casual leaves and extra leaves are payroll-deductible.
             </p>
             <button
               onClick={() => {
-                setLeaveBalances(prev => prev.map(b => ({ ...b, casual: 0, sick: 0, earned: 15 })));
+                setLeaveBalances(prev => prev.map(b => ({ ...b, casual: 0, sick: 3, earned: 12 })));
               }}
               className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Reset All to 15 Earned Leaves
+              Reset All to Default (12 Earned, 3 Sick)
             </button>
           </div>
 
@@ -517,28 +565,31 @@ export function LeaveManagementPage() {
                 <tr className="border-b border-gray-100 text-gray-400 font-extrabold uppercase tracking-widest bg-gray-50/40">
                   <th className="py-3 px-6">Employee</th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">Earned (Paid Quota)</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold">Earned (1/Mo - No Carry Fwd)</span>
                   </th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">Casual (Unpaid)</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold">Sick (3 Paid/Yr)</span>
                   </th>
                   <th className="py-3 px-6 text-center">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold">Sick (Unpaid)</span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold">Casual (As Needed)</span>
                   </th>
-                  <th className="py-3 px-6 text-center text-gray-400">Used Days (E / C / S)</th>
-                  <th className="py-3 px-6 text-center text-gray-400">Remaining Earned Paid</th>
+                  <th className="py-3 px-6 text-center text-gray-400">Used (Earned / Sick / Casual)</th>
+                  <th className="py-3 px-6 text-center text-gray-400">Remaining Paid</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100/80">
                 {staff.map(emp => {
-                  const bal = leaveBalances.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 0, earned: 15 };
+                  const bal = leaveBalances.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
                   const approved = leaveRequests.filter(r => r.staffId === emp.id && r.status === 'Approved');
-                  const usedC = approved.filter(r => r.type === 'Casual').reduce((s, r) => s + r.days, 0);
-                  const usedS = approved.filter(r => r.type === 'Sick').reduce((s, r) => s + r.days, 0);
-                  const usedE = approved.filter(r => r.type === 'Earned').reduce((s, r) => s + r.days, 0);
+                  const usedC = approved.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+                  const usedS = approved.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+                  const usedE = approved.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
 
-                  const earnedQuota = bal.earned ?? 15;
+                  const earnedQuota = bal.earned ?? 12;
+                  const sickQuota = bal.sick ?? 3;
                   const remainingEarned = Math.max(0, earnedQuota - usedE);
+                  const remainingSick = Math.max(0, sickQuota - usedS);
+                  const extraSick = Math.max(0, usedS - sickQuota);
 
                   const updateBal = (field: 'casual' | 'sick' | 'earned', value: number) => {
                     setLeaveBalances(prev => {
@@ -548,7 +599,7 @@ export function LeaveManagementPage() {
                         next[idx] = { ...next[idx], [field]: Math.max(0, value) };
                         return next;
                       }
-                      return [...prev, { staffId: emp.id, casual: 0, sick: 0, earned: 15, [field]: Math.max(0, value) }];
+                      return [...prev, { staffId: emp.id, casual: 0, sick: 3, earned: 12, [field]: Math.max(0, value) }];
                     });
                   };
 
@@ -570,38 +621,47 @@ export function LeaveManagementPage() {
                         <input
                           type="number"
                           min={0}
-                          value={bal.earned ?? 15}
+                          value={bal.earned ?? 12}
                           onChange={e => updateBal('earned', parseInt(e.target.value) || 0)}
                           className="w-16 text-center bg-emerald-50/60 border border-emerald-100 rounded-lg px-2 py-1 text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 transition-all"
+                        />
+                      </td>
+                      {/* Sick Paid Quota Input */}
+                      <td className="py-4 px-6 text-center">
+                        <input
+                          type="number"
+                          min={0}
+                          value={bal.sick ?? 3}
+                          onChange={e => updateBal('sick', parseInt(e.target.value) || 0)}
+                          className="w-16 text-center bg-rose-50/60 border border-rose-100 rounded-lg px-2 py-1 text-sm font-bold text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 transition-all"
                         />
                       </td>
                       {/* Casual */}
                       <td className="py-4 px-6 text-center">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-xs">
-                          Unlimited (Deductible)
-                        </span>
-                      </td>
-                      {/* Sick */}
-                      <td className="py-4 px-6 text-center">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold text-xs">
-                          Unlimited (Deductible)
+                          As Needed (Deductible)
                         </span>
                       </td>
                       {/* Used Days */}
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-2 text-[11px] font-bold">
-                          <span className="text-emerald-600">{usedE}</span>
+                          <span className="text-emerald-600" title="Earned Leaves">{usedE} E</span>
                           <span className="text-gray-300">/</span>
-                          <span className="text-blue-500">{usedC}</span>
+                          <span className="text-rose-500" title="Sick Leaves">{usedS} S</span>
                           <span className="text-gray-300">/</span>
-                          <span className="text-rose-500">{usedS}</span>
+                          <span className="text-blue-500" title="Casual Leaves">{usedC} C</span>
                         </div>
                       </td>
                       {/* Remaining Paid */}
-                      <td className="py-4 px-6 text-center font-extrabold text-sm">
-                        <span className={remainingEarned < 3 ? 'text-rose-500' : 'text-emerald-600'}>
-                          {remainingEarned} days
-                        </span>
+                      <td className="py-4 px-6 text-center font-extrabold text-xs">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={remainingEarned < 2 ? 'text-amber-600' : 'text-emerald-600'}>
+                            {remainingEarned} Earned Paid
+                          </span>
+                          <span className={remainingSick === 0 ? 'text-rose-500' : 'text-emerald-600'}>
+                            {remainingSick > 0 ? `${remainingSick} Sick Paid` : `${extraSick} Extra Sick (Deductible)`}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -612,7 +672,7 @@ export function LeaveManagementPage() {
 
           {/* Legend */}
           <p className="text-[11px] text-gray-400 text-center">
-            Standard Annual Paid Quota is set to <strong className="text-gray-700">15 Earned Leaves</strong> per year. Casual & Sick leaves are unlimited and will be deducted from payroll.
+            Standard Paid Quotas: <strong className="text-gray-700">1 Paid Leave per month</strong> (12/year, cannot be carry forwarded) &amp; <strong className="text-gray-700">3 Paid Sick Leaves</strong> per year (cannot be carry forwarded). Additional sick leaves beyond 3 days, earned leaves beyond 1 per month, and casual leaves are deducted from payroll.
           </p>
         </div>
       )}

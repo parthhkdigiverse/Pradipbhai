@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function PayrollPage() {
-  const { staff, attendance, payroll, setPayroll, holidays, currentUserRole, hasPermission } = useData();
+  const { staff, attendance, payroll, setPayroll, holidays, currentUserRole, hasPermission, leaveRequests, leaveBalances } = useData();
   const canManagePayroll = hasPermission(currentUserRole, 'Manage Payroll');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -31,13 +31,110 @@ export function PayrollPage() {
     return new Date(parseInt(year), parseInt(month), 0).getDate();
   };
 
+  const getLeaveDates = (fromDate: string, toDate?: string): string[] => {
+    const dates: string[] = [];
+    const start = new Date(fromDate + 'T00:00:00');
+    const end = new Date((toDate || fromDate) + 'T00:00:00');
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return [fromDate];
+    }
+    const cur = new Date(start);
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  };
+
   const monthlyPayroll = useMemo(() => {
     // Count holidays in the selected month
     const holidaysInMonth = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
+    const selectedYear = selectedMonth.split('-')[0];
 
     return staff.map(emp => {
       const record = payroll.find(p => p.staffId === emp.id && p.month === selectedMonth);
       
+      // Quotas: 12 Earned Paid leaves per year (1 accrued per month) & 3 Sick Paid leaves per year
+      const bal = leaveBalances?.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
+      const sickQuota = bal.sick ?? 3;
+
+      // Find all approved leaves for this employee in the calendar year
+      const empApprovedLeaves = (leaveRequests || []).filter(r =>
+        r.staffId === emp.id &&
+        r.status === 'Approved' &&
+        (r.fromDate?.startsWith(selectedYear) || (r.toDate && r.toDate.startsWith(selectedYear)))
+      );
+
+      // Expand into individual days and sort chronologically
+      interface LeaveDaySegment {
+        date: string;
+        type: 'Casual' | 'Sick' | 'Earned';
+        weight: number;
+      }
+      const allLeaveDays: LeaveDaySegment[] = [];
+      empApprovedLeaves.forEach(r => {
+        const dates = getLeaveDates(r.fromDate, r.toDate);
+        if (dates.length === 0) return;
+        if (r.isHalfDay) {
+          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5 });
+        } else {
+          dates.forEach(d => {
+            if (d.startsWith(selectedYear)) {
+              allLeaveDays.push({ date: d, type: r.type, weight: 1.0 });
+            }
+          });
+        }
+      });
+      allLeaveDays.sort((a, b) => a.date.localeCompare(b.date));
+
+      // Earned leaves: 1 day per month (cannot be carry forwarded across months or years)
+      const monthlyEarnedQuota = Math.max(1, (bal.earned ?? 12) / 12); // default 1 paid day per month
+      const earnedDaysInMonth = allLeaveDays
+        .filter(seg => seg.type === 'Earned' && seg.date.startsWith(selectedMonth))
+        .reduce((sum, seg) => sum + seg.weight, 0);
+
+      const paidEarnedInMonth = Math.min(earnedDaysInMonth, monthlyEarnedQuota);
+      const deductibleEarnedInMonth = Math.max(0, earnedDaysInMonth - monthlyEarnedQuota);
+
+      // Sick leaves: 3 paid per year (cannot be carry forwarded across years). Extra sick leaves are deductible.
+      let cumulativeSick = 0;
+      let deductibleSickInMonth = 0;
+      let paidSickInMonth = 0;
+
+      // Casual leaves: As needed, all deductible.
+      let deductibleCasualInMonth = 0;
+
+      const approvedLeaveDatesThisMonth = new Set<string>();
+
+      allLeaveDays.forEach(seg => {
+        const isInSelectedMonth = seg.date.startsWith(selectedMonth);
+        if (isInSelectedMonth) {
+          approvedLeaveDatesThisMonth.add(seg.date);
+        }
+
+        if (seg.type === 'Sick') {
+          const prev = cumulativeSick;
+          cumulativeSick += seg.weight;
+          if (isInSelectedMonth) {
+            if (cumulativeSick <= sickQuota) {
+              paidSickInMonth += seg.weight;
+            } else if (prev < sickQuota) {
+              paidSickInMonth += (sickQuota - prev);
+              deductibleSickInMonth += (cumulativeSick - sickQuota);
+            } else {
+              deductibleSickInMonth += seg.weight;
+            }
+          }
+        } else if (seg.type === 'Casual') {
+          if (isInSelectedMonth) {
+            deductibleCasualInMonth += seg.weight;
+          }
+        }
+      });
+
+      const totalDeductibleLeaveDays = deductibleSickInMonth + deductibleCasualInMonth + deductibleEarnedInMonth;
+      const totalPaidLeaveDays = paidEarnedInMonth + paidSickInMonth;
+
       // Calculate attendance stats for the month if no payroll record exists yet
       let daysPresent = 0;
       let daysAbsent = 0;
@@ -49,8 +146,16 @@ export function PayrollPage() {
       
       monthRecords.forEach(r => {
         if (r.status === 'Present') daysPresent++;
-        if (r.status === 'Absent') daysAbsent++;
-        if (r.status === 'Half Day') daysHalf++;
+        if (r.status === 'Absent') {
+          if (!approvedLeaveDatesThisMonth.has(r.date)) {
+            daysAbsent++;
+          }
+        }
+        if (r.status === 'Half Day' || r.status?.startsWith?.('Half Day')) {
+          if (!approvedLeaveDatesThisMonth.has(r.date)) {
+            daysHalf++;
+          }
+        }
         if (r.status === 'Leave') daysLeave++;
         if (r.penaltyAmount || r.penalty_amount) {
           latePenalties += (r.penaltyAmount || r.penalty_amount || 0);
@@ -62,8 +167,13 @@ export function PayrollPage() {
       const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
       const perDaySalary = emp.baseSalary / workingDays;
       
-      // Deduct full pay for Absent, half pay for Half Day, plus late punch-in penalties. Leaves are considered paid.
-      const calculatedDeductions = Math.round((daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties);
+      // Deductions:
+      // - Regular unapproved absences and half days, plus late punch-in penalties.
+      // - 12 Earned Paid leaves per year and 3 Sick Paid leaves per year are 100% protected (non-deductible).
+      // - Sick leaves beyond 3 days in the year and casual leaves are deducted from salary.
+      const leaveDeductions = totalDeductibleLeaveDays * perDaySalary;
+      const attendanceDeductions = (daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties;
+      const calculatedDeductions = Math.round(attendanceDeductions + leaveDeductions);
       const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
 
       return {
@@ -74,7 +184,17 @@ export function PayrollPage() {
         netPay: record?.netPay ?? calculatedNet,
         status: record?.status || 'Pending',
         paymentAccount: record?.paymentAccount || 'Current',
-        stats: { daysPresent, daysAbsent, daysHalf, daysLeave },
+        stats: { 
+          daysPresent, 
+          daysAbsent, 
+          daysHalf, 
+          daysLeave, 
+          paidLeaveDays: totalPaidLeaveDays,
+          unpaidLeaveDays: totalDeductibleLeaveDays,
+          deductibleSickDays: deductibleSickInMonth,
+          deductibleCasualDays: deductibleCasualInMonth,
+          deductibleEarnedDays: deductibleEarnedInMonth,
+        },
         workingDays,
         holidaysInMonth,
         daysInMonth,
@@ -88,7 +208,7 @@ export function PayrollPage() {
         || (filterStatus === 'Savings' && emp.status === 'Paid' && emp.paymentAccount === 'Savings');
       return matchSearch && matchStatus;
     });
-  }, [staff, attendance, payroll, holidays, selectedMonth, searchTerm, filterStatus]);
+  }, [staff, attendance, payroll, holidays, leaveRequests, leaveBalances, selectedMonth, searchTerm, filterStatus]);
 
   const payrollSummary = useMemo(() => {
     let currentAccountPaid = 0;
@@ -369,11 +489,16 @@ export function PayrollPage() {
                       <span className="font-semibold text-gray-500 text-[10px] uppercase tracking-wider">{emp.role}</span>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex gap-2 text-[10px] font-bold">
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                         <span className="bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded" title="Present">{emp.stats.daysPresent} P</span>
                         <span className="bg-rose-50 text-rose-600 px-1.5 py-0.5 rounded" title="Absent">{emp.stats.daysAbsent} A</span>
                         <span className="bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded" title="Half Day">{emp.stats.daysHalf} H</span>
-                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded" title="Leave">{emp.stats.daysLeave} L</span>
+                        <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded" title={`Approved Leaves: ${emp.stats.daysLeave} (Paid: ${emp.stats.paidLeaveDays || 0}d)`}>{emp.stats.daysLeave} L</span>
+                        {emp.stats.unpaidLeaveDays > 0 && (
+                          <span className="bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-extrabold" title={`Deductible Leaves: ${emp.stats.unpaidLeaveDays}d (${emp.stats.deductibleEarnedDays > 0 ? `${emp.stats.deductibleEarnedDays}d Earned > 1/mo ` : ''}${emp.stats.deductibleSickDays > 0 ? `${emp.stats.deductibleSickDays}d Sick > 3 ` : ''}${emp.stats.deductibleCasualDays > 0 ? `${emp.stats.deductibleCasualDays}d Casual` : ''})`}>
+                            {emp.stats.unpaidLeaveDays} Ded.
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
@@ -524,17 +649,34 @@ export function PayrollPage() {
               </div>
 
               {/* Earnings & Deductions */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500 font-semibold">Basic Salary</span>
                   <span className="text-gray-800 font-bold flex items-center"><IndianRupee className="w-3.5 h-3.5 mr-0.5" />{selectedPayslip.basic.toLocaleString()}</span>
                 </div>
+                {selectedPayslip.stats?.unpaidLeaveDays > 0 && (
+                  <div className="flex justify-between items-center text-xs text-rose-600 bg-rose-50/80 px-3 py-1.5 rounded-xl border border-rose-100">
+                    <div>
+                      <span className="font-bold">Leave Deductions</span>
+                      <span className="text-[10px] text-rose-500 block">
+                        {selectedPayslip.stats.unpaidLeaveDays} day(s)
+                        {selectedPayslip.stats.deductibleSickDays > 0 ? ` • ${selectedPayslip.stats.deductibleSickDays}d Sick beyond 3` : ''}
+                        {selectedPayslip.stats.deductibleCasualDays > 0 ? ` • ${selectedPayslip.stats.deductibleCasualDays}d Casual` : ''}
+                        {selectedPayslip.stats.deductibleEarnedDays > 0 ? ` • ${selectedPayslip.stats.deductibleEarnedDays}d Earned beyond 1/mo (no carry forward)` : ''}
+                      </span>
+                    </div>
+                    <span className="font-bold flex items-center">
+                      -<IndianRupee className="w-3 h-3 mx-0.5" />
+                      {Math.round(selectedPayslip.stats.unpaidLeaveDays * (selectedPayslip.basic / (selectedPayslip.workingDays || 1))).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500 font-semibold">Deductions</span>
+                  <span className="text-gray-500 font-semibold">Total Deductions</span>
                   <span className="text-rose-600 font-bold flex items-center">-<IndianRupee className="w-3.5 h-3.5 mx-0.5" />{selectedPayslip.deductions.toLocaleString()}</span>
                 </div>
                 
-                <div className="pt-4 mt-2 border-t border-gray-200/50 flex justify-between items-center">
+                <div className="pt-3 mt-1 border-t border-gray-200/50 flex justify-between items-center">
                   <span className="text-gray-800 font-bold text-lg">Net Pay</span>
                   <span className="text-emerald-600 font-black text-2xl flex items-center">
                     <IndianRupee className="w-5 h-5 mr-0.5" />
@@ -558,10 +700,10 @@ export function PayrollPage() {
                 </div>
               )}
               
-              {/* Attendance Summary */}
+              {/* Attendance & Leave Summary */}
               <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Attendance Summary</p>
-                <div className="grid grid-cols-4 gap-2 text-center">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Attendance &amp; Leave Summary</p>
+                <div className="grid grid-cols-5 gap-2 text-center">
                   <div className="bg-emerald-50 rounded-xl p-2">
                     <div className="text-emerald-700 font-black text-lg">{selectedPayslip.stats.daysPresent}</div>
                     <div className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Present</div>
@@ -575,8 +717,12 @@ export function PayrollPage() {
                     <div className="text-[10px] font-bold text-amber-600 uppercase mt-0.5">Half Day</div>
                   </div>
                   <div className="bg-primary/5 rounded-xl p-2">
-                    <div className="text-primary font-black text-lg">{selectedPayslip.stats.daysLeave}</div>
-                    <div className="text-[10px] font-bold text-primary uppercase mt-0.5">Leave</div>
+                    <div className="text-primary font-black text-lg">{selectedPayslip.stats.paidLeaveDays ?? selectedPayslip.stats.daysLeave}</div>
+                    <div className="text-[10px] font-bold text-primary uppercase mt-0.5">Paid Leave</div>
+                  </div>
+                  <div className="bg-rose-50 rounded-xl p-2">
+                    <div className="text-rose-700 font-black text-lg">{selectedPayslip.stats.unpaidLeaveDays ?? 0}</div>
+                    <div className="text-[10px] font-bold text-rose-600 uppercase mt-0.5">Ded. Leave</div>
                   </div>
                 </div>
               </div>
