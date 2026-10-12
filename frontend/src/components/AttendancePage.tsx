@@ -38,18 +38,18 @@ export function AttendancePage() {
   const availableYears = useMemo(() => {
     const years = new Set<string>();
     const currentYr = new Date().getFullYear();
-    years.add(currentYr.toString());
-    years.add((currentYr - 1).toString());
-    years.add((currentYr + 1).toString());
+    for (let y = currentYr - 3; y <= currentYr; y++) {
+      years.add(y.toString());
+    }
 
     attendance.forEach(a => {
       if (a.date) {
-        const y = a.date.split('-')[0];
-        if (y && y.length === 4) years.add(y);
+        const y = parseInt(a.date.split('-')[0], 10);
+        if (y && y <= currentYr) years.add(y.toString());
       }
     });
 
-    return Array.from(years).sort((a, b) => b.localeCompare(a));
+    return Array.from(years).filter(y => parseInt(y, 10) <= currentYr).sort((a, b) => b.localeCompare(a));
   }, [attendance]);
 
   const resetFilters = () => {

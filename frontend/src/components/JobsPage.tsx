@@ -1228,21 +1228,40 @@ export function JobsPage() {
                           ))}
                         </select>
                       ) : (
-                        <span 
-                          onDoubleClick={(e) => {
-                            if (!hasPermission(currentUserRole, 'Edit Job')) return;
-                            e.stopPropagation();
-                            setInlineCell({ jobId: job.id, field: 'teamId' });
-                            setInlineValue(job.teamId || '');
-                          }}
-                          className="text-[11px] font-medium text-gray-600 bg-gray-100/80 hover:bg-gray-200 px-2 py-1 rounded cursor-pointer transition-colors inline-flex items-center gap-1 group/staff"
-                          title="Double-click to change staff"
-                        >
-                          {getStaffName(job.teamId) || 'Unassigned'}
-                          {hasPermission(currentUserRole, 'Edit Job') && (
-                            <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/staff:opacity-100 transition-opacity shrink-0" />
+                        <div className="inline-flex items-center gap-1">
+                          <span 
+                            onClick={(e) => {
+                              if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                              e.stopPropagation();
+                              setInlineCell({ jobId: job.id, field: 'teamId' });
+                              setInlineValue(job.teamId || '');
+                            }}
+                            className={`text-[11px] font-medium px-2 py-1 rounded cursor-pointer transition-colors inline-flex items-center gap-1 group/staff ${
+                              job.teamId
+                                ? 'text-gray-700 bg-gray-100/80 hover:bg-gray-200'
+                                : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/60'
+                            }`}
+                            title="Click to assign or change staff"
+                          >
+                            {getStaffName(job.teamId) || 'Unassigned'}
+                            {hasPermission(currentUserRole, 'Edit Job') && (
+                              <Edit className="w-2.5 h-2.5 text-gray-400 group-hover/staff:text-gray-700 transition-colors shrink-0" />
+                            )}
+                          </span>
+                          {job.teamId && hasPermission(currentUserRole, 'Edit Job') && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveInlineEdit(job.id, 'teamId', '');
+                              }}
+                              className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                              title="Turn back to unassigned"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
                           )}
-                        </span>
+                        </div>
                       )}
                     </td>
                     <td className="py-4 px-6 text-gray-600 font-medium whitespace-nowrap">
@@ -1601,15 +1620,27 @@ export function JobsPage() {
               {/* Title & Product */}
               <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-1">
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Assign Team</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Assign Team</label>
+                    {formData.teamId && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, teamId: '' })}
+                        className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        title="Turn back to unassigned"
+                      >
+                        <X className="w-3 h-3" /> Unassign
+                      </button>
+                    )}
+                  </div>
                   <SearchableSelect
                     value={formData.teamId}
                     onChange={val => setFormData({...formData, teamId: val})}
                     options={[
-                      { value: '', label: 'Select Staff' },
+                      { value: '', label: 'Unassigned (None)' },
                       ...staff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))
                     ]}
-                    placeholder="Select staff..."
+                    placeholder="Unassigned (None)"
                   />
                 </div>
                 <div>

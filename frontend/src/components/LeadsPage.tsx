@@ -82,6 +82,14 @@ export function LeadsPage() {
   // Expandable Category State
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
   const handleStartInlineEdit = (lead: any) => {
     setEditingRowId(lead.id);
     setEditRowData({ ...lead });
@@ -90,13 +98,17 @@ export function LeadsPage() {
 
   const handleSaveInlineEdit = async () => {
     if (editingRowId && editRowData) {
+      if (editRowData.followUpDate && editRowData.followUpDate > todayStr) {
+        alert('Upcoming dates are not allowed for follow-ups. Please select today or a past date.');
+        return;
+      }
       // Find the original lead to see if status changed
       const originalLead = leads.find(l => l.id === editingRowId);
       
       const updatedLead: any = { ...editRowData };
       if (editRowData.followUpDate || editRowData.followUpNote) {
         updatedLead.followUps = [
-          { date: editRowData.followUpDate, note: editRowData.followUpNote },
+          { date: editRowData.followUpDate || todayStr, note: editRowData.followUpNote },
           ...(originalLead?.followUps || [])
         ];
         delete updatedLead.followUpDate;
@@ -203,12 +215,23 @@ export function LeadsPage() {
 
   const handleSaveLead = (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.followUpDate && formData.followUpDate > todayStr) {
+      alert('Upcoming dates are not allowed for follow-ups. Please select today or a past date.');
+      return;
+    }
     if (editingLeadId) {
       const originalLead = leads.find(l => l.id === editingLeadId);
-      
-      if (editingLeadId) {
-        updateLead(editingLeadId, formData);
+      const updatedData: any = { ...formData };
+      if (formData.followUpDate || formData.followUpNote) {
+        updatedData.followUps = [
+          { date: formData.followUpDate || todayStr, note: formData.followUpNote },
+          ...(originalLead?.followUps || [])
+        ];
+        delete updatedData.followUpDate;
+        delete updatedData.followUpNote;
       }
+      
+      updateLead(editingLeadId, updatedData);
       
       if (originalLead && originalLead.status !== formData.status && formData.status === 'Client Won') {
         convertLeadToClient({ ...originalLead, ...formData });
@@ -219,8 +242,8 @@ export function LeadsPage() {
         id: `lead-${Date.now()}`,
         priority: formData.isHot ? 'High' : 'Medium',
         createdByUserName: 'Admin',
-        date: new Date().toISOString().split('T')[0],
-        followUps: formData.followUpDate || formData.followUpNote ? [{ date: formData.followUpDate, note: formData.followUpNote }] : []
+        date: todayStr,
+        followUps: formData.followUpDate || formData.followUpNote ? [{ date: formData.followUpDate || todayStr, note: formData.followUpNote }] : []
       };
       // @ts-ignore (ignoring temporary form fields)
       delete newLead.followUpDate;
@@ -629,7 +652,19 @@ export function LeadsPage() {
                                     </select>
                                   </td>
                                   <td className="px-5 py-3">
-                                    <input type="date" value={editRowData.followUpDate || ''} onChange={e => setEditRowData({...editRowData, followUpDate: e.target.value})} className="w-full mb-1 px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" />
+                                    <input 
+                                      type="date" 
+                                      max={todayStr}
+                                      value={editRowData.followUpDate || ''} 
+                                      onChange={e => {
+                                        if (e.target.value && e.target.value > todayStr) {
+                                          alert('Upcoming dates are not allowed for follow-ups. Please select today or a past date.');
+                                          return;
+                                        }
+                                        setEditRowData({...editRowData, followUpDate: e.target.value});
+                                      }} 
+                                      className="w-full mb-1 px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" 
+                                    />
                                     <input type="text" value={editRowData.followUpNote || ''} onChange={e => setEditRowData({...editRowData, followUpNote: e.target.value})} className="w-full px-2 py-1 bg-white/70 border border-primary rounded text-xs text-gray-800" placeholder="Add new note..." />
                                   </td>
                                   <td className="px-5 py-3 text-right">
@@ -860,7 +895,19 @@ export function LeadsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Follow-up Date</label>
-                  <input type="date" value={formData.followUpDate} onChange={e => setFormData({...formData, followUpDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                  <input 
+                    type="date" 
+                    max={todayStr}
+                    value={formData.followUpDate} 
+                    onChange={e => {
+                      if (e.target.value && e.target.value > todayStr) {
+                        alert('Upcoming dates are not allowed for follow-ups. Please select today or a past date.');
+                        return;
+                      }
+                      setFormData({...formData, followUpDate: e.target.value});
+                    }} 
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                  />
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</label>

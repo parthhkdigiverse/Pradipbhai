@@ -198,7 +198,22 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         }`}
       >
         <span className="truncate">{selectedOption ? (selectedOption.displayLabel || selectedOption.label) : placeholder}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-gray-500 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center gap-1 shrink-0">
+          {value && !disabled && options.some(o => o.value === '') && (
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              className="p-0.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </span>
+          )}
+          <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
       </button>
 
       {isOpen &&

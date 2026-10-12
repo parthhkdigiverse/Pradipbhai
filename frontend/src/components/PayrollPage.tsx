@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, FilterX, Calculator, IndianRupee, FileText, X, CheckCircle, Umbrella, ChevronDown } from 'lucide-react';
+import { Search, FilterX, Calculator, IndianRupee, FileText, X, CheckCircle, Calendar, ChevronDown } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -12,8 +12,17 @@ export function PayrollPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Payment Account Confirmation Modal State
-  const [payAccountModalData, setPayAccountModalData] = useState<{ staffId: string; name: string; role: string; netPay: number } | null>(null);
+  const [payAccountModalData, setPayAccountModalData] = useState<{ 
+    staffId: string; 
+    name: string; 
+    role: string; 
+    netPay: number;
+    targetMonth?: string;
+  } | null>(null);
   const [selectedAccountType, setSelectedAccountType] = useState<'Current' | 'Savings'>('Current');
+
+  // Filter mode: Monthly or Yearly
+  const [filterMode, setFilterMode] = useState<'monthly' | 'yearly'>('monthly');
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -25,6 +34,94 @@ export function PayrollPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  const [selectedFY, setSelectedFY] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    return String(m >= 4 ? y : y - 1);
+  });
+
+  const MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const getFYStartYearFromMonth = (yearMonth: string) => {
+    const [yearStr, monthStr] = yearMonth.split('-');
+    const y = parseInt(yearStr, 10);
+    const m = parseInt(monthStr, 10);
+    return m >= 4 ? y : y - 1;
+  };
+
+  const getFYLabel = (startYear: number | string) => {
+    const y = parseInt(String(startYear), 10);
+    const nextShort = String((y + 1) % 100).padStart(2, '0');
+    return `FY ${y}-${nextShort}`;
+  };
+
+  const getFYMonths = (startYear: number) => {
+    const list: { monthKey: string; monthName: string; yearNum: number; displayMonth: string }[] = [];
+    for (let m = 4; m <= 12; m++) {
+      const mm = String(m).padStart(2, '0');
+      list.push({
+        monthKey: `${startYear}-${mm}`,
+        monthName: MONTH_NAMES[m - 1],
+        yearNum: startYear,
+        displayMonth: `${MONTH_NAMES[m - 1]} ${startYear}`
+      });
+    }
+    for (let m = 1; m <= 3; m++) {
+      const mm = String(m).padStart(2, '0');
+      list.push({
+        monthKey: `${startYear + 1}-${mm}`,
+        monthName: MONTH_NAMES[m - 1],
+        yearNum: startYear + 1,
+        displayMonth: `${MONTH_NAMES[m - 1]} ${startYear + 1}`
+      });
+    }
+    return list;
+  };
+
+  const handleMonthChange = (val: string) => {
+    setSelectedMonth(val);
+    if (val) {
+      setSelectedFY(String(getFYStartYearFromMonth(val)));
+    }
+  };
+
+  const handleFYChange = (fyStartStr: string) => {
+    setSelectedFY(fyStartStr);
+    const fyStart = parseInt(fyStartStr, 10);
+    if (getFYStartYearFromMonth(selectedMonth) !== fyStart) {
+      setSelectedMonth(`${fyStart}-04`);
+    }
+  };
+
+  const availableFYs = useMemo(() => {
+    const fyears = new Set<number>();
+    const d = new Date();
+    const curFY = (d.getMonth() + 1) >= 4 ? d.getFullYear() : d.getFullYear() - 1;
+    for (let y = curFY - 4; y <= curFY; y++) {
+      fyears.add(y);
+    }
+    payroll.forEach(p => {
+      if (p.month) {
+        const fy = getFYStartYearFromMonth(p.month);
+        if (fy <= curFY) fyears.add(fy);
+      }
+    });
+    attendance.forEach(a => {
+      if (a.date) {
+        const [yStr, mStr] = a.date.split('-');
+        const y = parseInt(yStr, 10);
+        const m = parseInt(mStr, 10);
+        const fy = m >= 4 ? y : y - 1;
+        if (fy <= curFY) fyears.add(fy);
+      }
+    });
+    return Array.from(fyears).filter(y => y <= curFY).sort((a, b) => b - a);
+  }, [payroll, attendance]);
 
   const getDaysInMonth = (yearMonth: string) => {
     const [year, month] = yearMonth.split('-');
@@ -46,169 +143,249 @@ export function PayrollPage() {
     return dates;
   };
 
-  const monthlyPayroll = useMemo(() => {
-    // Count holidays in the selected month
-    const holidaysInMonth = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
-    const selectedYear = selectedMonth.split('-')[0];
+  // Helper to compute a single employee's monthly payroll stats
+  const calculateStaffMonth = (emp: any, targetMonth: string) => {
+    const targetFYStart = getFYStartYearFromMonth(targetMonth);
+    const fyStartDate = `${targetFYStart}-04-01`;
+    const fyEndDate = `${targetFYStart + 1}-03-31`;
+    const holidaysInMonth = holidays.filter(h => h.date.startsWith(targetMonth)).length;
+    const record = payroll.find(p => p.staffId === emp.id && p.month === targetMonth);
+
+    const bal = leaveBalances?.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
+    const sickQuota = bal.sick ?? 3;
+
+    // Approved leaves for this employee in the Financial Year (FY)
+    const empApprovedLeaves = (leaveRequests || []).filter(r =>
+      r.staffId === emp.id &&
+      r.status === 'Approved' &&
+      ((r.fromDate && r.fromDate >= fyStartDate && r.fromDate <= fyEndDate) ||
+       (r.toDate && r.toDate >= fyStartDate && r.toDate <= fyEndDate))
+    );
+
+    interface LeaveDaySegment {
+      date: string;
+      type: 'Casual' | 'Sick' | 'Earned';
+      weight: number;
+    }
+    const allLeaveDays: LeaveDaySegment[] = [];
+    empApprovedLeaves.forEach(r => {
+      const dates = getLeaveDates(r.fromDate, r.toDate);
+      if (dates.length === 0) return;
+      if (r.isHalfDay) {
+        if (dates[0] >= fyStartDate && dates[0] <= fyEndDate) {
+          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5 });
+        }
+      } else {
+        dates.forEach(d => {
+          if (d >= fyStartDate && d <= fyEndDate) {
+            allLeaveDays.push({ date: d, type: r.type, weight: 1.0 });
+          }
+        });
+      }
+    });
+    allLeaveDays.sort((a, b) => a.date.localeCompare(b.date));
+
+    // 1 day per month earned leave quota (no carry forward)
+    const monthlyEarnedQuota = Math.max(1, (bal.earned ?? 12) / 12);
+    const earnedDaysInMonth = allLeaveDays
+      .filter(seg => seg.type === 'Earned' && seg.date.startsWith(targetMonth))
+      .reduce((sum, seg) => sum + seg.weight, 0);
+
+    const paidEarnedInMonth = Math.min(earnedDaysInMonth, monthlyEarnedQuota);
+    const deductibleEarnedInMonth = Math.max(0, earnedDaysInMonth - monthlyEarnedQuota);
+
+    // Sick leaves: 3 paid per year (no carry forward)
+    let cumulativeSick = 0;
+    let deductibleSickInMonth = 0;
+    let paidSickInMonth = 0;
+    let deductibleCasualInMonth = 0;
+
+    const approvedLeaveDatesThisMonth = new Set<string>();
+
+    allLeaveDays.forEach(seg => {
+      const isInTargetMonth = seg.date.startsWith(targetMonth);
+      if (isInTargetMonth) {
+        approvedLeaveDatesThisMonth.add(seg.date);
+      }
+
+      if (seg.type === 'Sick') {
+        const prev = cumulativeSick;
+        cumulativeSick += seg.weight;
+        if (isInTargetMonth) {
+          if (cumulativeSick <= sickQuota) {
+            paidSickInMonth += seg.weight;
+          } else if (prev < sickQuota) {
+            paidSickInMonth += (sickQuota - prev);
+            deductibleSickInMonth += (cumulativeSick - sickQuota);
+          } else {
+            deductibleSickInMonth += seg.weight;
+          }
+        }
+      } else if (seg.type === 'Casual') {
+        if (isInTargetMonth) {
+          deductibleCasualInMonth += seg.weight;
+        }
+      }
+    });
+
+    const totalDeductibleLeaveDays = deductibleSickInMonth + deductibleCasualInMonth + deductibleEarnedInMonth;
+    const totalPaidLeaveDays = paidEarnedInMonth + paidSickInMonth;
+
+    let daysPresent = 0;
+    let daysAbsent = 0;
+    let daysHalf = 0;
+    let daysLeave = 0;
+    let latePenalties = 0;
+
+    const monthRecords = attendance.filter(a => (a.staffId || a.staff_id) === emp.id && a.date.startsWith(targetMonth));
+    
+    monthRecords.forEach(r => {
+      if (r.status === 'Present') daysPresent++;
+      if (r.status === 'Absent') {
+        if (!approvedLeaveDatesThisMonth.has(r.date)) {
+          daysAbsent++;
+        }
+      }
+      if (r.status === 'Half Day' || r.status?.startsWith?.('Half Day')) {
+        if (!approvedLeaveDatesThisMonth.has(r.date)) {
+          daysHalf++;
+        }
+      }
+      if (r.status === 'Leave') daysLeave++;
+      if (r.penaltyAmount || r.penalty_amount) {
+        latePenalties += (r.penaltyAmount || r.penalty_amount || 0);
+      }
+    });
+
+    const daysInMonth = getDaysInMonth(targetMonth);
+    const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
+    const perDaySalary = emp.baseSalary / workingDays;
+    
+    const leaveDeductions = totalDeductibleLeaveDays * perDaySalary;
+    const attendanceDeductions = (daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties;
+    const calculatedDeductions = Math.round(attendanceDeductions + leaveDeductions);
+    const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
+
+    return {
+      month: targetMonth,
+      payrollId: record?.id || null,
+      basic: record?.basic ?? emp.baseSalary,
+      deductions: record?.deductions ?? calculatedDeductions,
+      netPay: record?.netPay ?? calculatedNet,
+      status: record?.status || 'Pending',
+      paymentAccount: record?.paymentAccount || 'Current',
+      stats: { 
+        daysPresent, 
+        daysAbsent, 
+        daysHalf, 
+        daysLeave, 
+        paidLeaveDays: totalPaidLeaveDays,
+        unpaidLeaveDays: totalDeductibleLeaveDays,
+        deductibleSickDays: deductibleSickInMonth,
+        deductibleCasualDays: deductibleCasualInMonth,
+        deductibleEarnedDays: deductibleEarnedInMonth,
+      },
+      workingDays,
+      holidaysInMonth,
+      daysInMonth,
+    };
+  };
+
+  const displayedPayroll = useMemo(() => {
+    if (filterMode === 'monthly') {
+      return staff.map(emp => {
+        const m = calculateStaffMonth(emp, selectedMonth);
+        return {
+          ...emp,
+          mode: 'monthly',
+          ...m,
+        };
+      }).filter(emp => {
+        const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchStatus = filterStatus === 'All'
+          || (filterStatus === 'Pending' && emp.status === 'Pending')
+          || (filterStatus === 'Paid' && emp.status === 'Paid')
+          || (filterStatus === 'Current' && emp.status === 'Paid' && emp.paymentAccount === 'Current')
+          || (filterStatus === 'Savings' && emp.status === 'Paid' && emp.paymentAccount === 'Savings');
+        return matchSearch && matchStatus;
+      });
+    }
+
+    // Financial Year (FY) Filter Mode
+    const fyStartNum = parseInt(selectedFY, 10);
+    const fyMonthsList = getFYMonths(fyStartNum);
+    const fyLabel = getFYLabel(selectedFY);
+    const fyStartDate = `${fyStartNum}-04-01`;
+    const fyEndDate = `${fyStartNum + 1}-03-31`;
+    const holidaysInYear = holidays.filter(h => h.date >= fyStartDate && h.date <= fyEndDate).length;
 
     return staff.map(emp => {
-      const record = payroll.find(p => p.staffId === emp.id && p.month === selectedMonth);
-      
-      // Quotas: 12 Earned Paid leaves per year (1 accrued per month) & 3 Sick Paid leaves per year
-      const bal = leaveBalances?.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
-      const sickQuota = bal.sick ?? 3;
+      const monthDataList = fyMonthsList.map(mItem => ({
+        ...calculateStaffMonth(emp, mItem.monthKey),
+        monthName: mItem.monthName,
+        displayMonth: mItem.displayMonth,
+        yearNum: mItem.yearNum,
+      }));
 
-      // Find all approved leaves for this employee in the calendar year
-      const empApprovedLeaves = (leaveRequests || []).filter(r =>
-        r.staffId === emp.id &&
-        r.status === 'Approved' &&
-        (r.fromDate?.startsWith(selectedYear) || (r.toDate && r.toDate.startsWith(selectedYear)))
-      );
+      const annualBasic = monthDataList.reduce((sum, m) => sum + m.basic, 0);
+      const annualDeductions = monthDataList.reduce((sum, m) => sum + m.deductions, 0);
+      const annualNetPay = monthDataList.reduce((sum, m) => sum + m.netPay, 0);
 
-      // Expand into individual days and sort chronologically
-      interface LeaveDaySegment {
-        date: string;
-        type: 'Casual' | 'Sick' | 'Earned';
-        weight: number;
-      }
-      const allLeaveDays: LeaveDaySegment[] = [];
-      empApprovedLeaves.forEach(r => {
-        const dates = getLeaveDates(r.fromDate, r.toDate);
-        if (dates.length === 0) return;
-        if (r.isHalfDay) {
-          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5 });
-        } else {
-          dates.forEach(d => {
-            if (d.startsWith(selectedYear)) {
-              allLeaveDays.push({ date: d, type: r.type, weight: 1.0 });
-            }
-          });
-        }
-      });
-      allLeaveDays.sort((a, b) => a.date.localeCompare(b.date));
+      const daysPresent = monthDataList.reduce((sum, m) => sum + m.stats.daysPresent, 0);
+      const daysAbsent = monthDataList.reduce((sum, m) => sum + m.stats.daysAbsent, 0);
+      const daysHalf = monthDataList.reduce((sum, m) => sum + m.stats.daysHalf, 0);
+      const daysLeave = monthDataList.reduce((sum, m) => sum + m.stats.daysLeave, 0);
+      const paidLeaveDays = monthDataList.reduce((sum, m) => sum + m.stats.paidLeaveDays, 0);
+      const unpaidLeaveDays = monthDataList.reduce((sum, m) => sum + m.stats.unpaidLeaveDays, 0);
+      const deductibleSickDays = monthDataList.reduce((sum, m) => sum + m.stats.deductibleSickDays, 0);
+      const deductibleCasualDays = monthDataList.reduce((sum, m) => sum + m.stats.deductibleCasualDays, 0);
+      const deductibleEarnedDays = monthDataList.reduce((sum, m) => sum + m.stats.deductibleEarnedDays, 0);
 
-      // Earned leaves: 1 day per month (cannot be carry forwarded across months or years)
-      const monthlyEarnedQuota = Math.max(1, (bal.earned ?? 12) / 12); // default 1 paid day per month
-      const earnedDaysInMonth = allLeaveDays
-        .filter(seg => seg.type === 'Earned' && seg.date.startsWith(selectedMonth))
-        .reduce((sum, seg) => sum + seg.weight, 0);
+      const paidMonths = monthDataList.filter(m => m.status === 'Paid');
+      const paidMonthsCount = paidMonths.length;
+      const currentPaid = paidMonths.filter(m => m.paymentAccount === 'Current').reduce((sum, m) => sum + m.netPay, 0);
+      const savingsPaid = paidMonths.filter(m => m.paymentAccount === 'Savings').reduce((sum, m) => sum + m.netPay, 0);
 
-      const paidEarnedInMonth = Math.min(earnedDaysInMonth, monthlyEarnedQuota);
-      const deductibleEarnedInMonth = Math.max(0, earnedDaysInMonth - monthlyEarnedQuota);
-
-      // Sick leaves: 3 paid per year (cannot be carry forwarded across years). Extra sick leaves are deductible.
-      let cumulativeSick = 0;
-      let deductibleSickInMonth = 0;
-      let paidSickInMonth = 0;
-
-      // Casual leaves: As needed, all deductible.
-      let deductibleCasualInMonth = 0;
-
-      const approvedLeaveDatesThisMonth = new Set<string>();
-
-      allLeaveDays.forEach(seg => {
-        const isInSelectedMonth = seg.date.startsWith(selectedMonth);
-        if (isInSelectedMonth) {
-          approvedLeaveDatesThisMonth.add(seg.date);
-        }
-
-        if (seg.type === 'Sick') {
-          const prev = cumulativeSick;
-          cumulativeSick += seg.weight;
-          if (isInSelectedMonth) {
-            if (cumulativeSick <= sickQuota) {
-              paidSickInMonth += seg.weight;
-            } else if (prev < sickQuota) {
-              paidSickInMonth += (sickQuota - prev);
-              deductibleSickInMonth += (cumulativeSick - sickQuota);
-            } else {
-              deductibleSickInMonth += seg.weight;
-            }
-          }
-        } else if (seg.type === 'Casual') {
-          if (isInSelectedMonth) {
-            deductibleCasualInMonth += seg.weight;
-          }
-        }
-      });
-
-      const totalDeductibleLeaveDays = deductibleSickInMonth + deductibleCasualInMonth + deductibleEarnedInMonth;
-      const totalPaidLeaveDays = paidEarnedInMonth + paidSickInMonth;
-
-      // Calculate attendance stats for the month if no payroll record exists yet
-      let daysPresent = 0;
-      let daysAbsent = 0;
-      let daysHalf = 0;
-      let daysLeave = 0;
-      let latePenalties = 0;
-
-      const monthRecords = attendance.filter(a => (a.staffId || a.staff_id) === emp.id && a.date.startsWith(selectedMonth));
-      
-      monthRecords.forEach(r => {
-        if (r.status === 'Present') daysPresent++;
-        if (r.status === 'Absent') {
-          if (!approvedLeaveDatesThisMonth.has(r.date)) {
-            daysAbsent++;
-          }
-        }
-        if (r.status === 'Half Day' || r.status?.startsWith?.('Half Day')) {
-          if (!approvedLeaveDatesThisMonth.has(r.date)) {
-            daysHalf++;
-          }
-        }
-        if (r.status === 'Leave') daysLeave++;
-        if (r.penaltyAmount || r.penalty_amount) {
-          latePenalties += (r.penaltyAmount || r.penalty_amount || 0);
-        }
-      });
-
-      // Working days = total calendar days minus holidays (holidays are paid days off)
-      const daysInMonth = getDaysInMonth(selectedMonth);
-      const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
-      const perDaySalary = emp.baseSalary / workingDays;
-      
-      // Deductions:
-      // - Regular unapproved absences and half days, plus late punch-in penalties.
-      // - 12 Earned Paid leaves per year and 3 Sick Paid leaves per year are 100% protected (non-deductible).
-      // - Sick leaves beyond 3 days in the year and casual leaves are deducted from salary.
-      const leaveDeductions = totalDeductibleLeaveDays * perDaySalary;
-      const attendanceDeductions = (daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties;
-      const calculatedDeductions = Math.round(attendanceDeductions + leaveDeductions);
-      const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
+      const status = paidMonthsCount === 12 ? 'Paid' : paidMonthsCount === 0 ? 'Pending' : 'Partial';
 
       return {
         ...emp,
-        payrollId: record?.id || null,
-        basic: record?.basic ?? emp.baseSalary,
-        deductions: record?.deductions ?? calculatedDeductions,
-        netPay: record?.netPay ?? calculatedNet,
-        status: record?.status || 'Pending',
-        paymentAccount: record?.paymentAccount || 'Current',
-        stats: { 
-          daysPresent, 
-          daysAbsent, 
-          daysHalf, 
-          daysLeave, 
-          paidLeaveDays: totalPaidLeaveDays,
-          unpaidLeaveDays: totalDeductibleLeaveDays,
-          deductibleSickDays: deductibleSickInMonth,
-          deductibleCasualDays: deductibleCasualInMonth,
-          deductibleEarnedDays: deductibleEarnedInMonth,
+        mode: 'yearly',
+        fy: selectedFY,
+        fyLabel,
+        year: fyLabel,
+        basic: annualBasic,
+        deductions: annualDeductions,
+        netPay: annualNetPay,
+        status,
+        paidMonthsCount,
+        totalMonthsCount: 12,
+        currentPaid,
+        savingsPaid,
+        monthDataList,
+        stats: {
+          daysPresent,
+          daysAbsent,
+          daysHalf,
+          daysLeave,
+          paidLeaveDays,
+          unpaidLeaveDays,
+          deductibleSickDays,
+          deductibleCasualDays,
+          deductibleEarnedDays,
         },
-        workingDays,
-        holidaysInMonth,
-        daysInMonth,
+        holidaysInYear,
       };
     }).filter(emp => {
       const matchSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.role.toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = filterStatus === 'All'
-        || (filterStatus === 'Pending' && emp.status === 'Pending')
-        || (filterStatus === 'Paid' && emp.status === 'Paid')
-        || (filterStatus === 'Current' && emp.status === 'Paid' && emp.paymentAccount === 'Current')
-        || (filterStatus === 'Savings' && emp.status === 'Paid' && emp.paymentAccount === 'Savings');
+        || (filterStatus === 'Pending' && emp.paidMonthsCount < 12)
+        || (filterStatus === 'Paid' && emp.paidMonthsCount === 12)
+        || (filterStatus === 'Current' && (emp.currentPaid || 0) > 0)
+        || (filterStatus === 'Savings' && (emp.savingsPaid || 0) > 0);
       return matchSearch && matchStatus;
     });
-  }, [staff, attendance, payroll, holidays, leaveRequests, leaveBalances, selectedMonth, searchTerm, filterStatus]);
+  }, [staff, attendance, payroll, holidays, leaveRequests, leaveBalances, selectedMonth, selectedFY, filterMode, searchTerm, filterStatus]);
 
   const payrollSummary = useMemo(() => {
     let currentAccountPaid = 0;
@@ -216,18 +393,29 @@ export function PayrollPage() {
     let pendingPaid = 0;
     let totalPaid = 0;
 
-    monthlyPayroll.forEach(emp => {
-      if (emp.status === 'Paid') {
-        totalPaid += emp.netPay;
-        if (emp.paymentAccount === 'Savings') {
-          savingsAccountPaid += emp.netPay;
+    if (filterMode === 'monthly') {
+      displayedPayroll.forEach(emp => {
+        if (emp.status === 'Paid') {
+          totalPaid += emp.netPay;
+          if (emp.paymentAccount === 'Savings') {
+            savingsAccountPaid += emp.netPay;
+          } else {
+            currentAccountPaid += emp.netPay;
+          }
         } else {
-          currentAccountPaid += emp.netPay;
+          pendingPaid += emp.netPay;
         }
-      } else {
-        pendingPaid += emp.netPay;
-      }
-    });
+      });
+    } else {
+      displayedPayroll.forEach(emp => {
+        const cPaid = emp.currentPaid || 0;
+        const sPaid = emp.savingsPaid || 0;
+        currentAccountPaid += cPaid;
+        savingsAccountPaid += sPaid;
+        totalPaid += (cPaid + sPaid);
+        pendingPaid += Math.max(0, emp.netPay - (cPaid + sPaid));
+      });
+    }
 
     return {
       currentAccountPaid,
@@ -235,14 +423,13 @@ export function PayrollPage() {
       totalPaid,
       pendingPaid
     };
-  }, [monthlyPayroll]);
+  }, [displayedPayroll, filterMode]);
 
-  const updatePayroll = (staffId: string, updates: any) => {
+  const updatePayroll = (staffId: string, updates: any, targetMonth: string = selectedMonth) => {
     setPayroll(prev => {
-      const existingIdx = prev.findIndex(p => p.staffId === staffId && p.month === selectedMonth);
+      const existingIdx = prev.findIndex(p => p.staffId === staffId && p.month === targetMonth);
       if (existingIdx >= 0) {
         const newArr = [...prev];
-        // Ensure netPay stays synced if basic or deductions change
         const merged = { ...newArr[existingIdx], ...updates };
         merged.netPay = merged.basic - merged.deductions;
         newArr[existingIdx] = merged;
@@ -251,11 +438,12 @@ export function PayrollPage() {
         const newRecord = {
           id: Math.random().toString(36).substr(2, 9),
           staffId,
-          month: selectedMonth,
+          month: targetMonth,
           basic: 0,
           deductions: 0,
           netPay: 0,
           status: 'Pending',
+          paymentAccount: 'Current',
           ...updates
         };
         newRecord.netPay = newRecord.basic - newRecord.deductions;
@@ -265,75 +453,145 @@ export function PayrollPage() {
   };
 
   const markAllPaid = () => {
-    const pending = monthlyPayroll.filter(p => p.status === 'Pending');
-    if (pending.length === 0) return;
-
-    setPayroll(prev => {
-      let next = [...prev];
-      pending.forEach(p => {
-        const existingIdx = next.findIndex(x => x.staffId === p.id && x.month === selectedMonth);
-        if (existingIdx >= 0) {
-          next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
-        } else {
-          next.push({
-            id: Math.random().toString(36).substr(2, 9),
-            staffId: p.id,
-            month: selectedMonth,
-            basic: p.basic,
-            deductions: p.deductions,
-            netPay: p.netPay,
-            status: 'Paid'
+    if (filterMode === 'yearly') {
+      const fyMonthsList = getFYMonths(parseInt(selectedFY, 10));
+      setPayroll(prev => {
+        let next = [...prev];
+        displayedPayroll.forEach(emp => {
+          fyMonthsList.forEach(item => {
+            const m = item.monthKey;
+            const mData = emp.monthDataList?.find((x: any) => x.month === m);
+            if (mData && mData.status !== 'Paid') {
+              const existingIdx = next.findIndex(x => x.staffId === emp.id && x.month === m);
+              if (existingIdx >= 0) {
+                next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
+              } else {
+                next.push({
+                  id: Math.random().toString(36).substr(2, 9),
+                  staffId: emp.id,
+                  month: m,
+                  basic: mData.basic,
+                  deductions: mData.deductions,
+                  netPay: mData.netPay,
+                  status: 'Paid',
+                  paymentAccount: 'Current'
+                });
+              }
+            }
           });
-        }
+        });
+        return next;
       });
-      return next;
-    });
+    } else {
+      const pending = displayedPayroll.filter(p => p.status === 'Pending');
+      if (pending.length === 0) return;
+
+      setPayroll(prev => {
+        let next = [...prev];
+        pending.forEach(p => {
+          const existingIdx = next.findIndex(x => x.staffId === p.id && x.month === selectedMonth);
+          if (existingIdx >= 0) {
+            next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
+          } else {
+            next.push({
+              id: Math.random().toString(36).substr(2, 9),
+              staffId: p.id,
+              month: selectedMonth,
+              basic: p.basic,
+              deductions: p.deductions,
+              netPay: p.netPay,
+              status: 'Paid',
+              paymentAccount: 'Current'
+            });
+          }
+        });
+        return next;
+      });
+    }
   };
 
   return (
     <div className="w-full relative">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Payroll Management</h1>
+          <p className="text-xs font-semibold text-gray-500">
+            {filterMode === 'yearly' ? `Financial Year Summary & Metrics (${getFYLabel(selectedFY)})` : `Monthly Payroll & Payouts (${selectedMonth})`}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm hover:bg-white/80 transition-colors">
-            <input 
-              type="month" 
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
-              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 cursor-pointer"
-            />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Segmented Filter Mode Toggle */}
+          <div className="flex items-center bg-white/70 p-1 rounded-xl border border-white/60 shadow-sm backdrop-blur-md">
+            <button
+              id="payroll-mode-monthly"
+              type="button"
+              onClick={() => setFilterMode('monthly')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
+                filterMode === 'monthly'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              id="payroll-mode-yearly"
+              type="button"
+              onClick={() => setFilterMode('yearly')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer select-none ${
+                filterMode === 'yearly'
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+              }`}
+            >
+              Yearly
+            </button>
           </div>
 
-          {/* Holiday badge */}
-          {(() => {
-            const count = holidays.filter(h => h.date.startsWith(selectedMonth)).length;
-            return count > 0 ? (
-              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-xl text-xs font-bold">
-                <Umbrella className="w-3.5 h-3.5" />
-                {count} Holiday{count > 1 ? 's' : ''}
-              </div>
-            ) : null;
-          })()}
+          {/* Month / Year Filter Input */}
+          {filterMode === 'monthly' ? (
+            <div className="flex items-center bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm hover:bg-white/80 transition-colors">
+              <input 
+                type="month" 
+                value={selectedMonth}
+                onChange={(e) => handleMonthChange(e.target.value)}
+                onClick={(e) => (e.target as HTMLInputElement).showPicker?.()}
+                className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 cursor-pointer"
+              />
+            </div>
+          ) : (
+            <div className="flex items-center bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm hover:bg-white/80 transition-colors gap-2">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Financial Year:</span>
+              <select
+                value={selectedFY}
+                onChange={(e) => handleFYChange(e.target.value)}
+                className="bg-transparent text-sm font-bold focus:outline-none text-gray-800 cursor-pointer pr-1"
+              >
+                {availableFYs.map(yr => (
+                  <option key={yr} value={yr}>{getFYLabel(yr)} (Apr - Mar)</option>
+                ))}
+              </select>
+            </div>
+          )}
           
           <button 
             onClick={markAllPaid}
             className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
           >
             <CheckCircle className="w-4 h-4" />
-            Mark All Paid
+            {filterMode === 'yearly' ? `Mark FY Paid (${getFYLabel(selectedFY)})` : 'Mark All Paid'}
           </button>
         </div>
       </div>
 
-      {/* Monthly Salary Account Summary Cards */}
+      {/* Salary Account Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         {/* Total Net Payroll */}
         <div className="glass-panel p-4 rounded-2xl border border-white/60 bg-white/40 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Net Payroll</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              {filterMode === 'yearly' ? 'Annual Net Payroll' : 'Total Net Payroll'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold">
               <Calculator className="w-4 h-4" />
             </div>
@@ -341,16 +599,20 @@ export function PayrollPage() {
           <div className="mt-2 flex items-baseline justify-between">
             <span className="text-xl font-black text-gray-800 flex items-center">
               <IndianRupee className="w-4 h-4 mr-0.5 text-gray-500" />
-              {monthlyPayroll.reduce((sum, p) => sum + p.netPay, 0).toLocaleString()}
+              {displayedPayroll.reduce((sum, p) => sum + p.netPay, 0).toLocaleString()}
             </span>
-            <span className="text-[11px] font-semibold text-gray-500">{monthlyPayroll.length} Staff</span>
+            <span className="text-[11px] font-semibold text-gray-500">
+              {displayedPayroll.length} Staff ({filterMode === 'yearly' ? getFYLabel(selectedFY) : selectedMonth})
+            </span>
           </div>
         </div>
 
         {/* Current Account Paid */}
         <div className="glass-panel p-4 rounded-2xl border border-blue-200/60 bg-blue-50/40 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">Current A/c Paid</span>
+            <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">
+              {filterMode === 'yearly' ? 'Annual Current A/c' : 'Current A/c Paid'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-base">
               🏦
             </div>
@@ -369,7 +631,9 @@ export function PayrollPage() {
         {/* Savings Account Paid */}
         <div className="glass-panel p-4 rounded-2xl border border-purple-200/60 bg-purple-50/40 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">Savings A/c Paid</span>
+            <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">
+              {filterMode === 'yearly' ? 'Annual Savings A/c' : 'Savings A/c Paid'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
               💰
             </div>
@@ -388,7 +652,9 @@ export function PayrollPage() {
         {/* Pending Salary */}
         <div className="glass-panel p-4 rounded-2xl border border-amber-200/60 bg-amber-50/40 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Pending Salary</span>
+            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+              {filterMode === 'yearly' ? 'Annual Pending' : 'Pending Salary'}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-base">
               ⏳
             </div>
@@ -399,7 +665,9 @@ export function PayrollPage() {
               {payrollSummary.pendingPaid.toLocaleString()}
             </span>
             <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
-              {monthlyPayroll.filter(p => p.status === 'Pending').length} Pending
+              {filterMode === 'yearly' 
+                ? `${displayedPayroll.filter(p => p.paidMonthsCount < 12).length} with Pending` 
+                : `${displayedPayroll.filter(p => p.status === 'Pending').length} Pending`}
             </span>
           </div>
         </div>
@@ -472,17 +740,27 @@ export function PayrollPage() {
             <thead>
               <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
                 <th className="py-4 px-6">Employee</th>
-                <th className="py-4 px-6">Attendance Stats</th>
-                <th className="py-4 px-6 text-right">Basic Salary</th>
-                <th className="py-4 px-6 text-right">Deductions</th>
-                <th className="py-4 px-6 text-right">Net Pay</th>
-                <th className="py-4 px-6 text-center">Status</th>
+                <th className="py-4 px-6">
+                  {filterMode === 'yearly' ? `Annual Attendance (${getFYLabel(selectedFY)})` : 'Attendance Stats'}
+                </th>
+                <th className="py-4 px-6 text-right">
+                  {filterMode === 'yearly' ? 'Annual Basic' : 'Basic Salary'}
+                </th>
+                <th className="py-4 px-6 text-right">
+                  {filterMode === 'yearly' ? 'Annual Deductions' : 'Deductions'}
+                </th>
+                <th className="py-4 px-6 text-right">
+                  {filterMode === 'yearly' ? 'Annual Net Pay' : 'Net Pay'}
+                </th>
+                <th className="py-4 px-6 text-center">
+                  {filterMode === 'yearly' ? 'Annual Status' : 'Status'}
+                </th>
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {monthlyPayroll.length > 0 ? (
-                monthlyPayroll.map((emp) => (
+              {displayedPayroll.length > 0 ? (
+                displayedPayroll.map((emp) => (
                   <tr key={emp.id} className="hover:bg-white/60 transition-colors group">
                     <td className="py-4 px-6">
                       <span className="font-bold text-gray-800 text-sm block">{emp.name}</span>
@@ -502,32 +780,45 @@ export function PayrollPage() {
                       </div>
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end font-bold text-gray-700">
-                        {canManagePayroll ? (
-                          <input 
-                            type="number"
-                            value={emp.basic}
-                            onChange={(e) => updatePayroll(emp.id, { basic: parseFloat(e.target.value) || 0 })}
-                            className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                          />
-                        ) : (
-                          <span>₹{emp.basic.toLocaleString()}</span>
-                        )}
-                      </div>
+                      {filterMode === 'monthly' ? (
+                        <div className="flex items-center justify-end font-bold text-gray-700">
+                          {canManagePayroll ? (
+                            <input 
+                              type="number"
+                              value={emp.basic}
+                              onChange={(e) => updatePayroll(emp.id, { basic: parseFloat(e.target.value) || 0 })}
+                              className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                            />
+                          ) : (
+                            <span>₹{emp.basic.toLocaleString()}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <span className="font-bold text-gray-800 text-sm">₹{emp.basic.toLocaleString()}</span>
+                          <span className="text-[10px] text-gray-500 block font-medium">₹{emp.baseSalary.toLocaleString()}/mo</span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end font-bold text-rose-600">
-                        {canManagePayroll ? (
-                          <input 
-                            type="number"
-                            value={emp.deductions}
-                            onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
-                            className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600"
-                          />
-                        ) : (
-                          <span>₹{emp.deductions.toLocaleString()}</span>
-                        )}
-                      </div>
+                      {filterMode === 'monthly' ? (
+                        <div className="flex items-center justify-end font-bold text-rose-600">
+                          {canManagePayroll ? (
+                            <input 
+                              type="number"
+                              value={emp.deductions}
+                              onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
+                              className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600"
+                            />
+                          ) : (
+                            <span>₹{emp.deductions.toLocaleString()}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-right">
+                          <span className="font-bold text-rose-600 text-sm">₹{emp.deductions.toLocaleString()}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-right">
                       <span className="font-bold text-emerald-700 text-sm flex items-center justify-end">
@@ -536,53 +827,77 @@ export function PayrollPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-center">
-                      {canManagePayroll ? (
-                        <select 
-                          value={emp.status}
-                          onChange={(e) => {
-                            const newStatus = e.target.value;
-                            if (newStatus === 'Paid') {
-                              setSelectedAccountType(emp.paymentAccount || 'Current');
-                              setPayAccountModalData({
-                                staffId: emp.id,
-                                name: emp.name,
-                                role: emp.role,
-                                netPay: emp.netPay
-                              });
-                            } else {
-                              updatePayroll(emp.id, { status: newStatus });
-                            }
-                          }}
-                          className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${
-                            emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
-                          }`}
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="Paid">Paid</option>
-                        </select>
-                      ) : (
-                        <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block text-center ${
-                          emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
-                        }`}>
-                          {emp.status}
-                        </span>
-                      )}
-                      {emp.status === 'Paid' && (
-                        <div className="mt-1.5 flex items-center justify-center">
+                      {filterMode === 'monthly' ? (
+                        <>
                           {canManagePayroll ? (
-                            <select
-                              value={emp.paymentAccount || 'Current'}
-                              onChange={(e) => updatePayroll(emp.id, { paymentAccount: e.target.value })}
-                              className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 outline-none cursor-pointer hover:bg-indigo-100 transition-colors"
-                              title="Salary Payment Account"
+                            <select 
+                              value={emp.status}
+                              onChange={(e) => {
+                                const newStatus = e.target.value;
+                                if (newStatus === 'Paid') {
+                                  setSelectedAccountType(emp.paymentAccount || 'Current');
+                                  setPayAccountModalData({
+                                    staffId: emp.id,
+                                    name: emp.name,
+                                    role: emp.role,
+                                    netPay: emp.netPay,
+                                    targetMonth: selectedMonth
+                                  });
+                                } else {
+                                  updatePayroll(emp.id, { status: newStatus });
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${
+                                emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                              }`}
                             >
-                              <option value="Current">🏦 Current A/c</option>
-                              <option value="Savings">💰 Savings A/c</option>
+                              <option value="Pending">Pending</option>
+                              <option value="Paid">Paid</option>
                             </select>
                           ) : (
-                            <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
-                              {emp.paymentAccount === 'Savings' ? '💰 Savings' : '🏦 Current'}
+                            <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block text-center ${
+                              emp.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                            }`}>
+                              {emp.status}
                             </span>
+                          )}
+                          {emp.status === 'Paid' && (
+                            <div className="mt-1.5 flex items-center justify-center">
+                              {canManagePayroll ? (
+                                <select
+                                  value={emp.paymentAccount || 'Current'}
+                                  onChange={(e) => updatePayroll(emp.id, { paymentAccount: e.target.value })}
+                                  className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5 outline-none cursor-pointer hover:bg-indigo-100 transition-colors"
+                                  title="Salary Payment Account"
+                                >
+                                  <option value="Current">🏦 Current A/c</option>
+                                  <option value="Savings">💰 Savings A/c</option>
+                                </select>
+                              ) : (
+                                <span className="text-[9px] font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-1.5 py-0.5">
+                                  {emp.paymentAccount === 'Savings' ? '💰 Savings' : '🏦 Current'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`px-2.5 py-1 rounded text-[10px] font-bold border uppercase tracking-wide inline-block text-center ${
+                            emp.paidMonthsCount === 12
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : emp.paidMonthsCount === 0
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-blue-100 text-blue-700 border-blue-200'
+                          }`}>
+                            {emp.paidMonthsCount}/12 Paid
+                          </span>
+                          {emp.paidMonthsCount > 0 && (
+                            <div className="text-[9px] text-gray-500 font-medium">
+                              {emp.currentPaid > 0 && `🏦 ₹${emp.currentPaid.toLocaleString()}`}
+                              {emp.currentPaid > 0 && emp.savingsPaid > 0 && ' • '}
+                              {emp.savingsPaid > 0 && `💰 ₹${emp.savingsPaid.toLocaleString()}`}
+                            </div>
                           )}
                         </div>
                       )}
@@ -591,8 +906,8 @@ export function PayrollPage() {
                       <div className="flex items-center justify-center">
                         <button 
                           onClick={() => setSelectedPayslip(emp)}
-                          className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-200 hover:text-gray-700 transition-colors opacity-0 group-hover:opacity-100"
-                          title="View Payslip"
+                          className="w-8 h-8 rounded-lg bg-gray-50 text-gray-500 flex items-center justify-center hover:bg-gray-200 hover:text-gray-800 transition-colors opacity-80 group-hover:opacity-100"
+                          title={filterMode === 'yearly' ? 'View Annual Statement' : 'View Payslip'}
                         >
                           <FileText className="w-4 h-4" />
                         </button>
@@ -615,13 +930,20 @@ export function PayrollPage() {
         </div>
       </div>
 
-      {/* Payslip Modal */}
+      {/* Payslip / Annual Statement Modal */}
       {selectedPayslip && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedPayslip(null)}></div>
-          <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className={`relative bg-white/95 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full ${selectedPayslip.mode === 'yearly' ? 'max-w-3xl' : 'max-w-lg'} max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200`}>
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-800">Payslip Details</h2>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {selectedPayslip.mode === 'yearly' ? `Annual Payroll Statement (${selectedPayslip.year})` : 'Payslip Details'}
+                </h2>
+                <p className="text-xs text-gray-500 font-medium">
+                  {selectedPayslip.mode === 'yearly' ? `12-Month Financial Statement for ${selectedPayslip.name}` : `Statement for ${selectedMonth}`}
+                </p>
+              </div>
               <button onClick={() => setSelectedPayslip(null)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -629,29 +951,43 @@ export function PayrollPage() {
             
             <div className="p-4 sm:p-6 space-y-5 overflow-y-auto flex-1">
               {/* Header */}
-              <div className="flex justify-between items-start border-b border-gray-200/50 pb-6">
+              <div className="flex justify-between items-start border-b border-gray-200/50 pb-5">
                 <div>
                   <h3 className="text-2xl font-black text-gray-800">{selectedPayslip.name}</h3>
                   <p className="text-sm font-bold text-primary uppercase tracking-wider mt-1">{selectedPayslip.role}</p>
                 </div>
                 <div className="text-right flex flex-col items-end gap-1">
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
-                    selectedPayslip.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {selectedPayslip.status}
-                  </div>
-                  {selectedPayslip.status === 'Paid' && (
-                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                      Paid via: {selectedPayslip.paymentAccount || 'Current'} Account
-                    </span>
+                  {selectedPayslip.mode === 'yearly' ? (
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
+                      selectedPayslip.paidMonthsCount === 12 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : selectedPayslip.paidMonthsCount === 0 
+                        ? 'bg-rose-100 text-rose-700' 
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {selectedPayslip.paidMonthsCount}/12 Months Paid
+                    </div>
+                  ) : (
+                    <>
+                      <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex ${
+                        selectedPayslip.status === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {selectedPayslip.status}
+                      </div>
+                      {selectedPayslip.status === 'Paid' && (
+                        <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                          Paid via: {selectedPayslip.paymentAccount || 'Current'} Account
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
 
-              {/* Earnings & Deductions */}
+              {/* Earnings & Deductions Overview */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500 font-semibold">Basic Salary</span>
+                  <span className="text-gray-500 font-semibold">{selectedPayslip.mode === 'yearly' ? 'Annual Basic Salary' : 'Basic Salary'}</span>
                   <span className="text-gray-800 font-bold flex items-center"><IndianRupee className="w-3.5 h-3.5 mr-0.5" />{selectedPayslip.basic.toLocaleString()}</span>
                 </div>
                 {selectedPayslip.stats?.unpaidLeaveDays > 0 && (
@@ -662,22 +998,22 @@ export function PayrollPage() {
                         {selectedPayslip.stats.unpaidLeaveDays} day(s)
                         {selectedPayslip.stats.deductibleSickDays > 0 ? ` • ${selectedPayslip.stats.deductibleSickDays}d Sick beyond 3` : ''}
                         {selectedPayslip.stats.deductibleCasualDays > 0 ? ` • ${selectedPayslip.stats.deductibleCasualDays}d Casual` : ''}
-                        {selectedPayslip.stats.deductibleEarnedDays > 0 ? ` • ${selectedPayslip.stats.deductibleEarnedDays}d Earned beyond 1/mo (no carry forward)` : ''}
+                        {selectedPayslip.stats.deductibleEarnedDays > 0 ? ` • ${selectedPayslip.stats.deductibleEarnedDays}d Earned beyond 1/mo` : ''}
                       </span>
                     </div>
                     <span className="font-bold flex items-center">
                       -<IndianRupee className="w-3 h-3 mx-0.5" />
-                      {Math.round(selectedPayslip.stats.unpaidLeaveDays * (selectedPayslip.basic / (selectedPayslip.workingDays || 1))).toLocaleString()}
+                      {Math.round(selectedPayslip.stats.unpaidLeaveDays * (selectedPayslip.baseSalary / 26)).toLocaleString()}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500 font-semibold">Total Deductions</span>
+                  <span className="text-gray-500 font-semibold">{selectedPayslip.mode === 'yearly' ? 'Annual Deductions' : 'Total Deductions'}</span>
                   <span className="text-rose-600 font-bold flex items-center">-<IndianRupee className="w-3.5 h-3.5 mx-0.5" />{selectedPayslip.deductions.toLocaleString()}</span>
                 </div>
                 
                 <div className="pt-3 mt-1 border-t border-gray-200/50 flex justify-between items-center">
-                  <span className="text-gray-800 font-bold text-lg">Net Pay</span>
+                  <span className="text-gray-800 font-bold text-lg">{selectedPayslip.mode === 'yearly' ? 'Annual Net Pay' : 'Net Pay'}</span>
                   <span className="text-emerald-600 font-black text-2xl flex items-center">
                     <IndianRupee className="w-5 h-5 mr-0.5" />
                     {selectedPayslip.netPay.toLocaleString()}
@@ -685,11 +1021,11 @@ export function PayrollPage() {
                 </div>
               </div>
 
-              {/* Working Days Breakdown */}
-              {selectedPayslip.workingDays !== undefined && (
+              {/* Working Days Breakdown (Monthly mode) */}
+              {selectedPayslip.mode === 'monthly' && selectedPayslip.workingDays !== undefined && (
                 <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-100 flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 text-amber-700 font-semibold">
-                    <Umbrella className="w-4 h-4" />
+                    <Calendar className="w-4 h-4" />
                     Working Days Basis
                   </div>
                   <div className="flex items-center gap-3 text-xs font-bold">
@@ -702,7 +1038,9 @@ export function PayrollPage() {
               
               {/* Attendance & Leave Summary */}
               <div className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Attendance &amp; Leave Summary</p>
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
+                  {selectedPayslip.mode === 'yearly' ? `Annual Attendance & Leave Summary (${selectedPayslip.year})` : 'Attendance & Leave Summary'}
+                </p>
                 <div className="grid grid-cols-5 gap-2 text-center">
                   <div className="bg-emerald-50 rounded-xl p-2">
                     <div className="text-emerald-700 font-black text-lg">{selectedPayslip.stats.daysPresent}</div>
@@ -726,13 +1064,123 @@ export function PayrollPage() {
                   </div>
                 </div>
               </div>
+
+              {/* 12-Month Table Breakdown (Yearly mode) */}
+              {selectedPayslip.mode === 'yearly' && selectedPayslip.monthDataList && (
+                <div className="border border-gray-200/70 rounded-2xl overflow-hidden bg-white/70 shadow-sm">
+                  <div className="p-3 bg-gray-50/80 border-b border-gray-200 font-bold text-xs text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>12-Month Financial Year Breakdown ({selectedPayslip.fyLabel || selectedPayslip.year})</span>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      ₹{selectedPayslip.netPay.toLocaleString()} Net Total
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto max-h-[280px]">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/40 text-[10px]">
+                          <th className="py-2.5 px-3">Month</th>
+                          <th className="py-2.5 px-3 text-center">Working</th>
+                          <th className="py-2.5 px-3 text-right">Basic</th>
+                          <th className="py-2.5 px-3 text-right">Deductions</th>
+                          <th className="py-2.5 px-3 text-right">Net Pay</th>
+                          <th className="py-2.5 px-3 text-center">Status</th>
+                          {canManagePayroll && <th className="py-2.5 px-3 text-center">Action</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {selectedPayslip.monthDataList.map((mItem: any) => {
+                          const displayMonth = mItem.displayMonth || mItem.month;
+                          return (
+                            <tr key={mItem.month} className="hover:bg-white transition-colors">
+                              <td className="py-2 px-3 font-bold text-gray-800">
+                                {displayMonth}
+                              </td>
+                              <td className="py-2 px-3 text-center text-gray-600 font-semibold">
+                                {mItem.workingDays}d
+                              </td>
+                              <td className="py-2 px-3 text-right font-medium text-gray-700">
+                                ₹{mItem.basic.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-right font-medium text-rose-600">
+                                ₹{mItem.deductions.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-right font-bold text-emerald-700">
+                                ₹{mItem.netPay.toLocaleString()}
+                              </td>
+                              <td className="py-2 px-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase inline-flex items-center gap-1 ${
+                                  mItem.status === 'Paid' 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {mItem.status}
+                                  {mItem.status === 'Paid' && (
+                                    <span className="text-[9px]">
+                                      ({mItem.paymentAccount === 'Savings' ? '💰 Savings' : '🏦 Current'})
+                                    </span>
+                                  )}
+                                </span>
+                              </td>
+                              {canManagePayroll && (
+                                <td className="py-2 px-3 text-center">
+                                  {mItem.status === 'Paid' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        updatePayroll(selectedPayslip.id, { status: 'Pending' }, mItem.month);
+                                        setSelectedPayslip((prev: any) => {
+                                          if (!prev) return null;
+                                          const updatedList = prev.monthDataList.map((x: any) => 
+                                            x.month === mItem.month ? { ...x, status: 'Pending' } : x
+                                          );
+                                          const paidCount = updatedList.filter((x: any) => x.status === 'Paid').length;
+                                          return {
+                                            ...prev,
+                                            paidMonthsCount: paidCount,
+                                            status: paidCount === 12 ? 'Paid' : paidCount === 0 ? 'Pending' : 'Partial',
+                                            monthDataList: updatedList
+                                          };
+                                        });
+                                      }}
+                                      className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+                                    >
+                                      Mark Pending
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedAccountType(mItem.paymentAccount || 'Current');
+                                        setPayAccountModalData({
+                                          staffId: selectedPayslip.id,
+                                          name: selectedPayslip.name,
+                                          role: selectedPayslip.role,
+                                          netPay: mItem.netPay,
+                                          targetMonth: mItem.month,
+                                        });
+                                      }}
+                                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 underline cursor-pointer"
+                                    >
+                                      Mark Paid
+                                    </button>
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 sm:p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3 flex-shrink-0">
               <button onClick={() => setSelectedPayslip(null)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-200 rounded-xl transition-all">
                 Close
               </button>
-              <button onClick={() => { alert('Downloading payslip...'); setSelectedPayslip(null); }} className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
+              <button onClick={() => { alert(selectedPayslip.mode === 'yearly' ? 'Downloading Annual Statement PDF...' : 'Downloading payslip...'); setSelectedPayslip(null); }} className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2">
                 <FileText className="w-4 h-4" /> Download PDF
               </button>
             </div>
@@ -759,6 +1207,9 @@ export function PayrollPage() {
                 <div>
                   <p className="font-bold text-gray-800 text-sm">{payAccountModalData.name}</p>
                   <p className="text-xs text-gray-500 uppercase">{payAccountModalData.role}</p>
+                  {payAccountModalData.targetMonth && (
+                    <p className="text-[10px] text-primary font-bold mt-0.5">Month: {payAccountModalData.targetMonth}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-gray-500 block">Net Salary</span>
@@ -773,7 +1224,7 @@ export function PayrollPage() {
                 <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-2">
                   Select Account Paid From <span className="text-rose-500">*</span>
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setSelectedAccountType('Current')}
@@ -826,10 +1277,30 @@ export function PayrollPage() {
               <button
                 type="button"
                 onClick={() => {
-                  updatePayroll(payAccountModalData.staffId, {
-                    status: 'Paid',
-                    paymentAccount: selectedAccountType
-                  });
+                  const targetM = payAccountModalData.targetMonth || selectedMonth;
+                  updatePayroll(
+                    payAccountModalData.staffId,
+                    {
+                      status: 'Paid',
+                      paymentAccount: selectedAccountType
+                    },
+                    targetM
+                  );
+                  if (selectedPayslip && selectedPayslip.mode === 'yearly' && payAccountModalData.targetMonth) {
+                    setSelectedPayslip((prev: any) => {
+                      if (!prev) return null;
+                      const updatedList = prev.monthDataList.map((x: any) =>
+                        x.month === payAccountModalData.targetMonth ? { ...x, status: 'Paid', paymentAccount: selectedAccountType } : x
+                      );
+                      const paidCount = updatedList.filter((x: any) => x.status === 'Paid').length;
+                      return {
+                        ...prev,
+                        paidMonthsCount: paidCount,
+                        status: paidCount === 12 ? 'Paid' : paidCount === 0 ? 'Pending' : 'Partial',
+                        monthDataList: updatedList
+                      };
+                    });
+                  }
                   setPayAccountModalData(null);
                 }}
                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"

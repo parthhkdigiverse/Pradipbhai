@@ -483,18 +483,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     projects: c.projects || []
   });
 
-  const normalizeJob = (j: any) => ({
-    ...j,
-    clientId: j.clientId || j.client_id || '',
-    projectId: j.projectId || j.project_id || '',
-    assignedStaffId: j.assignedStaffId || j.assigned_staff_id || '',
-    teamId: j.teamId || j.assigned_staff_id || j.assignedStaffId || '',
-    totalAmount: j.totalAmount !== undefined ? j.totalAmount : (j.total_amount || 0),
-    paidAmount: j.paidAmount !== undefined ? j.paidAmount : 0,
-    status: j.status || 'Pending',
-    title: j.title || 'Untitled Job',
-    type: j.type || 'Designing'
-  });
+  const normalizeJob = (j: any) => {
+    // If teamId is explicitly specified (including empty string or null), respect it.
+    // Otherwise fallback to assigned_staff_id or assignedStaffId.
+    const resolvedTeamId = j.teamId !== undefined && j.teamId !== null
+      ? String(j.teamId).trim()
+      : (j.assigned_staff_id || j.assignedStaffId || '');
+
+    return {
+      ...j,
+      clientId: j.clientId || j.client_id || '',
+      projectId: j.projectId || j.project_id || '',
+      assignedStaffId: resolvedTeamId,
+      assigned_staff_id: resolvedTeamId,
+      teamId: resolvedTeamId,
+      totalAmount: j.totalAmount !== undefined ? j.totalAmount : (j.total_amount || 0),
+      paidAmount: j.paidAmount !== undefined ? j.paidAmount : 0,
+      status: j.status || 'Pending',
+      title: j.title || 'Untitled Job',
+      type: j.type || 'Designing'
+    };
+  };
 
   const normalizeAttendance = (a: any) => {
     const rawPunches = a.punches || (a.check_in || a.checkIn ? [{ in: a.check_in || a.checkIn, out: a.check_out || a.checkOut }] : []);
@@ -717,14 +726,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateJob = async (id: string, updateData: any) => {
     let resultData: any;
+    const sanitizedUpdate = { ...updateData };
+    if ('teamId' in sanitizedUpdate) {
+      const cleanTeamId = sanitizedUpdate.teamId ? String(sanitizedUpdate.teamId).trim() : '';
+      sanitizedUpdate.teamId = cleanTeamId;
+      sanitizedUpdate.assignedStaffId = cleanTeamId;
+      sanitizedUpdate.assigned_staff_id = cleanTeamId;
+    }
     try {
-      const data = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      const data = await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'PUT', body: JSON.stringify(sanitizedUpdate) });
       resultData = normalizeJob(data);
       setJobs(prev => prev.map(j => j.id === id ? resultData : j));
     } catch {
       setJobs(prev => prev.map(j => {
         if (j.id === id) {
-          resultData = normalizeJob({ ...j, ...updateData });
+          resultData = normalizeJob({ ...j, ...sanitizedUpdate });
           return resultData;
         }
         return j;
