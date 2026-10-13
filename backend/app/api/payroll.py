@@ -27,7 +27,8 @@ async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(g
         deductions=payroll_in.deductions or 0.0,
         net_salary=payroll_in.net_salary or 0.0,
         status=payroll_in.status or "Pending",
-        account_type=payroll_in.account_type or "Current A/c"
+        account_type=payroll_in.account_type or "Current A/c",
+        deduction_reason=payroll_in.deduction_reason
     )
     db.add(payroll)
     await db.commit()

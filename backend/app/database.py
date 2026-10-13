@@ -291,6 +291,14 @@ async def init_db():
                 except Exception as e:
                     print(f"⚠️ Column addition notice for field_duties.auto_logout: {e}")
 
+        if "payroll_records" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("payroll_records")]
+            if "deduction_reason" not in columns:
+                try:
+                    sync_conn.execute(text("ALTER TABLE payroll_records ADD COLUMN `deduction_reason` VARCHAR(500) NULL"))
+                except Exception as e:
+                    print(f"⚠️ Column addition notice for payroll_records.deduction_reason: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
 

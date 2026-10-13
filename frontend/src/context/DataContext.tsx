@@ -548,6 +548,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     endTime: w.end_time || w.endTime
   });
 
+  const normalizePayroll = (p: any) => ({
+    ...p,
+    id: p.id,
+    staffId: p.staff_id || p.staffId,
+    staff_id: p.staff_id || p.staffId,
+    employeeName: p.employee_name || p.employeeName || p.name || '',
+    employee_name: p.employee_name || p.employeeName || p.name || '',
+    month: p.month,
+    basic: p.salary !== undefined ? p.salary : (p.basic !== undefined ? p.basic : 0),
+    salary: p.salary !== undefined ? p.salary : (p.basic !== undefined ? p.basic : 0),
+    bonus: p.bonus || 0,
+    deductions: p.deductions !== undefined ? p.deductions : 0,
+    netPay: p.net_salary !== undefined ? p.net_salary : (p.netPay !== undefined ? p.netPay : 0),
+    net_salary: p.net_salary !== undefined ? p.net_salary : (p.netPay !== undefined ? p.netPay : 0),
+    status: p.status || 'Pending',
+    paymentAccount: (p.account_type === 'Savings A/c' || p.paymentAccount === 'Savings') ? 'Savings' : 'Current',
+    account_type: p.account_type || (p.paymentAccount === 'Savings' ? 'Savings A/c' : 'Current A/c'),
+    deductionReason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || ''),
+    deduction_reason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || '')
+  });
+
   const refreshApiData = async () => {
     try {
       const headers = getAuthHeaders();
@@ -598,7 +619,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) {
         setInvoices(invoicesRes.value.map(normalizeInvoice));
       }
-      if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value);
+      if (payrollRes.status === 'fulfilled' && Array.isArray(payrollRes.value)) setPayroll(payrollRes.value.map(normalizePayroll));
       if (progressRes.status === 'fulfilled' && Array.isArray(progressRes.value)) {
         setDailyProgressRecords(progressRes.value.map((r: any) => normalizeDailyProgress(r)));
       }
@@ -831,23 +852,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Payroll API
   const addPayroll = async (payrollData: any) => {
+    const payload = {
+      id: payrollData.id,
+      staff_id: payrollData.staffId || payrollData.staff_id,
+      employee_name: payrollData.employeeName || payrollData.employee_name || payrollData.name || '',
+      month: payrollData.month,
+      salary: payrollData.basic !== undefined ? payrollData.basic : (payrollData.salary || 0),
+      bonus: payrollData.bonus || 0,
+      deductions: payrollData.deductions !== undefined ? payrollData.deductions : 0,
+      net_salary: payrollData.netPay !== undefined ? payrollData.netPay : (payrollData.net_salary || 0),
+      status: payrollData.status || 'Pending',
+      account_type: payrollData.paymentAccount === 'Savings' ? 'Savings A/c' : (payrollData.account_type || 'Current A/c'),
+      deduction_reason: payrollData.deductionReason !== undefined ? payrollData.deductionReason : (payrollData.deduction_reason || null),
+    };
     try {
-      const data = await apiFetch(`${API_BASE_URL}/payroll`, { method: 'POST', body: JSON.stringify(payrollData) });
-      setPayroll(prev => [data, ...prev]);
-      return data;
+      const data = await apiFetch(`${API_BASE_URL}/payroll`, { method: 'POST', body: JSON.stringify(payload) });
+      const norm = normalizePayroll(data);
+      setPayroll(prev => [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))]);
+      return norm;
     } catch {
-      setPayroll(prev => [payrollData, ...prev]);
-      return payrollData;
+      const norm = normalizePayroll(payrollData);
+      setPayroll(prev => [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))]);
+      return norm;
     }
   };
 
   const updatePayroll = async (id: string, updateData: any) => {
+    const payload: any = {};
+    if (updateData.basic !== undefined || updateData.salary !== undefined) {
+      payload.salary = updateData.basic !== undefined ? updateData.basic : updateData.salary;
+    }
+    if (updateData.bonus !== undefined) payload.bonus = updateData.bonus;
+    if (updateData.deductions !== undefined) payload.deductions = updateData.deductions;
+    if (updateData.netPay !== undefined || updateData.net_salary !== undefined) {
+      payload.net_salary = updateData.netPay !== undefined ? updateData.netPay : updateData.net_salary;
+    }
+    if (updateData.status !== undefined) payload.status = updateData.status;
+    if (updateData.paymentAccount !== undefined || updateData.account_type !== undefined) {
+      payload.account_type = updateData.paymentAccount === 'Savings' ? 'Savings A/c' : (updateData.account_type || 'Current A/c');
+    }
+    if (updateData.deductionReason !== undefined || updateData.deduction_reason !== undefined) {
+      payload.deduction_reason = updateData.deductionReason !== undefined ? updateData.deductionReason : updateData.deduction_reason;
+    }
+
     try {
-      const data = await apiFetch(`${API_BASE_URL}/payroll/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setPayroll(prev => prev.map(p => p.id === id ? data : p));
-      return data;
+      const data = await apiFetch(`${API_BASE_URL}/payroll/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      const norm = normalizePayroll(data);
+      setPayroll(prev => prev.map(p => p.id === id ? norm : p));
+      return norm;
     } catch {
-      setPayroll(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
+      setPayroll(prev => prev.map(p => p.id === id ? normalizePayroll({ ...p, ...updateData }) : p));
     }
   };
 

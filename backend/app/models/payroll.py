@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy import String, Float, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
@@ -15,4 +16,5 @@ class PayrollRecord(Base):
     net_salary: Mapped[float] = mapped_column(Float, default=0.0)
     status: Mapped[str] = mapped_column(String(50), default="Pending") # Paid, Pending
     account_type: Mapped[str] = mapped_column(String(50), nullable=True) # "Current A/c" | "Savings A/c"
+    deduction_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())

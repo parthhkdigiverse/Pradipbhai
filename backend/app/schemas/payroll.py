@@ -11,6 +11,7 @@ class PayrollBase(BaseModel):
     net_salary: Optional[float] = 0.0
     status: Optional[str] = "Pending"
     account_type: Optional[str] = "Current A/c"
+    deduction_reason: Optional[str] = None
 
 class PayrollCreate(PayrollBase):
     id: Optional[str] = None
@@ -22,6 +23,7 @@ class PayrollUpdate(BaseModel):
     net_salary: Optional[float] = None
     status: Optional[str] = None
     account_type: Optional[str] = None
+    deduction_reason: Optional[str] = None
 
 class PayrollOut(PayrollBase):
     id: str

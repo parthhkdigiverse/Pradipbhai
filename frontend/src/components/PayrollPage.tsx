@@ -4,12 +4,86 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function PayrollPage() {
-  const { staff, attendance, payroll, setPayroll, holidays, currentUserRole, hasPermission, leaveRequests, leaveBalances } = useData();
+  const { 
+    staff, 
+    attendance, 
+    payroll, 
+    setPayroll, 
+    addPayroll, 
+    updatePayroll: apiUpdatePayroll, 
+    holidays, 
+    currentUserRole, 
+    hasPermission, 
+    leaveRequests, 
+    leaveBalances 
+  } = useData();
   const canManagePayroll = hasPermission(currentUserRole, 'Manage Payroll');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Deduction Breakdown & Note Modal State
+  const [deductionModalData, setDeductionModalData] = useState<{
+    staffId: string;
+    name: string;
+    role: string;
+    baseSalary: number;
+    month: string;
+    workingDays: number;
+    perDaySalary: number;
+    currentDeduction: number;
+    calculatedDeductions: number;
+    deductionReason: string;
+    deductionBreakdown: any[];
+    autoDeductionNote: string;
+  } | null>(null);
+  const [modalDeductionAmount, setModalDeductionAmount] = useState<number>(0);
+  const [modalDeductionReason, setModalDeductionReason] = useState<string>('');
+
+  const openDeductionModal = (data: any) => {
+    setDeductionModalData(data);
+    setModalDeductionAmount(data.currentDeduction !== undefined ? data.currentDeduction : (data.calculatedDeductions || 0));
+    setModalDeductionReason(data.deductionReason || '');
+  };
+
+  const handleSaveDeductionModal = async () => {
+    if (!deductionModalData) return;
+    const staffId = deductionModalData.staffId;
+    const targetMonth = deductionModalData.month;
+    const newAmt = Math.max(0, modalDeductionAmount);
+    const newReason = modalDeductionReason.trim();
+
+    await updatePayroll(staffId, {
+      deductions: newAmt,
+      deductionReason: newReason,
+      deduction_reason: newReason
+    }, targetMonth);
+
+    if (selectedPayslip && (selectedPayslip.id === staffId || selectedPayslip.staffId === staffId)) {
+      setSelectedPayslip((prev: any) => {
+        if (!prev) return null;
+        const newBreakdown = [
+          ...(prev.deductionBreakdown || []).filter((item: any) => item.category !== 'manual'),
+          ...(newReason ? [{
+            id: 'ded-manual-reason',
+            category: 'manual',
+            title: 'Deduction Note',
+            reason: newReason
+          }] : [])
+        ];
+        return {
+          ...prev,
+          deductions: newAmt,
+          netPay: (prev.basic || prev.baseSalary) - newAmt,
+          deductionReason: newReason,
+          deductionBreakdown: newBreakdown
+        };
+      });
+    }
+
+    setDeductionModalData(null);
+  };
 
   // Payment Account Confirmation Modal State
   const [payAccountModalData, setPayAccountModalData] = useState<{ 
@@ -143,20 +217,32 @@ export function PayrollPage() {
     return dates;
   };
 
+  const formatShortDate = (dStr: string) => {
+    if (!dStr) return '';
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const m = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      return `${day} ${months[m] || ''}`;
+    }
+    return dStr;
+  };
+
   // Helper to compute a single employee's monthly payroll stats
   const calculateStaffMonth = (emp: any, targetMonth: string) => {
     const targetFYStart = getFYStartYearFromMonth(targetMonth);
     const fyStartDate = `${targetFYStart}-04-01`;
     const fyEndDate = `${targetFYStart + 1}-03-31`;
     const holidaysInMonth = holidays.filter(h => h.date.startsWith(targetMonth)).length;
-    const record = payroll.find(p => p.staffId === emp.id && p.month === targetMonth);
+    const record = payroll.find(p => (p.staffId === emp.id || p.staff_id === emp.id) && p.month === targetMonth);
 
-    const bal = leaveBalances?.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
+    const bal = leaveBalances?.find(b => (b.staffId === emp.id || (b as any).staff_id === emp.id)) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
     const sickQuota = bal.sick ?? 3;
 
     // Approved leaves for this employee in the Financial Year (FY)
     const empApprovedLeaves = (leaveRequests || []).filter(r =>
-      r.staffId === emp.id &&
+      (r.staffId === emp.id || (r as any).staff_id === emp.id) &&
       r.status === 'Approved' &&
       ((r.fromDate && r.fromDate >= fyStartDate && r.fromDate <= fyEndDate) ||
        (r.toDate && r.toDate >= fyStartDate && r.toDate <= fyEndDate))
@@ -166,6 +252,7 @@ export function PayrollPage() {
       date: string;
       type: 'Casual' | 'Sick' | 'Earned';
       weight: number;
+      leaveReq: any;
     }
     const allLeaveDays: LeaveDaySegment[] = [];
     empApprovedLeaves.forEach(r => {
@@ -173,12 +260,12 @@ export function PayrollPage() {
       if (dates.length === 0) return;
       if (r.isHalfDay) {
         if (dates[0] >= fyStartDate && dates[0] <= fyEndDate) {
-          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5 });
+          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5, leaveReq: r });
         }
       } else {
         dates.forEach(d => {
           if (d >= fyStartDate && d <= fyEndDate) {
-            allLeaveDays.push({ date: d, type: r.type, weight: 1.0 });
+            allLeaveDays.push({ date: d, type: r.type, weight: 1.0, leaveReq: r });
           }
         });
       }
@@ -236,6 +323,9 @@ export function PayrollPage() {
     let daysHalf = 0;
     let daysLeave = 0;
     let latePenalties = 0;
+    const absentDates: string[] = [];
+    const halfDayDates: string[] = [];
+    const penaltyItems: { date: string; amount: number; note?: string }[] = [];
 
     const monthRecords = attendance.filter(a => (a.staffId || a.staff_id) === emp.id && a.date.startsWith(targetMonth));
     
@@ -244,16 +334,20 @@ export function PayrollPage() {
       if (r.status === 'Absent') {
         if (!approvedLeaveDatesThisMonth.has(r.date)) {
           daysAbsent++;
+          absentDates.push(r.date);
         }
       }
       if (r.status === 'Half Day' || r.status?.startsWith?.('Half Day')) {
         if (!approvedLeaveDatesThisMonth.has(r.date)) {
           daysHalf++;
+          halfDayDates.push(r.date);
         }
       }
       if (r.status === 'Leave') daysLeave++;
-      if (r.penaltyAmount || r.penalty_amount) {
-        latePenalties += (r.penaltyAmount || r.penalty_amount || 0);
+      const penAmt = (r.penaltyAmount || r.penalty_amount || 0);
+      if (penAmt > 0) {
+        latePenalties += penAmt;
+        penaltyItems.push({ date: r.date, amount: penAmt, note: r.warningNote || r.warning_note });
       }
     });
 
@@ -266,14 +360,171 @@ export function PayrollPage() {
     const calculatedDeductions = Math.round(attendanceDeductions + leaveDeductions);
     const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
 
+    // Build itemized deduction breakdown
+    interface DeductionItem {
+      id: string;
+      category: 'absence' | 'half_day' | 'penalty' | 'leave' | 'manual';
+      title: string;
+      dates?: string;
+      days?: number;
+      amount?: number;
+      reason?: string;
+    }
+    const deductionBreakdown: DeductionItem[] = [];
+    const autoNoteParts: string[] = [];
+
+    // 1. Absences
+    if (daysAbsent > 0) {
+      const amt = Math.round(daysAbsent * perDaySalary);
+      const dStr = absentDates.map(formatShortDate).join(', ');
+      deductionBreakdown.push({
+        id: 'ded-absence',
+        category: 'absence',
+        title: `Unapproved Absence (${daysAbsent} ${daysAbsent === 1 ? 'day' : 'days'})`,
+        dates: dStr,
+        days: daysAbsent,
+        amount: amt,
+        reason: 'Absent without approved leave'
+      });
+      autoNoteParts.push(`${daysAbsent}d Absent (${dStr})`);
+    }
+
+    // 2. Half Days
+    if (daysHalf > 0) {
+      const amt = Math.round(daysHalf * (perDaySalary / 2));
+      const dStr = halfDayDates.map(formatShortDate).join(', ');
+      deductionBreakdown.push({
+        id: 'ded-halfday',
+        category: 'half_day',
+        title: `Half Day Attendance (${daysHalf} ${daysHalf === 1 ? 'day' : 'days'})`,
+        dates: dStr,
+        days: daysHalf * 0.5,
+        amount: amt,
+        reason: 'Half day attendance deduction'
+      });
+      autoNoteParts.push(`${daysHalf} Half Day (${dStr})`);
+    }
+
+    // 3. Late Arrival Penalties
+    if (latePenalties > 0) {
+      const dStr = penaltyItems.map(p => formatShortDate(p.date)).join(', ');
+      deductionBreakdown.push({
+        id: 'ded-penalty',
+        category: 'penalty',
+        title: `Late Arrival Penalties (${penaltyItems.length})`,
+        dates: dStr,
+        amount: Math.round(latePenalties),
+        reason: penaltyItems.map(p => p.note).filter(Boolean).join('; ') || 'Late check-in deduction'
+      });
+      autoNoteParts.push(`Late Fine (₹${Math.round(latePenalties)})`);
+    }
+
+    // 4. Deductible Leaves in this month
+    const leavesInMonth = empApprovedLeaves.filter(r => {
+      const dates = getLeaveDates(r.fromDate, r.toDate);
+      return dates.some(d => d.startsWith(targetMonth));
+    });
+
+    // Casual leaves
+    if (deductibleCasualInMonth > 0) {
+      const casuals = leavesInMonth.filter(r => r.type === 'Casual');
+      casuals.forEach((r, idx) => {
+        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
+        const days = r.isHalfDay ? 0.5 : inMonthDates.length;
+        const amt = Math.round(days * perDaySalary);
+        const dStr = inMonthDates.map(formatShortDate).join(', ');
+        deductionBreakdown.push({
+          id: `ded-casual-${r.id || idx}`,
+          category: 'leave',
+          title: `Casual Leave (${days} ${days === 1 ? 'day' : 'days'})`,
+          dates: dStr,
+          days,
+          amount: amt,
+          reason: r.reason || 'Casual Leave'
+        });
+        autoNoteParts.push(`Casual: ${r.reason || 'Leave'} (${dStr})`);
+      });
+    }
+
+    // Sick leaves beyond quota
+    if (deductibleSickInMonth > 0) {
+      const sicks = leavesInMonth.filter(r => r.type === 'Sick');
+      sicks.forEach((r, idx) => {
+        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
+        const dStr = inMonthDates.map(formatShortDate).join(', ');
+        const amt = Math.round(deductibleSickInMonth * perDaySalary);
+        deductionBreakdown.push({
+          id: `ded-sick-${r.id || idx}`,
+          category: 'leave',
+          title: `Sick Leave beyond annual 3-day quota (${deductibleSickInMonth}d)`,
+          dates: dStr,
+          days: deductibleSickInMonth,
+          amount: amt,
+          reason: r.reason || 'Sick Leave'
+        });
+        autoNoteParts.push(`Sick beyond quota: ${r.reason || 'Leave'} (${dStr})`);
+      });
+    }
+
+    // Earned leaves beyond monthly quota
+    if (deductibleEarnedInMonth > 0) {
+      const earneds = leavesInMonth.filter(r => r.type === 'Earned');
+      earneds.forEach((r, idx) => {
+        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
+        const dStr = inMonthDates.map(formatShortDate).join(', ');
+        const amt = Math.round(deductibleEarnedInMonth * perDaySalary);
+        deductionBreakdown.push({
+          id: `ded-earned-${r.id || idx}`,
+          category: 'leave',
+          title: `Earned Leave beyond monthly 1-day quota (${deductibleEarnedInMonth}d)`,
+          dates: dStr,
+          days: deductibleEarnedInMonth,
+          amount: amt,
+          reason: r.reason || 'Earned Leave'
+        });
+        autoNoteParts.push(`Earned beyond quota: ${r.reason || 'Leave'} (${dStr})`);
+      });
+    }
+
+    // 5. Check manual adjustment / note
+    const manualDeductionReason = record?.deductionReason || record?.deduction_reason || '';
+    const currentDeductions = record?.deductions !== undefined ? record.deductions : calculatedDeductions;
+    const manualDiff = currentDeductions - calculatedDeductions;
+
+    if (manualDeductionReason) {
+      deductionBreakdown.push({
+        id: 'ded-manual-reason',
+        category: 'manual',
+        title: manualDiff !== 0 ? `Manual Adjustment (${manualDiff > 0 ? '+' : ''}₹${manualDiff.toLocaleString()})` : 'Deduction Note',
+        amount: manualDiff !== 0 ? manualDiff : undefined,
+        reason: manualDeductionReason
+      });
+    } else if (manualDiff !== 0) {
+      deductionBreakdown.push({
+        id: 'ded-manual-diff',
+        category: 'manual',
+        title: manualDiff > 0 ? `Manual Extra Deduction (+₹${manualDiff.toLocaleString()})` : `Manual Deduction Discount (-₹${Math.abs(manualDiff).toLocaleString()})`,
+        amount: manualDiff,
+        reason: manualDiff > 0 ? 'Custom deduction added manually' : 'Deduction discounted manually'
+      });
+    }
+
+    const autoDeductionNote = autoNoteParts.join(' • ');
+
     return {
       month: targetMonth,
       payrollId: record?.id || null,
-      basic: record?.basic ?? emp.baseSalary,
-      deductions: record?.deductions ?? calculatedDeductions,
-      netPay: record?.netPay ?? calculatedNet,
+      basic: record?.basic !== undefined ? record.basic : (record?.salary !== undefined ? record.salary : emp.baseSalary),
+      deductions: currentDeductions,
+      calculatedDeductions,
+      manualDiff,
+      netPay: record?.netPay !== undefined ? record.netPay : (record?.net_salary !== undefined ? record.net_salary : (record ? ((record.basic ?? emp.baseSalary) - currentDeductions) : calculatedNet)),
       status: record?.status || 'Pending',
-      paymentAccount: record?.paymentAccount || 'Current',
+      paymentAccount: record?.paymentAccount || (record?.account_type === 'Savings A/c' ? 'Savings' : 'Current'),
+      deductionReason: manualDeductionReason,
+      autoDeductionNote,
+      deductionBreakdown,
+      perDaySalary,
       stats: { 
         daysPresent, 
         daysAbsent, 
@@ -425,31 +676,66 @@ export function PayrollPage() {
     };
   }, [displayedPayroll, filterMode]);
 
-  const updatePayroll = (staffId: string, updates: any, targetMonth: string = selectedMonth) => {
+  const updatePayroll = async (staffId: string, updates: any, targetMonth: string = selectedMonth) => {
+    let targetId: string | null = null;
+    let isNew = false;
+    let fullRecord: any = null;
+
     setPayroll(prev => {
-      const existingIdx = prev.findIndex(p => p.staffId === staffId && p.month === targetMonth);
+      const existingIdx = prev.findIndex(p => (p.staffId === staffId || p.staff_id === staffId) && p.month === targetMonth);
       if (existingIdx >= 0) {
         const newArr = [...prev];
-        const merged = { ...newArr[existingIdx], ...updates };
-        merged.netPay = merged.basic - merged.deductions;
+        const existing = newArr[existingIdx];
+        const merged = { ...existing, ...updates };
+        const basicVal = merged.basic !== undefined ? merged.basic : (merged.salary || 0);
+        const dedVal = merged.deductions !== undefined ? merged.deductions : 0;
+        merged.netPay = basicVal - dedVal;
+        merged.net_salary = basicVal - dedVal;
         newArr[existingIdx] = merged;
+        targetId = merged.id;
+        fullRecord = merged;
         return newArr;
       } else {
+        const emp = staff.find(s => s.id === staffId);
+        const calc = emp ? calculateStaffMonth(emp, targetMonth) : null;
+        const basicVal = updates.basic !== undefined ? updates.basic : (calc?.basic ?? (emp?.baseSalary || 0));
+        const dedVal = updates.deductions !== undefined ? updates.deductions : (calc?.deductions ?? 0);
         const newRecord = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: `pay-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`,
           staffId,
+          staff_id: staffId,
+          employeeName: emp?.name || '',
+          employee_name: emp?.name || '',
           month: targetMonth,
-          basic: 0,
-          deductions: 0,
-          netPay: 0,
+          basic: basicVal,
+          salary: basicVal,
+          deductions: dedVal,
+          netPay: basicVal - dedVal,
+          net_salary: basicVal - dedVal,
           status: 'Pending',
           paymentAccount: 'Current',
+          deductionReason: '',
+          deduction_reason: '',
           ...updates
         };
-        newRecord.netPay = newRecord.basic - newRecord.deductions;
+        newRecord.netPay = (newRecord.basic ?? basicVal) - (newRecord.deductions ?? dedVal);
+        newRecord.net_salary = newRecord.netPay;
+        targetId = newRecord.id;
+        isNew = true;
+        fullRecord = newRecord;
         return [...prev, newRecord];
       }
     });
+
+    try {
+      if (targetId && !isNew) {
+        await apiUpdatePayroll(targetId, updates);
+      } else if (fullRecord) {
+        await addPayroll(fullRecord);
+      }
+    } catch (e) {
+      console.error('Failed to sync payroll update to backend', e);
+    }
   };
 
   const markAllPaid = () => {
@@ -802,21 +1088,78 @@ export function PayrollPage() {
                     </td>
                     <td className="py-4 px-6 text-right">
                       {filterMode === 'monthly' ? (
-                        <div className="flex items-center justify-end font-bold text-rose-600">
-                          {canManagePayroll ? (
-                            <input 
-                              type="number"
-                              value={emp.deductions}
-                              onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
-                              className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600"
-                            />
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center justify-end font-bold text-rose-600">
+                            {canManagePayroll ? (
+                              <input 
+                                type="number"
+                                value={emp.deductions}
+                                onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
+                                className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600 font-bold"
+                              />
+                            ) : (
+                              <span>₹{emp.deductions.toLocaleString()}</span>
+                            )}
+                          </div>
+                          {/* Note / Reason Badge */}
+                          {(emp.deductions > 0 || emp.deductionReason) ? (
+                            <button
+                              type="button"
+                              onClick={() => openDeductionModal({
+                                staffId: emp.id,
+                                name: emp.name,
+                                role: emp.role,
+                                baseSalary: emp.baseSalary,
+                                month: selectedMonth,
+                                workingDays: emp.workingDays,
+                                perDaySalary: emp.perDaySalary,
+                                currentDeduction: emp.deductions,
+                                calculatedDeductions: emp.calculatedDeductions,
+                                deductionReason: emp.deductionReason || '',
+                                deductionBreakdown: emp.deductionBreakdown || [],
+                                autoDeductionNote: emp.autoDeductionNote || ''
+                              })}
+                              className="mt-1 flex items-center justify-end gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 transition-colors group/note max-w-[190px] text-right"
+                              title="Click to view breakdown or edit deduction note"
+                            >
+                              <FileText className="w-3 h-3 flex-shrink-0 text-rose-500 group-hover/note:scale-110 transition-transform" />
+                              <span className="truncate">
+                                {emp.deductionReason ? `💬 ${emp.deductionReason}` : (emp.autoDeductionNote || 'Breakdown')}
+                              </span>
+                            </button>
                           ) : (
-                            <span>₹{emp.deductions.toLocaleString()}</span>
+                            canManagePayroll && (
+                              <button
+                                type="button"
+                                onClick={() => openDeductionModal({
+                                  staffId: emp.id,
+                                  name: emp.name,
+                                  role: emp.role,
+                                  baseSalary: emp.baseSalary,
+                                  month: selectedMonth,
+                                  workingDays: emp.workingDays,
+                                  perDaySalary: emp.perDaySalary,
+                                  currentDeduction: 0,
+                                  calculatedDeductions: 0,
+                                  deductionReason: '',
+                                  deductionBreakdown: [],
+                                  autoDeductionNote: ''
+                                })}
+                                className="mt-1 text-[10px] text-gray-400 hover:text-rose-600 font-medium transition-colors"
+                              >
+                                + Add note
+                              </button>
+                            )
                           )}
                         </div>
                       ) : (
                         <div className="text-right">
                           <span className="font-bold text-rose-600 text-sm">₹{emp.deductions.toLocaleString()}</span>
+                          {emp.deductions > 0 && (
+                            <span className="text-[10px] text-gray-500 block font-medium">
+                              Annual Deductions
+                            </span>
+                          )}
                         </div>
                       )}
                     </td>
@@ -990,21 +1333,75 @@ export function PayrollPage() {
                   <span className="text-gray-500 font-semibold">{selectedPayslip.mode === 'yearly' ? 'Annual Basic Salary' : 'Basic Salary'}</span>
                   <span className="text-gray-800 font-bold flex items-center"><IndianRupee className="w-3.5 h-3.5 mr-0.5" />{selectedPayslip.basic.toLocaleString()}</span>
                 </div>
-                {selectedPayslip.stats?.unpaidLeaveDays > 0 && (
-                  <div className="flex justify-between items-center text-xs text-rose-600 bg-rose-50/80 px-3 py-1.5 rounded-xl border border-rose-100">
-                    <div>
-                      <span className="font-bold">Leave Deductions</span>
-                      <span className="text-[10px] text-rose-500 block">
-                        {selectedPayslip.stats.unpaidLeaveDays} day(s)
-                        {selectedPayslip.stats.deductibleSickDays > 0 ? ` • ${selectedPayslip.stats.deductibleSickDays}d Sick beyond 3` : ''}
-                        {selectedPayslip.stats.deductibleCasualDays > 0 ? ` • ${selectedPayslip.stats.deductibleCasualDays}d Casual` : ''}
-                        {selectedPayslip.stats.deductibleEarnedDays > 0 ? ` • ${selectedPayslip.stats.deductibleEarnedDays}d Earned beyond 1/mo` : ''}
+                {/* Deductions Breakdown & Description */}
+                {(selectedPayslip.deductions > 0 || selectedPayslip.deductionReason || (selectedPayslip.deductionBreakdown && selectedPayslip.deductionBreakdown.length > 0)) && (
+                  <div className="bg-rose-50/70 rounded-2xl p-3.5 border border-rose-100/90 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold text-rose-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-rose-600" />
+                        Deduction Breakdown & Reasons
                       </span>
+                      {canManagePayroll && selectedPayslip.mode === 'monthly' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openDeductionModal({
+                              staffId: selectedPayslip.id,
+                              name: selectedPayslip.name,
+                              role: selectedPayslip.role,
+                              baseSalary: selectedPayslip.baseSalary,
+                              month: selectedMonth,
+                              workingDays: selectedPayslip.workingDays,
+                              perDaySalary: selectedPayslip.perDaySalary,
+                              currentDeduction: selectedPayslip.deductions,
+                              calculatedDeductions: selectedPayslip.calculatedDeductions,
+                              deductionReason: selectedPayslip.deductionReason || '',
+                              deductionBreakdown: selectedPayslip.deductionBreakdown || [],
+                              autoDeductionNote: selectedPayslip.autoDeductionNote || ''
+                            });
+                          }}
+                          className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-white hover:bg-rose-100/50 px-2.5 py-1 rounded-lg border border-rose-200 transition-colors shadow-2xs"
+                        >
+                          Edit Note / Deductions
+                        </button>
+                      )}
                     </div>
-                    <span className="font-bold flex items-center">
-                      -<IndianRupee className="w-3 h-3 mx-0.5" />
-                      {Math.round(selectedPayslip.stats.unpaidLeaveDays * (selectedPayslip.baseSalary / 26)).toLocaleString()}
-                    </span>
+
+                    {/* Custom Note / Reason if specified */}
+                    {selectedPayslip.deductionReason && (
+                      <div className="bg-white/90 p-2.5 rounded-xl border border-rose-200/80 text-xs">
+                        <span className="font-extrabold text-rose-800 block text-[10px] uppercase tracking-wider mb-0.5">
+                          📝 Description / Note:
+                        </span>
+                        <span className="text-gray-800 font-medium whitespace-pre-wrap">{selectedPayslip.deductionReason}</span>
+                      </div>
+                    )}
+
+                    {/* Itemized list of deductions */}
+                    {selectedPayslip.deductionBreakdown && selectedPayslip.deductionBreakdown.length > 0 && (
+                      <div className="space-y-1.5">
+                        {selectedPayslip.deductionBreakdown.map((item: any, idx: number) => (
+                          <div key={item.id || idx} className="bg-white/70 p-2.5 rounded-xl border border-rose-100/80 flex items-start justify-between text-xs gap-2">
+                            <div>
+                              <div className="font-bold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                                <span>{item.title}</span>
+                                {item.dates && <span className="text-[10px] text-gray-500 font-normal">({item.dates})</span>}
+                              </div>
+                              {item.reason && item.id !== 'ded-manual-reason' && (
+                                <div className="text-[11px] text-gray-600 mt-0.5">
+                                  <span className="text-rose-600 font-semibold">Reason:</span> "{item.reason}"
+                                </div>
+                              )}
+                            </div>
+                            {item.amount !== undefined && (
+                              <span className="font-bold text-rose-600 whitespace-nowrap text-right">
+                                {item.amount < 0 ? '+' : '-'}₹{Math.abs(item.amount).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="flex justify-between items-center text-sm">
@@ -1102,7 +1499,15 @@ export function PayrollPage() {
                                 ₹{mItem.basic.toLocaleString()}
                               </td>
                               <td className="py-2 px-3 text-right font-medium text-rose-600">
-                                ₹{mItem.deductions.toLocaleString()}
+                                <div>₹{mItem.deductions.toLocaleString()}</div>
+                                {mItem.deductions > 0 && (mItem.deductionReason || mItem.autoDeductionNote) && (
+                                  <div 
+                                    className="text-[9px] text-gray-500 font-normal max-w-[130px] truncate ml-auto cursor-help" 
+                                    title={mItem.deductionReason ? `Note: ${mItem.deductionReason}` : mItem.autoDeductionNote}
+                                  >
+                                    {mItem.deductionReason ? `💬 ${mItem.deductionReason}` : mItem.autoDeductionNote}
+                                  </div>
+                                )}
                               </td>
                               <td className="py-2 px-3 text-right font-bold text-emerald-700">
                                 ₹{mItem.netPay.toLocaleString()}
@@ -1307,6 +1712,222 @@ export function PayrollPage() {
               >
                 <CheckCircle className="w-4 h-4" /> Confirm & Mark Paid
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deduction Breakdown & Note Modal */}
+      {deductionModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-white/60 relative space-y-5 animate-scale-in max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-800">
+                    Salary Deduction & Notes
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {deductionModalData.name} • {deductionModalData.role} • {deductionModalData.month}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeductionModalData(null)}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-3 gap-2 bg-gray-50/80 p-3 rounded-2xl border border-gray-100 text-center">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Base Salary</span>
+                <span className="text-xs font-black text-gray-800">₹{deductionModalData.baseSalary?.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Working Days</span>
+                <span className="text-xs font-black text-gray-800">{deductionModalData.workingDays}d</span>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-gray-400 block">Daily Rate</span>
+                <span className="text-xs font-black text-gray-800">₹{Math.round(deductionModalData.perDaySalary || 0).toLocaleString()}/d</span>
+              </div>
+            </div>
+
+            {/* Auto-calculated Leaves & Attendance Reasons */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calculator className="w-3.5 h-3.5 text-rose-500" />
+                  Calculated Leave & Attendance Deductions
+                </span>
+                <span className="text-xs font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-100">
+                  Total: ₹{deductionModalData.calculatedDeductions?.toLocaleString()}
+                </span>
+              </div>
+
+              {deductionModalData.deductionBreakdown && deductionModalData.deductionBreakdown.filter(item => item.category !== 'manual').length > 0 ? (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {deductionModalData.deductionBreakdown
+                    .filter(item => item.category !== 'manual')
+                    .map((item, idx) => (
+                      <div key={item.id || idx} className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-100 flex items-start justify-between text-xs gap-2">
+                        <div>
+                          <div className="font-bold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                            <span>{item.title}</span>
+                            {item.dates && <span className="text-[10px] text-gray-500 font-normal">({item.dates})</span>}
+                          </div>
+                          {item.reason && (
+                            <div className="text-[11px] text-gray-600 mt-0.5">
+                              <span className="text-rose-600 font-semibold">Reason:</span> "{item.reason}"
+                            </div>
+                          )}
+                        </div>
+                        {item.amount !== undefined && (
+                          <span className="font-bold text-rose-600 whitespace-nowrap text-right">
+                            -₹{Math.abs(item.amount).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center text-xs text-gray-500">
+                  No automatic leave or attendance deductions recorded for this month.
+                </div>
+              )}
+            </div>
+
+            {/* Deduction Amount & Manual Note Settings */}
+            <div className="space-y-3 pt-2 border-t border-gray-100">
+              {canManagePayroll ? (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                        Deduction Amount (₹)
+                      </label>
+                      {modalDeductionAmount !== deductionModalData.calculatedDeductions && (
+                        <button
+                          type="button"
+                          onClick={() => setModalDeductionAmount(deductionModalData.calculatedDeductions)}
+                          className="text-[10px] font-bold text-primary hover:underline"
+                        >
+                          Reset to Auto-calc (₹{deductionModalData.calculatedDeductions})
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <IndianRupee className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="number"
+                        min="0"
+                        value={modalDeductionAmount}
+                        onChange={(e) => setModalDeductionAmount(parseFloat(e.target.value) || 0)}
+                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-rose-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wider block mb-1.5">
+                      Deduction Description / Note
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={modalDeductionReason}
+                      onChange={(e) => setModalDeductionReason(e.target.value)}
+                      placeholder="e.g., Casual leave for family wedding, Advance salary recovery, Equipment repair fine..."
+                      className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-800 placeholder-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+                    />
+
+                    {/* Quick suggestion chips */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {deductionModalData.autoDeductionNote && (
+                        <button
+                          type="button"
+                          onClick={() => setModalDeductionReason(deductionModalData.autoDeductionNote)}
+                          className="text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 px-2 py-0.5 rounded-lg border border-primary/20 transition-colors"
+                          title="Click to copy auto-calculated breakdown as description"
+                        >
+                          📋 Use Auto Note
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setModalDeductionReason(prev => prev ? `${prev}, Advance salary adjustment` : 'Advance salary adjustment')}
+                        className="text-[10px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded-lg transition-colors"
+                      >
+                        + Advance Recovery
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalDeductionReason(prev => prev ? `${prev}, Asset / tool damage` : 'Asset / tool damage fine')}
+                        className="text-[10px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded-lg transition-colors"
+                      >
+                        + Asset Fine
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalDeductionReason(prev => prev ? `${prev}, Unpaid leave adjustment` : 'Unpaid leave adjustment')}
+                        className="text-[10px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-0.5 rounded-lg transition-colors"
+                      >
+                        + Leave Adjustment
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Net Pay live preview */}
+                  <div className="p-3 bg-emerald-50/70 rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                    <span className="font-bold text-gray-700">Estimated Net Pay:</span>
+                    <span className="font-black text-sm text-emerald-700 flex items-center">
+                      <IndianRupee className="w-3.5 h-3.5 mr-0.5" />
+                      {Math.max(0, (deductionModalData.baseSalary || 0) - modalDeductionAmount).toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 text-xs space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-semibold">Total Deductions:</span>
+                    <span className="font-bold text-rose-600">₹{modalDeductionAmount.toLocaleString()}</span>
+                  </div>
+                  {modalDeductionReason && (
+                    <div>
+                      <span className="text-gray-500 font-semibold block">Note:</span>
+                      <span className="text-gray-800 font-medium">{modalDeductionReason}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeductionModalData(null)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                {canManagePayroll ? 'Cancel' : 'Close'}
+              </button>
+              {canManagePayroll && (
+                <button
+                  type="button"
+                  onClick={handleSaveDeductionModal}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 hover:shadow-lg hover:shadow-rose-600/30 transition-all flex items-center gap-1.5"
+                >
+                  <CheckCircle className="w-4 h-4" /> Save Deduction & Note
+                </button>
+              )}
             </div>
           </div>
         </div>
