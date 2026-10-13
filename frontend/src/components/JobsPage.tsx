@@ -243,7 +243,10 @@ export function JobsPage() {
                           printerName.toLowerCase().includes(sLower) ||
                           (job.delayReason || '').toLowerCase().includes(sLower) ||
                           (job.totalAmount && job.totalAmount.toString().includes(sLower));
-      const matchStatus = filterStatus === 'All' || job.status === filterStatus || ((filterStatus === 'Completed' || filterStatus === 'Done') && (job.status === 'Completed' || job.status === 'Done'));
+      const matchStatus = filterStatus === 'All' || 
+        job.status === filterStatus || 
+        ((filterStatus === 'Progress' || filterStatus === 'In Progress') && (job.status === 'Progress' || job.status === 'In Progress')) ||
+        ((filterStatus === 'Completed' || filterStatus === 'Done') && (job.status === 'Completed' || job.status === 'Done'));
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
       const matchStaff = filterStaff === 'All' || job.teamId === filterStaff;
       const matchProduct = filterProduct === 'All' || job.productId === filterProduct;
@@ -278,7 +281,7 @@ export function JobsPage() {
     return {
       All: baseJobs.length,
       Pending: baseJobs.filter(j => j.status === 'Pending').length,
-      Progress: baseJobs.filter(j => j.status === 'Progress').length,
+      Progress: baseJobs.filter(j => j.status === 'Progress' || j.status === 'In Progress').length,
       'Under Review': baseJobs.filter(j => j.status === 'Under Review').length,
       Completed: baseJobs.filter(j => j.status === 'Completed' || j.status === 'Done').length,
     };
@@ -324,7 +327,7 @@ export function JobsPage() {
         dueDate: '',
         totalAmount: '',
         paidAmount: '',
-        status: 'Pending',
+        status: jobType === 'Printing' ? 'In Progress' : 'Pending',
         paymentStatus: 'Unpaid',
         vendorEmailSent: false,
         paymentOverride: null,
@@ -361,10 +364,31 @@ export function JobsPage() {
       estimatedTime: formData.estimatedTime ? parseFloat(formData.estimatedTime) : null,
       type: newJobType,
       paymentStatus: computedPaymentStatus,
+      status: newJobType === 'Printing' ? 'In Progress' : formData.status,
     };
 
     if (editingJobId) {
-      updateJob(editingJobId, jobData);
+      const existingJob = jobs.find(j => j.id === editingJobId);
+      const isProgressNow = jobData.status === 'Progress' || jobData.status === 'In Progress';
+      const wasProgress = existingJob?.status === 'Progress' || existingJob?.status === 'In Progress';
+      let updatedStartedAt = existingJob?.startedAt;
+      let finalTracked = existingJob?.trackedTime || 0;
+
+      if (isProgressNow && !wasProgress) {
+        updatedStartedAt = new Date().toISOString();
+      } else if (!isProgressNow && wasProgress) {
+        if (existingJob?.startedAt) {
+          const el = Math.floor((Date.now() - new Date(existingJob.startedAt).getTime()) / 1000);
+          finalTracked += Math.max(0, el);
+        }
+        updatedStartedAt = null;
+      }
+
+      updateJob(editingJobId, {
+        ...jobData,
+        startedAt: updatedStartedAt,
+        trackedTime: finalTracked
+      });
     } else {
       if (newJobType === 'Des+Print') {
         const designJobId = `job-${Date.now()}-d`;
@@ -392,10 +416,13 @@ export function JobsPage() {
         addJob(designJob);
         addJob(printJob);
       } else {
+        const isProgress = newJobType === 'Printing' || jobData.status === 'Progress' || jobData.status === 'In Progress';
         const newJob = {
           ...jobData,
           id: `job-${Date.now()}`,
           createdBy: 'Admin',
+          status: newJobType === 'Printing' ? 'In Progress' : (jobData.status || 'Pending'),
+          startedAt: isProgress ? new Date().toISOString() : null,
           createdAt: new Date().toISOString().split('T')[0]
         };
         addJob(newJob);
@@ -467,24 +494,33 @@ export function JobsPage() {
     }
   };
 
+  const isPrintJob = (job: any) => {
+    if (!job) return false;
+    if (job.type === 'Printing' || job.type === 'Print') return true;
+    if (typeof job.title === 'string' && (job.title.trim().startsWith('[PRINT]') || job.title.trim().startsWith('[Print]'))) {
+      return true;
+    }
+    return false;
+  };
+
   const enforceSingleProgressJob = async (newProgressJobId: string) => {
     const newJob = jobs.find((j: any) => j.id === newProgressJobId);
-    if (newJob?.type === 'Printing') return;
+    if (isPrintJob(newJob)) return;
 
     const otherProgressJobs = jobs.filter((j: any) => 
       j.id !== newProgressJobId && 
-      j.status === 'Progress' && 
-      j.type !== 'Printing' &&
+      (j.status === 'Progress' || j.status === 'In Progress') && 
+      !isPrintJob(j) &&
       (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === currentStaffId)
     );
 
     for (const prevJob of otherProgressJobs) {
       if (activeJobTracker && activeJobTracker.jobId === prevJob.id) {
         const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-        await updateJob(prevJob.id, { trackedTime: (prevJob.trackedTime || 0) + elapsed, status: 'Pending' });
+        await updateJob(prevJob.id, { trackedTime: (prevJob.trackedTime || 0) + elapsed, status: 'Pending', startedAt: null });
         setActiveJobTracker(null);
       } else {
-        await updateJob(prevJob.id, { status: 'Pending' });
+        await updateJob(prevJob.id, { status: 'Pending', startedAt: null });
       }
     }
   };
@@ -502,20 +538,27 @@ export function JobsPage() {
     ensurePunchedIn();
     await enforceSingleProgressJob(jobId);
 
+    if (isPrintJob(job)) {
+      // Print jobs run concurrently on machines and do not block other jobs
+      await updateJob(jobId, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
+      return;
+    }
+
     if (activeJobTracker && activeJobTracker.jobId !== jobId) {
-      // Stop previous tracker
+      // Stop previous tracker (only if previous was not a print job)
       const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
       const prev = jobs.find((j: any) => j.id === activeJobTracker.jobId);
       if (prev) {
         const updatePayload: any = { trackedTime: (prev.trackedTime || 0) + elapsed };
-        if (prev.type !== 'Printing') {
+        if (!isPrintJob(prev)) {
           updatePayload.status = 'Pending';
+          updatePayload.startedAt = null;
         }
         await updateJob(activeJobTracker.jobId, updatePayload);
       }
     }
     setActiveJobTracker({ jobId, startTime: Date.now() });
-    await updateJob(jobId, { status: 'Progress' });
+    await updateJob(jobId, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
   };
 
   const handleApproveJobByAdmin = async (jobId: string) => {
@@ -532,12 +575,16 @@ export function JobsPage() {
       return;
     }
 
-    await updateJob(jobId, { status: 'Completed' });
+    let extraElapsed = 0;
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      await updateJob(jobId, { trackedTime: (job?.trackedTime || 0) + elapsed });
+      extraElapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
       setActiveJobTracker(null);
+    } else if (job?.startedAt) {
+      extraElapsed = Math.floor((Date.now() - new Date(job.startedAt).getTime()) / 1000);
     }
+    const finalTracked = (job?.trackedTime || 0) + Math.max(0, extraElapsed);
+
+    await updateJob(jobId, { status: 'Completed', trackedTime: finalTracked, startedAt: null });
     if (currentUserRole !== 'Admin') {
       setTimeout(() => openPunchInModal(), 200);
     }
@@ -546,7 +593,7 @@ export function JobsPage() {
     if (job.type === 'Designing' || job.type === 'Des+Print') {
       const linkedPrintJobs = jobs.filter(j => j.status === 'Awaiting Design' && j.delayReason === jobId);
       for (const pJob of linkedPrintJobs) {
-        await updateJob(pJob.id, { status: 'Pending', delayReason: '' });
+        await updateJob(pJob.id, { status: 'In Progress', delayReason: '', startedAt: new Date().toISOString() });
       }
     }
 
@@ -569,7 +616,8 @@ export function JobsPage() {
             type: 'Printing',
             clientId: job.clientId,
             projectId: job.projectId,
-            status: 'Pending',
+            status: 'In Progress',
+            startedAt: new Date().toISOString(),
             teamId: '',
             dueDate: project.deadline || '',
             paymentStatus: 'Unpaid',
@@ -614,19 +662,24 @@ export function JobsPage() {
       }
     }
 
-    if (status === 'Progress') {
+    if (status === 'Progress' || status === 'In Progress') {
       await enforceSingleProgressJob(id);
-      if (activeJobTracker?.jobId !== id) {
+      if (activeJobTracker?.jobId !== id && !isPrintJob(job)) {
         handleStartTracker(id);
       }
-      await updateJob(id, { status: 'Progress' });
+      await updateJob(id, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
       return;
     }
 
-    if (status !== 'Progress' && activeJobTracker?.jobId === id) {
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed });
-      setActiveJobTracker(null);
+    if (status !== 'Progress' && status !== 'In Progress' && (job.status === 'Progress' || job.status === 'In Progress')) {
+      let elapsed = 0;
+      if (activeJobTracker?.jobId === id) {
+        elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        setActiveJobTracker(null);
+      } else if (job.startedAt) {
+        elapsed = Math.floor((Date.now() - new Date(job.startedAt).getTime()) / 1000);
+      }
+      await updateJob(id, { trackedTime: (job.trackedTime || 0) + Math.max(0, elapsed), startedAt: null });
     }
 
     if (status === 'Done' || status === 'Completed' || status === 'Under Review') {
@@ -656,17 +709,23 @@ export function JobsPage() {
     }
     if (completionModalJobId) {
       const targetId = completionModalJobId;
+      const targetJob = jobs.find(j => j.id === targetId);
+      let elapsed = 0;
+      if (activeJobTracker && activeJobTracker.jobId === targetId) {
+        elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        setActiveJobTracker(null);
+      } else if (targetJob?.startedAt) {
+        elapsed = Math.floor((Date.now() - new Date(targetJob.startedAt).getTime()) / 1000);
+      }
+
       await updateJob(targetId, {
         status: 'Under Review',
         workLink: completionWorkLink.trim(),
-        workLocation: completionWorkLocation.trim()
+        workLocation: completionWorkLocation.trim(),
+        trackedTime: (targetJob?.trackedTime || 0) + Math.max(0, elapsed),
+        startedAt: null
       });
-      if (activeJobTracker && activeJobTracker.jobId === targetId) {
-        const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-        const targetJob = jobs.find(j => j.id === targetId);
-        await updateJob(targetId, { trackedTime: (targetJob?.trackedTime || 0) + elapsed });
-        setActiveJobTracker(null);
-      }
+
       setCompletionModalJobId(null);
       if (currentUserRole !== 'Admin') {
         setTimeout(() => openPunchInModal(), 200);
@@ -675,19 +734,23 @@ export function JobsPage() {
   };
 
   const handleStopTracker = async (jobId: string) => {
+    const targetJob = jobs.find(j => j.id === jobId);
+    let elapsed = 0;
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      const targetJob = jobs.find(j => j.id === jobId);
-      const newTracked = (targetJob?.trackedTime || 0) + elapsed;
+      elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
       setActiveJobTracker(null);
-      await updateJob(jobId, { trackedTime: newTracked, status: 'Pending' });
+    } else if (targetJob?.startedAt) {
+      elapsed = Math.floor((Date.now() - new Date(targetJob.startedAt).getTime()) / 1000);
+    }
+    const newTracked = (targetJob?.trackedTime || 0) + Math.max(0, elapsed);
+    setActiveJobTracker(null);
+    await updateJob(jobId, { trackedTime: newTracked, status: 'Pending', startedAt: null });
 
-      const updatedJob = targetJob ? { ...targetJob, trackedTime: newTracked, status: 'Pending' } : null;
-      if (updatedJob) {
-        const info = getJobTimelineInfo(updatedJob);
-        if (info.isExceeded && !updatedJob.delayReason) {
-          setTimeout(() => handleOpenDelayModal(updatedJob), 300);
-        }
+    const updatedJob = targetJob ? { ...targetJob, trackedTime: newTracked, status: 'Pending', startedAt: null } : null;
+    if (updatedJob) {
+      const info = getJobTimelineInfo(updatedJob);
+      if (info.isExceeded && !updatedJob.delayReason) {
+        setTimeout(() => handleOpenDelayModal(updatedJob), 300);
       }
     }
   };
@@ -697,12 +760,73 @@ export function JobsPage() {
     if (job) await updateJob(jobId, { vendorEmailSent: !job.vendorEmailSent });
   };
 
+  const [liveNow, setLiveNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setLiveNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getLiveElapsedTime = (job: any) => {
+    const isProgress = job.status === 'Progress' || job.status === 'In Progress';
+    const baseTracked = Number(job.trackedTime) || 0;
+    if (!isProgress) return baseTracked;
+
+    // Active tracker in current user session
+    if (activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
+      const activeElapsed = Math.floor((liveNow - activeJobTracker.startTime) / 1000);
+      return baseTracked + Math.max(0, activeElapsed);
+    }
+
+    // Job startedAt timestamp
+    if (job.startedAt) {
+      const startMs = new Date(job.startedAt).getTime();
+      if (!isNaN(startMs)) {
+        const liveElapsed = Math.floor((liveNow - startMs) / 1000);
+        return baseTracked + Math.max(0, liveElapsed);
+      }
+    }
+
+    // Fallback if startedAt is missing but createdAt has ISO timestamp
+    if (job.createdAt && job.createdAt.includes('T')) {
+      const createdMs = new Date(job.createdAt).getTime();
+      if (!isNaN(createdMs)) {
+        const liveElapsed = Math.floor((liveNow - createdMs) / 1000);
+        return baseTracked + Math.max(0, liveElapsed);
+      }
+    }
+
+    return baseTracked;
+  };
+
+  const formatStartTime = (job: any) => {
+    const timeVal = job.startedAt || (job.createdAt && job.createdAt.includes('T') ? job.createdAt : null);
+    if (!timeVal) return '';
+    const d = new Date(timeVal);
+    if (isNaN(d.getTime())) return '';
+    const isToday = new Date().toDateString() === d.toDateString();
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    return isToday ? `Since ${timeStr}` : `Since ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  };
+
   const formatTime = (seconds: number) => {
     if (!seconds) return '00:00:00';
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatBadgeCount = (count: number) => {
+    if (!count || count <= 0) return '0';
+    if (count < 1000) return count.toString();
+    if (count < 10000) {
+      const formatted = (count / 1000).toFixed(1).replace(/\.0$/, '');
+      return `${formatted}k`;
+    }
+    if (count < 1000000) {
+      return `${Math.round(count / 1000)}k`;
+    }
+    return `${(count / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
   };
 
   const getClientName = (id: string) => clients.find(c => c.id === id)?.company || 'Unknown Client';
@@ -846,17 +970,17 @@ export function JobsPage() {
               <button
                 key={btn.id}
                 onClick={() => setFilterStatus(btn.id)}
-                title={`${btn.label} (${btn.count})`}
+                title={`${btn.label}: ${btn.count.toLocaleString()} ${btn.count === 1 ? 'job' : 'jobs'}`}
                 className={`relative group w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
                   isActive ? btn.activeColor : btn.inactiveColor
                 }`}
               >
                 <Icon className={`w-5 h-5 ${isActive ? 'text-white' : btn.iconColor}`} />
                 {btn.count > 0 && (
-                  <span className={`absolute -top-1 -right-1 px-1.5 py-0.2 min-w-[18px] text-[10px] font-extrabold rounded-full text-center ${
-                    isActive ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-800 text-white'
+                  <span className={`absolute -top-1.5 -right-1.5 h-5 min-w-[20px] px-1.5 inline-flex items-center justify-center text-[10px] font-extrabold rounded-full leading-none shadow-md ring-2 ring-white select-none pointer-events-none transition-all ${
+                    isActive ? 'bg-gray-900 text-white' : 'bg-gray-800 text-white'
                   }`}>
-                    {btn.count}
+                    {formatBadgeCount(btn.count)}
                   </span>
                 )}
               </button>
@@ -1141,14 +1265,14 @@ export function JobsPage() {
                     <td className="py-4 px-6 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
                         <select
-                          value={job.status === 'Done' ? 'Completed' : job.status}
+                          value={job.status === 'Done' ? 'Completed' : (job.status === 'In Progress' ? 'Progress' : job.status)}
                           onChange={(e) => updateJobStatus(job.id, e.target.value)}
                           disabled={currentUserRole !== 'Admin' && currentUserRole !== 'Manager' && (job.status === 'Completed' || job.status === 'Done')}
                           onClick={(e) => e.stopPropagation()}
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none appearance-none relative text-center ${
                             job.status === 'Completed' || job.status === 'Done' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm' :
                             job.status === 'Pending' ? 'bg-gray-100 text-gray-600 border-gray-200 cursor-pointer' : 
-                            job.status === 'Progress' ? 'bg-primary/10 text-primary border-primary cursor-pointer' : 
+                            (job.status === 'Progress' || job.status === 'In Progress') ? 'bg-primary/10 text-primary border-primary cursor-pointer' : 
                             'bg-amber-100 text-amber-800 border-amber-300 animate-pulse font-bold cursor-pointer'
                           } ${currentUserRole !== 'Admin' && currentUserRole !== 'Manager' && (job.status === 'Completed' || job.status === 'Done') ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
                           style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
@@ -1296,16 +1420,37 @@ export function JobsPage() {
                     <td className="py-4 px-6 text-center whitespace-nowrap">
                       {(() => {
                         const info = getJobTimelineInfo(job);
+                        const isProgress = job.status === 'Progress' || job.status === 'In Progress';
+                        const liveSec = getLiveElapsedTime(job);
+                        const sinceStr = formatStartTime(job);
                         return (
                           <div className="flex flex-col items-center gap-1">
-                            <div className="flex items-center justify-center gap-1.5 text-xs font-mono bg-gray-50 px-2 py-1 rounded border border-gray-100">
-                              <Clock className="w-3 h-3 text-gray-400" />
-                              {activeJobTracker?.jobId === job.id ? (
-                                 <span className="text-primary animate-pulse font-bold">Tracking...</span>
+                            <div className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
+                              isProgress 
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
+                                : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
+                            }`}>
+                              {isProgress ? (
+                                <>
+                                  <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                                  </span>
+                                  <Clock className="w-3 h-3 text-emerald-600" />
+                                  <span>{formatTime(liveSec)}</span>
+                                </>
                               ) : (
-                                <span className="text-gray-600 font-medium">{formatTime(job.trackedTime || 0)}</span>
+                                <>
+                                  <Clock className="w-3 h-3 text-gray-400" />
+                                  <span>{formatTime(job.trackedTime || 0)}</span>
+                                </>
                               )}
                             </div>
+                            {isProgress && sinceStr && (
+                              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/60 px-1.5 py-0.5 rounded border border-emerald-200/50">
+                                {sinceStr}
+                              </span>
+                            )}
                             {info.expectedText && (
                               <span className="text-[10px] text-gray-500 font-medium">
                                 Est: {info.expectedText}
@@ -1374,7 +1519,7 @@ export function JobsPage() {
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-1.5 transition-opacity">
                         {job.status !== 'Completed' && job.status !== 'Done' && job.status !== 'Under Review' && (
-                          activeJobTracker?.jobId === job.id ? (
+                          (activeJobTracker?.jobId === job.id || job.status === 'Progress' || job.status === 'In Progress') ? (
                             <button 
                               onClick={() => handleStopTracker(job.id)}
                               className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
@@ -1621,7 +1766,9 @@ export function JobsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-1">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Assign Team</label>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">
+                      Assign Team {newJobType === 'Printing' && <span className="text-[10px] text-gray-400 font-medium normal-case">(Unassigned by default)</span>}
+                    </label>
                     {formData.teamId && (
                       <button
                         type="button"

@@ -27,3 +27,4 @@ class Job(Base):
     delayReason: Mapped[str] = mapped_column(String(500), nullable=True)
     createdBy: Mapped[str] = mapped_column(String(100), default="Admin")
     createdAt: Mapped[str] = mapped_column(String(50), nullable=True)
+    startedAt: Mapped[str] = mapped_column(String(50), nullable=True)

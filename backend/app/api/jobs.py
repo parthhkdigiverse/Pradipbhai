@@ -19,7 +19,15 @@ async def create_job(job_in: JobCreate, db: AsyncSession = Depends(get_db)):
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Job ID already exists")
 
-    job = Job(**job_in.model_dump())
+    job_data = job_in.model_dump()
+    if job_data.get("type") == "Printing" and job_data.get("status") in [None, "Pending"]:
+        job_data["status"] = "In Progress"
+    
+    if job_data.get("status") in ["Progress", "In Progress"] and not job_data.get("startedAt"):
+        from datetime import datetime
+        job_data["startedAt"] = datetime.now().isoformat()
+
+    job = Job(**job_data)
     db.add(job)
     await db.commit()
     await db.refresh(job)
@@ -32,7 +40,14 @@ async def update_job(job_id: str, job_in: JobUpdate, db: AsyncSession = Depends(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    for field, val in job_in.model_dump(exclude_unset=True).items():
+    updates = job_in.model_dump(exclude_unset=True)
+    if updates.get("status") in ["Progress", "In Progress"] and not getattr(job, "startedAt", None) and not updates.get("startedAt"):
+        from datetime import datetime
+        updates["startedAt"] = datetime.now().isoformat()
+    elif "status" in updates and updates.get("status") not in ["Progress", "In Progress"] and "startedAt" not in updates:
+        updates["startedAt"] = None
+
+    for field, val in updates.items():
         setattr(job, field, val)
         
     await db.commit()

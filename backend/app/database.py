@@ -144,7 +144,8 @@ async def init_db():
                 ("trackedTime", "FLOAT DEFAULT 0.0"),
                 ("delayReason", "VARCHAR(500) NULL"),
                 ("createdBy", "VARCHAR(100) DEFAULT 'Admin'"),
-                ("createdAt", "VARCHAR(50) NULL")
+                ("createdAt", "VARCHAR(50) NULL"),
+                ("startedAt", "VARCHAR(50) NULL")
             ]
             for col_name, col_type in needed_cols:
                 if col_name not in columns:

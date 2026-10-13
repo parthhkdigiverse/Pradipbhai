@@ -24,6 +24,7 @@ class JobBase(BaseModel):
     delayReason: Optional[str] = None
     createdBy: Optional[str] = "Admin"
     createdAt: Optional[str] = None
+    startedAt: Optional[str] = None
 
 class JobCreate(JobBase):
     pass
@@ -50,6 +51,7 @@ class JobUpdate(BaseModel):
     delayReason: Optional[str] = None
     createdBy: Optional[str] = None
     createdAt: Optional[str] = None
+    startedAt: Optional[str] = None
 
 class JobOut(JobBase):
     class Config:
