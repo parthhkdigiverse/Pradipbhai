@@ -299,6 +299,21 @@ async def init_db():
                 except Exception as e:
                     print(f"⚠️ Column addition notice for payroll_records.deduction_reason: {e}")
 
+        if "projects" in inspector.get_table_names():
+            columns = [c["name"] for c in inspector.get_columns("projects")]
+            needed_proj_cols = [
+                ("name", "VARCHAR(255) NULL"),
+                ("category", "VARCHAR(50) DEFAULT 'Designing'"),
+                ("product_id", "VARCHAR(50) NULL"),
+                ("content_calendar", "JSON NULL")
+            ]
+            for col_name, col_type in needed_proj_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE projects ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for projects.{col_name}: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(check_and_create)
 

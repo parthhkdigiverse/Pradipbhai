@@ -142,8 +142,11 @@ interface DataContextType {
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
   
   convertLeadToClient: (lead: any) => void;
+  projects: any[];
+  setProjects: React.Dispatch<React.SetStateAction<any[]>>;
   addProject: (clientId: string, projectData: any) => Promise<any> | void;
-  updateProject: (clientId: string, projectIndex: number, projectData: any) => Promise<any> | void;
+  updateProject: (clientId: string, projectIndexOrId: any, projectData: any) => Promise<any> | void;
+  deleteProject: (id: string) => Promise<void>;
   
   activeFilterIntent: { page: string, filterKey: string, filterValue: string, jobId?: string } | null;
   setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>>;
@@ -431,6 +434,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
   const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>([]);
   const [fieldDuties, setFieldDuties] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(false);
   const [punchInTime, setPunchInTime] = useState<number | null>(null);
@@ -569,6 +573,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     deduction_reason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || '')
   });
 
+  const normalizeProject = (p: any) => ({
+    ...p,
+    id: p.id,
+    name: p.name || p.title || '',
+    title: p.title || p.name || '',
+    clientId: p.client_id || p.clientId || '',
+    client_id: p.client_id || p.clientId || '',
+    category: p.category || 'Designing',
+    status: p.status || 'Planning',
+    budget: p.budget !== undefined ? (parseFloat(p.budget) || 0) : 0,
+    deadline: p.deadline || '',
+    productId: p.product_id || p.productId || '',
+    product_id: p.product_id || p.productId || '',
+    contentCalendar: Array.isArray(p.content_calendar) ? p.content_calendar : (Array.isArray(p.contentCalendar) ? p.contentCalendar : [])
+  });
+
   const refreshApiData = async () => {
     try {
       const headers = getAuthHeaders();
@@ -586,7 +606,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -602,10 +622,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/permissions`),
         fetchWithAuth(`${API_BASE_URL}/products`),
         fetchWithAuth(`${API_BASE_URL}/field-duties`),
+        fetchWithAuth(`${API_BASE_URL}/projects`),
       ]);
 
+      let fetchedProjects: any[] = [];
+      if (projRes.status === 'fulfilled' && Array.isArray(projRes.value)) {
+        fetchedProjects = projRes.value.map(normalizeProject);
+        setProjects(fetchedProjects);
+      }
+
       if (clientsRes.status === 'fulfilled' && Array.isArray(clientsRes.value)) {
-        setClients(clientsRes.value.map(normalizeClient));
+        const normalizedClients = clientsRes.value.map((c: any) => {
+          const norm = normalizeClient(c);
+          const clientProjs = fetchedProjects.filter((p: any) => p.clientId === norm.id);
+          return {
+            ...norm,
+            projects: clientProjs.length > 0 ? clientProjs : (norm.projects || [])
+          };
+        });
+        setClients(normalizedClients);
       }
       if (jobsRes.status === 'fulfilled' && Array.isArray(jobsRes.value)) {
         const normalized = jobsRes.value.map(normalizeJob);
@@ -1282,41 +1317,132 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const addProject = async (clientId: string, projectData: any) => {
-    const client = clients.find(c => c.id === clientId);
-    if (client) {
-      const newProjects = [...(client.projects || []), { ...projectData }];
-      await updateClient(clientId, { projects: newProjects });
-    } else {
-      setClients((prevClients) => prevClients.map(c => {
+    const payload = {
+      id: projectData.id || `proj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: projectData.name || projectData.title || 'Untitled Project',
+      title: projectData.name || projectData.title || 'Untitled Project',
+      clientId: clientId,
+      client_id: clientId,
+      category: projectData.category || 'Designing',
+      status: projectData.status || 'Planning',
+      budget: parseFloat(projectData.budget) || 0,
+      deadline: projectData.deadline || null,
+      productId: projectData.productId || null,
+      product_id: projectData.productId || null,
+      contentCalendar: projectData.contentCalendar || []
+    };
+
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/projects`, { method: 'POST', body: JSON.stringify(payload) });
+      const norm = normalizeProject(data);
+      setProjects(prev => [norm, ...prev.filter(p => p.id !== norm.id)]);
+      setClients(prev => prev.map(c => {
         if (c.id === clientId) {
-          const newProjects = [...(c.projects || []), { ...projectData }];
-          return { ...c, projects: newProjects };
+          const filtered = (c.projects || []).filter((p: any) => p.id !== norm.id && p.name !== norm.name);
+          return { ...c, projects: [norm, ...filtered] };
         }
         return c;
       }));
+      return norm;
+    } catch {
+      const norm = normalizeProject(payload);
+      setProjects(prev => [norm, ...prev.filter(p => p.id !== norm.id)]);
+      setClients(prev => prev.map(c => {
+        if (c.id === clientId) {
+          const filtered = (c.projects || []).filter((p: any) => p.id !== norm.id && p.name !== norm.name);
+          return { ...c, projects: [norm, ...filtered] };
+        }
+        return c;
+      }));
+      return norm;
     }
   };
 
-  const updateProject = async (clientId: string, projectIndex: number, projectData: any) => {
+  const updateProject = async (clientId: string, projectIndexOrId: any, projectData: any) => {
     const client = clients.find(c => c.id === clientId);
-    if (client) {
-      const newProjects = [...(client.projects || [])];
-      if (projectIndex >= 0 && projectIndex < newProjects.length) {
-        newProjects[projectIndex] = { ...projectData };
-        await updateClient(clientId, { projects: newProjects });
+    let targetProject: any = null;
+    let projIdx = -1;
+
+    if (typeof projectIndexOrId === 'number' && client && client.projects) {
+      projIdx = projectIndexOrId;
+      targetProject = client.projects[projIdx];
+    } else if (typeof projectIndexOrId === 'string') {
+      targetProject = projects.find(p => p.id === projectIndexOrId) || (client?.projects || []).find((p: any) => p.id === projectIndexOrId || p.name === projectIndexOrId);
+    }
+
+    const projectId = targetProject?.id || (typeof projectIndexOrId === 'string' ? projectIndexOrId : null);
+
+    const payload = {
+      ...projectData,
+      clientId: clientId,
+      client_id: clientId,
+      name: projectData.name || projectData.title || targetProject?.name,
+      title: projectData.name || projectData.title || targetProject?.title,
+      category: projectData.category || targetProject?.category || 'Designing',
+      status: projectData.status || targetProject?.status || 'Planning',
+      budget: projectData.budget !== undefined ? (parseFloat(projectData.budget) || 0) : targetProject?.budget,
+      deadline: projectData.deadline !== undefined ? projectData.deadline : targetProject?.deadline,
+      contentCalendar: projectData.contentCalendar !== undefined ? projectData.contentCalendar : targetProject?.contentCalendar
+    };
+
+    if (projectId) {
+      try {
+        const data = await apiFetch(`${API_BASE_URL}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        const norm = normalizeProject(data);
+        setProjects(prev => prev.map(p => p.id === projectId ? norm : p));
+        setClients(prev => prev.map(c => {
+          if (c.id === clientId) {
+            const updated = (c.projects || []).map((p: any, idx: number) => {
+              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) return norm;
+              return p;
+            });
+            return { ...c, projects: updated };
+          }
+          return c;
+        }));
+        return norm;
+      } catch {
+        const norm = normalizeProject({ ...targetProject, ...payload, id: projectId });
+        setProjects(prev => prev.map(p => p.id === projectId ? norm : p));
+        setClients(prev => prev.map(c => {
+          if (c.id === clientId) {
+            const updated = (c.projects || []).map((p: any, idx: number) => {
+              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) return norm;
+              return p;
+            });
+            return { ...c, projects: updated };
+          }
+          return c;
+        }));
+        return norm;
       }
     } else {
-      setClients((prevClients) => prevClients.map(c => {
+      const norm = normalizeProject({ ...projectData, clientId });
+      setClients(prev => prev.map(c => {
         if (c.id === clientId) {
-          const newProjects = [...(c.projects || [])];
-          if (projectIndex >= 0 && projectIndex < newProjects.length) {
-            newProjects[projectIndex] = { ...projectData };
+          const updated = [...(c.projects || [])];
+          if (projIdx >= 0 && projIdx < updated.length) {
+            updated[projIdx] = norm;
+          } else {
+            updated.push(norm);
           }
-          return { ...c, projects: newProjects };
+          return { ...c, projects: updated };
         }
         return c;
       }));
+      return norm;
     }
+  };
+
+  const deleteProject = async (id: string) => {
+    try {
+      await apiFetch(`${API_BASE_URL}/projects/${id}`, { method: 'DELETE' });
+    } catch {}
+    setProjects(prev => prev.filter(p => p.id !== id));
+    setClients(prev => prev.map(c => ({
+      ...c,
+      projects: (c.projects || []).filter((p: any) => p.id !== id)
+    })));
   };
 
   const updateDailyRating = (userName: string, date: string, rating: number) => {
@@ -1424,8 +1550,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
       leaveBalances, setLeaveBalances,
       convertLeadToClient,
+      projects,
+      setProjects,
       addProject,
       updateProject,
+      deleteProject,
       activeFilterIntent,
       setActiveFilterIntent,
       isPunchedIn,
