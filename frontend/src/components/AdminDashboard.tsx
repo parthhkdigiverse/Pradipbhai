@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   Briefcase, 
@@ -52,54 +52,10 @@ function DetailedMetricCard({ title, value, icon: Icon, colorClass, bgClass, sub
 }
 
 export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: string) => void }) {
-  const { clients, jobs, invoices, leads, workLogs, staff, setActiveFilterIntent, currentUserRole } = useData();
+  const { clients, jobs, invoices, leads, workLogs, setActiveFilterIntent, currentUserRole } = useData();
 
   const isEmployee = currentUserRole === 'Employee' || (!['Admin', 'Manager'].includes(currentUserRole || ''));
 
-  const [liveNow, setLiveNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setLiveNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const inProgressJobs = useMemo(() => {
-    return jobs.filter(j => j.status === 'Progress' || j.status === 'In Progress');
-  }, [jobs]);
-
-  const getLiveElapsedTime = (job: any) => {
-    const baseTracked = Number(job.trackedTime) || 0;
-    if (job.startedAt) {
-      const startMs = new Date(job.startedAt).getTime();
-      if (!isNaN(startMs)) {
-        return baseTracked + Math.max(0, Math.floor((liveNow - startMs) / 1000));
-      }
-    }
-    if (job.createdAt && job.createdAt.includes('T')) {
-      const createdMs = new Date(job.createdAt).getTime();
-      if (!isNaN(createdMs)) {
-        return baseTracked + Math.max(0, Math.floor((liveNow - createdMs) / 1000));
-      }
-    }
-    return baseTracked;
-  };
-
-  const formatStartTime = (job: any) => {
-    const timeVal = job.startedAt || (job.createdAt && job.createdAt.includes('T') ? job.createdAt : null);
-    if (!timeVal) return '';
-    const d = new Date(timeVal);
-    if (isNaN(d.getTime())) return '';
-    const isToday = new Date().toDateString() === d.toDateString();
-    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-    return isToday ? `Since ${timeStr}` : `Since ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
-  };
-
-  const formatTime = (seconds: number) => {
-    if (!seconds) return '00:00:00';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
 
   const handleCardClick = (page: string, filterKey: string, filterValue: string) => {
     setActiveFilterIntent({ page, filterKey, filterValue });
@@ -324,95 +280,6 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         </div>
       </div>
 
-      {/* 0.5 LIVE ONGOING TASKS & REAL-TIME TRACKING (Admin & Manager) */}
-      {!isEmployee && (
-        <div className="glass-panel bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-400/40 rounded-2xl p-5 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
-              </span>
-              <div>
-                <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
-                  ⚡ Live Ongoing Tasks & Real-Time Counter
-                  <span className="text-xs px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-extrabold shadow-sm">
-                    {inProgressJobs.length} Active
-                  </span>
-                </h2>
-                <p className="text-xs text-gray-500 font-medium mt-0.5">
-                  Live second-by-second time tracking across all designing & printing jobs
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => handleCardClick('jobs', 'status', 'Progress')}
-              className="text-xs font-bold text-emerald-800 bg-white/90 hover:bg-white px-3.5 py-1.5 rounded-xl border border-emerald-300 shadow-sm transition-all cursor-pointer flex items-center gap-1.5 hover:shadow"
-            >
-              Manage in Jobs Page →
-            </button>
-          </div>
-
-          {inProgressJobs.length === 0 ? (
-            <div className="bg-white/60 rounded-xl p-4 text-center text-xs text-gray-500 font-medium border border-gray-200/50">
-              No tasks currently running in progress.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {inProgressJobs.map((job) => {
-                const liveSec = getLiveElapsedTime(job);
-                const sinceStr = formatStartTime(job);
-                const assignedStaff = staff.find(s => s.id === job.teamId)?.name || job.assignedTo || (job.type === 'Printing' ? 'Machine Running (Unassigned)' : 'Unassigned');
-                const clientName = clients.find(c => c.id === job.clientId)?.company || 'Client';
-                const isPrinting = job.type === 'Printing' || (typeof job.title === 'string' && job.title.trim().startsWith('[PRINT]'));
-                const isDesigning = job.type === 'Designing' || (typeof job.title === 'string' && job.title.trim().startsWith('[DESIGN]'));
-                const typeLabel = isPrinting ? 'Printing' : isDesigning ? 'Designing' : (job.type || 'Task');
-
-                return (
-                  <div
-                    key={job.id}
-                    onClick={() => handleCardClick('jobs', 'status', 'Progress')}
-                    className="bg-white/90 hover:bg-white border border-emerald-200 hover:border-emerald-400 rounded-xl p-3.5 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-3 group"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                          isPrinting ? 'bg-purple-100 text-purple-700' : isDesigning ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'
-                        }`}>
-                          {typeLabel}
-                        </span>
-                        <span className="text-[10px] text-gray-400 font-mono">
-                          {job.id ? job.id.slice(0, 8) : ''}
-                        </span>
-                      </div>
-                      <h4 className="text-sm font-bold text-gray-900 truncate group-hover:text-primary transition-colors" title={job.title}>
-                        {job.title}
-                      </h4>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {clientName} • <span className="font-semibold text-gray-700">{assignedStaff}</span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
-                      <div className="flex items-center gap-1.5 font-mono text-sm font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                        <Clock className="w-3.5 h-3.5 text-emerald-600 animate-spin" style={{ animationDuration: '6s' }} />
-                        <span>{formatTime(liveSec)}</span>
-                      </div>
-                      {sinceStr ? (
-                        <div className="text-[11px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded">
-                          {sinceStr}
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-gray-400 font-medium">Just started</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* 1. Financial Overview */}
       {!isEmployee && (

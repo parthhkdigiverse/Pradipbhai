@@ -198,25 +198,21 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'projects') && (
                     <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Projects
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'jobs') && (
                     <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Jobs
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'catalog') && (
                     <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Product
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'vendors') && (
                     <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Vendors
                     </button>
                   )}
@@ -248,43 +244,36 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'staff') && (
                     <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Staff
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'attendance') && (
                     <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Attendance
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'worklogs') && (
                     <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Work Logs
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'daily-progress') && (
                     <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Daily Progress
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'payroll') && (
                     <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Payroll
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'leaves') && (
                     <button onClick={() => setCurrentPage('leaves')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leaves' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Leaves
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'holidays') && (
                     <button onClick={() => setCurrentPage('holidays')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'holidays' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Holidays
                     </button>
                   )}
@@ -316,13 +305,11 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'clients') && (
                     <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Clients
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'leads') && (
                     <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                       Leads
                     </button>
                   )}
@@ -361,7 +348,6 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.finance ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                     Invoices
                   </button>
                 </div>
@@ -406,11 +392,9 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.security ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   <button onClick={() => setCurrentPage('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                     Roles & Permissions
                   </button>
                   <button onClick={() => setCurrentPage('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-px bg-gray-400"></span>
                     Restrictions
                   </button>
                 </div>
