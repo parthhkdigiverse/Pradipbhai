@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
@@ -64,10 +64,31 @@ export function JobsPage() {
 
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'jobs') {
-      const { filterKey, filterValue } = activeFilterIntent;
-      if (filterKey === 'status') setFilterStatus(filterValue);
-      if (filterKey === 'billing') setFilterBilling(filterValue);
-      if (filterKey === 'type') setFilterType(filterValue);
+      if (activeFilterIntent.filters) {
+        const { status, type, billing, client, staff, product, searchTerm: sTerm, dateFrom, dateTo } = activeFilterIntent.filters;
+        
+        setFilterStatus(status !== undefined ? status : 'All');
+        setFilterType(type !== undefined ? type : 'All');
+        setFilterBilling(billing !== undefined ? billing : 'All');
+        setFilterClient(client !== undefined ? client : 'All');
+        setFilterStaff(staff !== undefined ? staff : 'All');
+        setFilterProduct(product !== undefined ? product : 'All');
+        setSearchTerm(sTerm !== undefined ? sTerm : '');
+        setFilterDateFrom(dateFrom !== undefined ? dateFrom : '');
+        setFilterDateTo(dateTo !== undefined ? dateTo : '');
+      } else {
+        const { filterKey, filterValue } = activeFilterIntent;
+        if (filterKey === 'status' && filterValue) {
+          setFilterStatus(filterValue);
+          setFilterType('All');
+        } else if (filterKey === 'billing' && filterValue) {
+          setFilterBilling(filterValue);
+          setFilterStatus('All');
+        } else if (filterKey === 'type' && filterValue) {
+          setFilterType(filterValue);
+          setFilterStatus('All');
+        }
+      }
       
       setActiveFilterIntent(null);
     }
@@ -246,12 +267,20 @@ export function JobsPage() {
       const matchStatus = filterStatus === 'All' || 
         job.status === filterStatus || 
         ((filterStatus === 'Progress' || filterStatus === 'In Progress') && (job.status === 'Progress' || job.status === 'In Progress')) ||
-        ((filterStatus === 'Completed' || filterStatus === 'Done') && (job.status === 'Completed' || job.status === 'Done'));
+        ((filterStatus === 'Completed' || filterStatus === 'Done') && (job.status === 'Completed' || job.status === 'Done')) ||
+        ((filterStatus === 'Hold' || filterStatus === 'On Hold') && (job.status === 'Hold' || job.status === 'On Hold'));
       const matchClient = filterClient === 'All' || job.clientId === filterClient;
-      const matchStaff = filterStaff === 'All' || job.teamId === filterStaff;
+      const matchStaff = filterStaff === 'All' || 
+        (filterStaff === 'Unassigned' ? (!job.teamId && !job.assignedStaffId) : job.teamId === filterStaff);
       const matchProduct = filterProduct === 'All' || job.productId === filterProduct;
       const matchBilling = filterBilling === 'All' || job.paymentStatus === filterBilling;
-      const matchType = filterType === 'All' || job.type === filterType;
+      const matchType = filterType === 'All' || 
+        (filterType === 'Printing' && isPrintingJob(job)) ||
+        (filterType === 'Designing' && isDesigningJob(job)) ||
+        (filterType === 'Des+Print' && job.type === 'Des+Print') ||
+        (filterType === 'Only Printing' && job.type === 'Printing') ||
+        (filterType === 'Only Designing' && job.type === 'Designing') ||
+        job.type === filterType;
       
       const matchDateFrom = !filterDateFrom || (job.dueDate && new Date(job.dueDate) >= new Date(filterDateFrom));
       const matchDateTo = !filterDateTo || (job.dueDate && new Date(job.dueDate) <= new Date(filterDateTo));
@@ -275,7 +304,16 @@ export function JobsPage() {
         if (!isAssigned) return false;
         if (job.status === 'Awaiting Design') return false;
       }
-      return true;
+
+      const matchType = filterType === 'All' || 
+        (filterType === 'Printing' && isPrintingJob(job)) ||
+        (filterType === 'Designing' && isDesigningJob(job)) ||
+        (filterType === 'Des+Print' && job.type === 'Des+Print') ||
+        (filterType === 'Only Printing' && job.type === 'Printing') ||
+        (filterType === 'Only Designing' && job.type === 'Designing') ||
+        job.type === filterType;
+
+      return matchType;
     });
 
     return {
@@ -283,9 +321,10 @@ export function JobsPage() {
       Pending: baseJobs.filter(j => j.status === 'Pending').length,
       Progress: baseJobs.filter(j => j.status === 'Progress' || j.status === 'In Progress').length,
       'Under Review': baseJobs.filter(j => j.status === 'Under Review').length,
+      Hold: baseJobs.filter(j => j.status === 'Hold' || j.status === 'On Hold').length,
       Completed: baseJobs.filter(j => j.status === 'Completed' || j.status === 'Done').length,
     };
-  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser]);
+  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, filterType]);
 
   const handleOpenModal = (jobType: 'Designing' | 'Printing' | 'Des+Print', jobId: string | null = null) => {
     setNewJobType(jobType);
@@ -988,17 +1027,53 @@ export function JobsPage() {
           })}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold pr-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 font-semibold pr-2">
           <span>Active Filter:</span>
           <span className="px-2.5 py-1 bg-gray-100 text-gray-800 rounded-lg font-bold">
             {filterStatus === 'Progress' ? 'In Progress' : filterStatus}
           </span>
-          {filterStatus !== 'All' && (
+          {filterType !== 'All' && (
+            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-lg font-bold flex items-center gap-1">
+              Type: {filterType}
+              <button
+                onClick={() => setFilterType('All')}
+                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                title="Clear type filter"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+          {filterBilling !== 'All' && (
+            <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200/60 rounded-lg font-bold flex items-center gap-1">
+              Billing: {filterBilling}
+              <button
+                onClick={() => setFilterBilling('All')}
+                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                title="Clear billing filter"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+          {filterStaff === 'Unassigned' && (
+            <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200/60 rounded-lg font-bold flex items-center gap-1">
+              Unassigned
+              <button
+                onClick={() => setFilterStaff('All')}
+                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                title="Clear staff filter"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+          {(filterStatus !== 'All' || filterType !== 'All' || filterBilling !== 'All' || filterStaff !== 'All' || searchTerm !== '' || filterClient !== 'All' || filterProduct !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
             <button
-              onClick={() => setFilterStatus('All')}
+              onClick={resetFilters}
               className="text-xs text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer ml-1"
             >
-              Reset
+              Reset All
             </button>
           )}
         </div>
@@ -1043,6 +1118,7 @@ export function JobsPage() {
                 { value: 'Pending', label: 'Pending' },
                 { value: 'Progress', label: 'In Progress' },
                 { value: 'Under Review', label: 'Under Review 🔍' },
+                { value: 'Hold', label: 'Hold ⏸' },
                 { value: 'Completed', label: 'Completed' },
                 { value: 'Cancel', label: 'Cancel' }
               ]}
@@ -1066,6 +1142,7 @@ export function JobsPage() {
               onChange={setFilterStaff}
               options={[
                 { value: 'All', label: 'All Staffs' },
+                { value: 'Unassigned', label: 'Unassigned Tasks' },
                 ...staff.map(s => ({ value: s.id, label: s.name }))
               ]}
             />
@@ -1104,7 +1181,9 @@ export function JobsPage() {
                 { value: 'All', label: 'All Types' },
                 { value: 'Designing', label: 'Designing' },
                 { value: 'Printing', label: 'Printing' },
-                { value: 'Des+Print', label: 'Des+Print' }
+                { value: 'Des+Print', label: 'Des+Print' },
+                { value: 'Only Designing', label: 'Designing Only' },
+                { value: 'Only Printing', label: 'Printing Only' }
               ]}
             />
           </div>

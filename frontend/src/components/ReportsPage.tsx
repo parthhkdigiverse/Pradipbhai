@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 
@@ -102,7 +102,11 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
       const matchStaff = jobFilterStaff === 'All' || job.teamId === jobFilterStaff;
       const matchProduct = jobFilterProduct === 'All' || job.productId === jobFilterProduct;
       const matchBilling = jobFilterBilling === 'All' || job.paymentStatus === jobFilterBilling;
-      const matchType = jobFilterType === 'All' || job.type === jobFilterType;
+      const matchType = jobFilterType === 'All' || 
+        (jobFilterType === 'Printing' && isPrintingJob(job)) ||
+        (jobFilterType === 'Designing' && isDesigningJob(job)) ||
+        (jobFilterType === 'Des+Print' && job.type === 'Des+Print') ||
+        job.type === jobFilterType;
       
       return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType;
     });

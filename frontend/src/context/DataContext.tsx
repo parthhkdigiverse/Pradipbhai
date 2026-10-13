@@ -68,6 +68,48 @@ export interface DailyRecord {
   verified_by?: string;
 }
 
+export interface ActiveFilterIntent {
+  page: string;
+  filterKey?: string;
+  filterValue?: string;
+  filters?: {
+    status?: string;
+    type?: string;
+    billing?: string;
+    client?: string;
+    staff?: string;
+    product?: string;
+    searchTerm?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    [key: string]: any;
+  };
+  jobId?: string;
+}
+
+export const isDesigningJob = (job: any): boolean => {
+  if (!job) return false;
+  const title = (job.title || '').trim();
+  const id = (job.id || '').trim();
+  if (title.toUpperCase().startsWith('[PRINT]') || id.endsWith('-p') || job.type === 'Printing') return false;
+
+  if (job.type === 'Designing') return true;
+  if (title.toUpperCase().startsWith('[DESIGN]') || id.endsWith('-d')) return true;
+  if (job.type === 'Des+Print') return true;
+  return false;
+};
+
+export const isPrintingJob = (job: any): boolean => {
+  if (!job) return false;
+  const title = (job.title || '').trim();
+  const id = (job.id || '').trim();
+  if (title.toUpperCase().startsWith('[DESIGN]') || id.endsWith('-d') || job.type === 'Designing') return false;
+
+  if (job.type === 'Printing') return true;
+  if (title.toUpperCase().startsWith('[PRINT]') || id.endsWith('-p')) return true;
+  return false;
+};
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
@@ -148,8 +190,8 @@ interface DataContextType {
   updateProject: (clientId: string, projectIndexOrId: any, projectData: any) => Promise<any> | void;
   deleteProject: (id: string) => Promise<void>;
   
-  activeFilterIntent: { page: string, filterKey: string, filterValue: string, jobId?: string } | null;
-  setActiveFilterIntent: React.Dispatch<React.SetStateAction<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>>;
+  activeFilterIntent: ActiveFilterIntent | null;
+  setActiveFilterIntent: React.Dispatch<React.SetStateAction<ActiveFilterIntent | null>>;
   
   isPunchedIn: boolean;
   setIsPunchedIn: React.Dispatch<React.SetStateAction<boolean>>;
@@ -396,7 +438,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return role === 'Admin';
   };
 
-  const [activeFilterIntent, setActiveFilterIntent] = useState<{ page: string, filterKey: string, filterValue: string, jobId?: string } | null>(null);
+  const [activeFilterIntent, setActiveFilterIntent] = useState<ActiveFilterIntent | null>(null);
 
   const [leads, setLeads] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);

@@ -41,10 +41,10 @@ export function InvoicesPage() {
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
       const { filterKey, filterValue, jobId } = activeFilterIntent;
-      if (filterKey === 'status') {
+      if (filterKey === 'status' && filterValue) {
         setFilterStatus(filterValue);
       } else if (filterKey === 'openJobInvoice') {
-        const targetJobId = jobId || filterValue;
+        const targetJobId = jobId || filterValue || '';
         const matchedInvoice = (invoices || []).find(inv => inv && inv.jobIds && inv.jobIds.includes(targetJobId));
         if (matchedInvoice) {
           setSelectedPreviewInvoice(matchedInvoice);

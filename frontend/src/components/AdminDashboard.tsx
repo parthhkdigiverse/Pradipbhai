@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useData } from '../context/DataContext';
+import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { 
   Briefcase, 
   Clock, 
@@ -57,8 +57,16 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
   const isEmployee = currentUserRole === 'Employee' || (!['Admin', 'Manager'].includes(currentUserRole || ''));
 
 
-  const handleCardClick = (page: string, filterKey: string, filterValue: string) => {
-    setActiveFilterIntent({ page, filterKey, filterValue });
+  const handleCardClick = (
+    page: string,
+    filterKeyOrFilters: string | { [key: string]: any },
+    filterValue?: string
+  ) => {
+    if (typeof filterKeyOrFilters === 'string') {
+      setActiveFilterIntent({ page, filterKey: filterKeyOrFilters, filterValue: filterValue || '' });
+    } else {
+      setActiveFilterIntent({ page, filters: filterKeyOrFilters });
+    }
     setCurrentPage(page);
   };
 
@@ -143,9 +151,9 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
     jobs.forEach(j => {
       // Status
       if (j.status === 'Pending') summary.pending++;
-      else if (j.status === 'Progress') summary.progress++;
-      else if (j.status === 'Hold') summary.hold++;
-      else if (j.status === 'Completed') summary.completed++;
+      else if (j.status === 'Progress' || j.status === 'In Progress') summary.progress++;
+      else if (j.status === 'Hold' || j.status === 'On Hold') summary.hold++;
+      else if (j.status === 'Completed' || j.status === 'Done') summary.completed++;
 
       // Due Dates
       if (j.dueDate) {
@@ -165,26 +173,26 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
 
   // Printing Jobs
   const printingSummary = useMemo(() => {
-    const pJobs = jobs.filter(j => j.type === 'Printing' || j.type === 'Des+Print');
+    const pJobs = jobs.filter(isPrintingJob);
     const s = { total: pJobs.length, pending: 0, progress: 0, hold: 0, completed: 0 };
     pJobs.forEach(j => {
       if (j.status === 'Pending') s.pending++;
-      else if (j.status === 'Progress') s.progress++;
-      else if (j.status === 'Hold') s.hold++;
-      else if (j.status === 'Completed') s.completed++;
+      else if (j.status === 'Progress' || j.status === 'In Progress') s.progress++;
+      else if (j.status === 'Hold' || j.status === 'On Hold') s.hold++;
+      else if (j.status === 'Completed' || j.status === 'Done') s.completed++;
     });
     return s;
   }, [jobs]);
 
   // Designing Jobs
   const designingSummary = useMemo(() => {
-    const dJobs = jobs.filter(j => j.type === 'Designing' || j.type === 'Des+Print');
+    const dJobs = jobs.filter(isDesigningJob);
     const s = { total: dJobs.length, pending: 0, progress: 0, hold: 0, completed: 0 };
     dJobs.forEach(j => {
       if (j.status === 'Pending') s.pending++;
-      else if (j.status === 'Progress') s.progress++;
-      else if (j.status === 'Hold') s.hold++;
-      else if (j.status === 'Completed') s.completed++;
+      else if (j.status === 'Progress' || j.status === 'In Progress') s.progress++;
+      else if (j.status === 'Hold' || j.status === 'On Hold') s.hold++;
+      else if (j.status === 'Completed' || j.status === 'Done') s.completed++;
     });
     return s;
   }, [jobs]);
@@ -238,7 +246,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <button
-            onClick={() => handleCardClick('jobs', 'status', 'All')}
+            onClick={() => handleCardClick('jobs', { staff: 'Unassigned', status: 'All', type: 'All' })}
             className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-500 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
           >
             <div className="w-4 h-4 rounded-full bg-rose-500 shadow-inner shrink-0"></div>
@@ -248,7 +256,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
             </div>
           </button>
           <button
-            onClick={() => handleCardClick('jobs', 'status', 'Progress')}
+            onClick={() => handleCardClick('jobs', { status: 'Progress', type: 'All' })}
             className="bg-white/60 backdrop-blur-xl border-l-4 border-l-amber-400 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
           >
             <div className="w-4 h-4 rounded-full bg-amber-400 shadow-inner shrink-0"></div>
@@ -258,7 +266,7 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
             </div>
           </button>
           <button
-            onClick={() => handleCardClick('jobs', 'status', 'Pending')}
+            onClick={() => handleCardClick('jobs', { status: 'Pending', type: 'All' })}
             className="bg-white/60 backdrop-blur-xl border-l-4 border-l-rose-600 border-y border-r border-gray-200 rounded-xl p-4 flex items-center gap-3 shadow-sm cursor-pointer hover:-translate-y-1 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-200 text-left"
           >
             <div className="w-4 h-4 rounded-full bg-rose-600 shadow-inner shrink-0"></div>
@@ -297,17 +305,25 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div>
         <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Overall Job Summary</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          <DetailedMetricCard title="Total Jobs" value={overallSummary.total} icon={Briefcase} bgClass="bg-indigo-100" colorClass="text-indigo-600" onClick={() => handleCardClick('jobs', 'status', 'All')} />
-          <DetailedMetricCard title="Pending" value={overallSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
-          <DetailedMetricCard title="Progress" value={overallSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
-          <DetailedMetricCard title="Hold" value={overallSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
-          <DetailedMetricCard title="Completed" value={overallSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+          <DetailedMetricCard title="Total Jobs" value={overallSummary.total} icon={Briefcase} bgClass="bg-indigo-100" colorClass="text-indigo-600" onClick={() => handleCardClick('jobs', { status: 'All', type: 'All' })} />
+          <DetailedMetricCard title="Pending" value={overallSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', { status: 'Pending', type: 'All' })} />
+          <DetailedMetricCard title="Progress" value={overallSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', { status: 'Progress', type: 'All' })} />
+          <DetailedMetricCard title="Hold" value={overallSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', { status: 'Hold', type: 'All' })} />
+          <DetailedMetricCard title="Completed" value={overallSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', { status: 'Completed', type: 'All' })} />
           
-          <DetailedMetricCard title="Due Today" value={overallSummary.dueToday} icon={CalendarDays} bgClass="bg-purple-100" colorClass="text-purple-600" />
-          <DetailedMetricCard title="Due This Week" value={overallSummary.dueThisWeek} icon={CalendarRange} bgClass="bg-purple-100" colorClass="text-purple-600" />
-          <DetailedMetricCard title="Paid" value={overallSummary.paid} icon={IndianRupee} bgClass="bg-teal-100" colorClass="text-teal-600" onClick={() => handleCardClick('jobs', 'billing', 'Paid')} />
-          <DetailedMetricCard title="Partial Paid" value={overallSummary.partialPaid} icon={Wallet} bgClass="bg-amber-100" colorClass="text-amber-600" onClick={() => handleCardClick('jobs', 'billing', 'Partial')} />
-          <DetailedMetricCard title="Unpaid" value={overallSummary.unpaid} icon={AlertCircle} bgClass="bg-rose-100" colorClass="text-rose-600" onClick={() => handleCardClick('jobs', 'billing', 'Unpaid')} />
+          <DetailedMetricCard title="Due Today" value={overallSummary.dueToday} icon={CalendarDays} bgClass="bg-purple-100" colorClass="text-purple-600" onClick={() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            handleCardClick('jobs', { dateFrom: todayStr, dateTo: todayStr, status: 'All', type: 'All' });
+          }} />
+          <DetailedMetricCard title="Due This Week" value={overallSummary.dueThisWeek} icon={CalendarRange} bgClass="bg-purple-100" colorClass="text-purple-600" onClick={() => {
+            const today = new Date();
+            const nextWeek = new Date(today);
+            nextWeek.setDate(today.getDate() + 7);
+            handleCardClick('jobs', { dateFrom: today.toISOString().split('T')[0], dateTo: nextWeek.toISOString().split('T')[0], status: 'All', type: 'All' });
+          }} />
+          <DetailedMetricCard title="Paid" value={overallSummary.paid} icon={IndianRupee} bgClass="bg-teal-100" colorClass="text-teal-600" onClick={() => handleCardClick('jobs', { billing: 'Paid', status: 'All', type: 'All' })} />
+          <DetailedMetricCard title="Partial Paid" value={overallSummary.partialPaid} icon={Wallet} bgClass="bg-amber-100" colorClass="text-amber-600" onClick={() => handleCardClick('jobs', { billing: 'Partial', status: 'All', type: 'All' })} />
+          <DetailedMetricCard title="Unpaid" value={overallSummary.unpaid} icon={AlertCircle} bgClass="bg-rose-100" colorClass="text-rose-600" onClick={() => handleCardClick('jobs', { billing: 'Unpaid', status: 'All', type: 'All' })} />
         </div>
       </div>
 
@@ -316,11 +332,11 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         <div>
           <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Printing Jobs Status Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-primary/10" colorClass="text-primary" onClick={() => handleCardClick('jobs', 'type', 'Printing')} />
-            <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
-            <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
-            <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
-            <DetailedMetricCard title="Completed" value={printingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+            <DetailedMetricCard title="Total Printing" value={printingSummary.total} icon={Printer} bgClass="bg-primary/10" colorClass="text-primary" onClick={() => handleCardClick('jobs', { type: 'Printing', status: 'All' })} />
+            <DetailedMetricCard title="Pending" value={printingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', { type: 'Printing', status: 'Pending' })} />
+            <DetailedMetricCard title="Progress" value={printingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', { type: 'Printing', status: 'Progress' })} />
+            <DetailedMetricCard title="Hold" value={printingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', { type: 'Printing', status: 'Hold' })} />
+            <DetailedMetricCard title="Completed" value={printingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', { type: 'Printing', status: 'Completed' })} />
           </div>
         </div>
       )}
@@ -329,11 +345,11 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
       <div>
         <h2 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Designing Jobs Status Overview</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <DetailedMetricCard title="Total Designing" value={designingSummary.total} icon={PenTool} bgClass="bg-fuchsia-100" colorClass="text-fuchsia-600" onClick={() => handleCardClick('jobs', 'type', 'Designing')} />
-          <DetailedMetricCard title="Pending" value={designingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', 'status', 'Pending')} />
-          <DetailedMetricCard title="Progress" value={designingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', 'status', 'Progress')} />
-          <DetailedMetricCard title="Hold" value={designingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', 'status', 'Hold')} />
-          <DetailedMetricCard title="Completed" value={designingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', 'status', 'Completed')} />
+          <DetailedMetricCard title="Total Designing" value={designingSummary.total} icon={PenTool} bgClass="bg-fuchsia-100" colorClass="text-fuchsia-600" onClick={() => handleCardClick('jobs', { type: 'Designing', status: 'All' })} />
+          <DetailedMetricCard title="Pending" value={designingSummary.pending} icon={Clock} bgClass="bg-slate-100" colorClass="text-slate-600" onClick={() => handleCardClick('jobs', { type: 'Designing', status: 'Pending' })} />
+          <DetailedMetricCard title="Progress" value={designingSummary.progress} icon={RefreshCcw} bgClass="bg-orange-100" colorClass="text-orange-600" onClick={() => handleCardClick('jobs', { type: 'Designing', status: 'Progress' })} />
+          <DetailedMetricCard title="Hold" value={designingSummary.hold} icon={PauseCircle} bgClass="bg-yellow-100" colorClass="text-yellow-600" onClick={() => handleCardClick('jobs', { type: 'Designing', status: 'Hold' })} />
+          <DetailedMetricCard title="Completed" value={designingSummary.completed} icon={CheckCircle2} bgClass="bg-emerald-100" colorClass="text-emerald-600" onClick={() => handleCardClick('jobs', { type: 'Designing', status: 'Completed' })} />
         </div>
       </div>
 
