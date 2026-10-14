@@ -7,7 +7,7 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function SocialMediaPage() {
   const { dateFormat } = useSettings();
-  const { clients, updateProject, addProject, currentUserRole, hasPermission } = useData();
+  const { clients, projects, updateProject, addProject, currentUserRole, hasPermission } = useData();
   const canManageSM = hasPermission(currentUserRole, 'Manage Social Posts');
   
   // Add SM Project Modal State
@@ -34,25 +34,48 @@ export function SocialMediaPage() {
   
   // Extract Social Media projects
   const smProjects = useMemo(() => {
-    const projects: any[] = [];
+    const list: any[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Collect from standalone projects state
+    (projects || []).forEach((proj: any) => {
+      if (proj.category === 'Social Media' && proj.id && !seenIds.has(proj.id)) {
+        seenIds.add(proj.id);
+        const cId = proj.clientId || proj.client_id;
+        const client = clients.find(c => c.id === cId);
+        list.push({
+          ...proj,
+          clientId: cId || client?.id || '',
+          clientName: client?.company || client?.name || 'Unknown Client',
+          clientContact: client?.contact || '',
+          originalProjectIndex: (client?.projects || []).findIndex((p: any) => p.id === proj.id),
+          contentCalendar: Array.isArray(proj.contentCalendar) ? proj.contentCalendar : (Array.isArray(proj.content_calendar) ? proj.content_calendar : [])
+        });
+      }
+    });
+
+    // 2. Also check client.projects
     clients.forEach(client => {
       if (client.projects && client.projects.length > 0) {
         client.projects.forEach((proj: any, idx: number) => {
           if (proj.category === 'Social Media') {
-            projects.push({
+            const pid = proj.id;
+            if (pid && seenIds.has(pid)) return;
+            if (pid) seenIds.add(pid);
+            list.push({
               ...proj,
               clientId: client.id,
-              clientName: client.company,
-              clientContact: client.contact,
+              clientName: client.company || client.name || '',
+              clientContact: client.contact || '',
               originalProjectIndex: idx,
-              contentCalendar: proj.contentCalendar || [] // Array of { id, title, type, status, date }
+              contentCalendar: Array.isArray(proj.contentCalendar) ? proj.contentCalendar : (Array.isArray(proj.content_calendar) ? proj.content_calendar : [])
             });
           }
         });
       }
     });
-    return projects;
-  }, [clients]);
+    return list;
+  }, [clients, projects]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClient, setFilterClient] = useState('All');
@@ -132,7 +155,7 @@ export function SocialMediaPage() {
     // Remove the extra fields we injected before saving to global state
     const { clientId, clientName, clientContact, originalProjectIndex, ...pureProjectData } = updatedProjectData;
     
-    updateProject(activeProject.clientId, activeProject.originalProjectIndex, pureProjectData);
+    updateProject(activeProject.clientId, activeProject.id || activeProject.originalProjectIndex, { ...pureProjectData, id: activeProject.id });
     
     // Update local active project state to reflect instantly in the modal
     setActiveProject(updatedProjectData);
@@ -148,7 +171,7 @@ export function SocialMediaPage() {
     const updatedProjectData = { ...activeProject, contentCalendar: updatedCalendar };
     
     const { clientId, clientName, clientContact, originalProjectIndex, ...pureProjectData } = updatedProjectData;
-    updateProject(activeProject.clientId, activeProject.originalProjectIndex, pureProjectData);
+    updateProject(activeProject.clientId, activeProject.id || activeProject.originalProjectIndex, { ...pureProjectData, id: activeProject.id });
     setActiveProject(updatedProjectData);
   };
 
@@ -178,7 +201,7 @@ export function SocialMediaPage() {
     const updatedProjectData = { ...activeProject, contentCalendar: updatedCalendar };
     const { clientId, clientName, clientContact, originalProjectIndex, ...pureProjectData } = updatedProjectData;
     
-    updateProject(activeProject.clientId, activeProject.originalProjectIndex, pureProjectData);
+    updateProject(activeProject.clientId, activeProject.id || activeProject.originalProjectIndex, { ...pureProjectData, id: activeProject.id });
     setActiveProject(updatedProjectData);
     setIsBulkAddModalOpen(false);
   };
@@ -200,7 +223,7 @@ export function SocialMediaPage() {
     const updatedProjectData = { ...activeProject, contentCalendar: updatedCalendar };
     const { clientId, clientName, clientContact, originalProjectIndex, ...pureProjectData } = updatedProjectData;
     
-    updateProject(activeProject.clientId, activeProject.originalProjectIndex, pureProjectData);
+    updateProject(activeProject.clientId, activeProject.id || activeProject.originalProjectIndex, { ...pureProjectData, id: activeProject.id });
     setActiveProject(updatedProjectData);
     setIsBulkAddModalOpen(false);
   };
@@ -507,7 +530,7 @@ export function SocialMediaPage() {
                             );
                             const updatedProjectData = { ...activeProject, contentCalendar: updatedCalendar };
                             const { clientId, clientName, clientContact, originalProjectIndex, ...pureProjectData } = updatedProjectData;
-                            updateProject(activeProject.clientId, activeProject.originalProjectIndex, pureProjectData);
+                            updateProject(activeProject.clientId, activeProject.id || activeProject.originalProjectIndex, { ...pureProjectData, id: activeProject.id });
                             setActiveProject(updatedProjectData);
                             setInlineEdit(null);
                           };

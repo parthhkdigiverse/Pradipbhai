@@ -1412,46 +1412,81 @@ export function DataProvider({ children }: { children: ReactNode }) {
       targetProject = projects.find(p => p.id === projectIndexOrId) || (client?.projects || []).find((p: any) => p.id === projectIndexOrId || p.name === projectIndexOrId);
     }
 
-    const projectId = targetProject?.id || (typeof projectIndexOrId === 'string' ? projectIndexOrId : null);
+    const projectId = projectData?.id || (typeof projectIndexOrId === 'string' ? projectIndexOrId : targetProject?.id) || null;
+    if (!targetProject && projectId) {
+      targetProject = projects.find(p => p.id === projectId) || (client?.projects || []).find((p: any) => p.id === projectId);
+    }
+    if (projIdx === -1 && client?.projects && projectId) {
+      projIdx = client.projects.findIndex((p: any) => p.id === projectId);
+    }
+
+    const resolvedCalendar = projectData.contentCalendar !== undefined 
+      ? projectData.contentCalendar 
+      : (projectData.content_calendar !== undefined 
+          ? projectData.content_calendar 
+          : (targetProject?.contentCalendar || targetProject?.content_calendar || []));
 
     const payload = {
       ...projectData,
-      clientId: clientId,
-      client_id: clientId,
+      id: projectId,
+      clientId: clientId || targetProject?.clientId || targetProject?.client_id,
+      client_id: clientId || targetProject?.clientId || targetProject?.client_id,
       name: projectData.name || projectData.title || targetProject?.name,
       title: projectData.name || projectData.title || targetProject?.title,
       category: projectData.category || targetProject?.category || 'Designing',
       status: projectData.status || targetProject?.status || 'Planning',
       budget: projectData.budget !== undefined ? (parseFloat(projectData.budget) || 0) : targetProject?.budget,
       deadline: projectData.deadline !== undefined ? projectData.deadline : targetProject?.deadline,
-      contentCalendar: projectData.contentCalendar !== undefined ? projectData.contentCalendar : targetProject?.contentCalendar
+      contentCalendar: resolvedCalendar,
+      content_calendar: resolvedCalendar
     };
 
     if (projectId) {
       try {
         const data = await apiFetch(`${API_BASE_URL}/projects/${projectId}`, { method: 'PUT', body: JSON.stringify(payload) });
-        const norm = normalizeProject(data);
-        setProjects(prev => prev.map(p => p.id === projectId ? norm : p));
+        const norm = normalizeProject(data || payload);
+        setProjects(prev => {
+          const exists = prev.some(p => p.id === projectId);
+          return exists ? prev.map(p => p.id === projectId ? norm : p) : [norm, ...prev];
+        });
         setClients(prev => prev.map(c => {
-          if (c.id === clientId) {
+          if (c.id === clientId || c.id === norm.clientId) {
+            let matched = false;
             const updated = (c.projects || []).map((p: any, idx: number) => {
-              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) return norm;
+              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) {
+                matched = true;
+                return norm;
+              }
               return p;
             });
+            if (!matched) {
+              updated.push(norm);
+            }
             return { ...c, projects: updated };
           }
           return c;
         }));
         return norm;
-      } catch {
+      } catch (err) {
+        console.error('Failed to update project via API:', err);
         const norm = normalizeProject({ ...targetProject, ...payload, id: projectId });
-        setProjects(prev => prev.map(p => p.id === projectId ? norm : p));
+        setProjects(prev => {
+          const exists = prev.some(p => p.id === projectId);
+          return exists ? prev.map(p => p.id === projectId ? norm : p) : [norm, ...prev];
+        });
         setClients(prev => prev.map(c => {
-          if (c.id === clientId) {
+          if (c.id === clientId || c.id === norm.clientId) {
+            let matched = false;
             const updated = (c.projects || []).map((p: any, idx: number) => {
-              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) return norm;
+              if (p.id === projectId || (projIdx >= 0 && idx === projIdx)) {
+                matched = true;
+                return norm;
+              }
               return p;
             });
+            if (!matched) {
+              updated.push(norm);
+            }
             return { ...c, projects: updated };
           }
           return c;

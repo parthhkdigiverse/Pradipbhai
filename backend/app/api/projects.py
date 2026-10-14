@@ -67,7 +67,10 @@ async def update_project(project_id: str, project_in: ProjectUpdate, db: AsyncSe
     if project_in.product_id is not None or project_in.productId is not None:
         project.product_id = project_in.product_id or project_in.productId
     if project_in.content_calendar is not None or project_in.contentCalendar is not None:
-        project.content_calendar = project_in.content_calendar if project_in.content_calendar is not None else project_in.contentCalendar
+        cal = project_in.content_calendar if project_in.content_calendar is not None else project_in.contentCalendar
+        project.content_calendar = list(cal) if isinstance(cal, list) else cal
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(project, "content_calendar")
         
     await db.commit()
     await db.refresh(project)
