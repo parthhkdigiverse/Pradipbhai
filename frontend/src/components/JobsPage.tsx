@@ -8,6 +8,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 import { QuickAddProductModal } from './QuickAddProductModal';
 import { JobDetailsModal } from './JobDetailsModal';
+import { SmartDatePicker } from './SmartDatePicker';
 
 export function JobsPage() {
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
@@ -58,6 +59,12 @@ export function JobsPage() {
       const year = parseInt(val.split('-')[0], 10);
       if (isNaN(year) || year < 2000 || year > 2099) {
         alert('Please select a valid deadline year between 2000 and 2099.');
+        setInlineCell(null);
+        return;
+      }
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (val < todayStr) {
+        alert('Deadline cannot be a past date. Please choose today or a future date.');
         setInlineCell(null);
         return;
       }
@@ -408,6 +415,11 @@ export function JobsPage() {
       const year = parseInt(formData.dueDate.split('-')[0], 10);
       if (isNaN(year) || year < 2000 || year > 2099) {
         alert('Please enter a valid deadline year between 2000 and 2099.');
+        return;
+      }
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (formData.dueDate < todayStr) {
+        alert('Deadline cannot be a past date. Please select today or a future date.');
         return;
       }
     }
@@ -1493,7 +1505,7 @@ export function JobsPage() {
                       {inlineCell?.jobId === job.id && inlineCell?.field === 'dueDate' ? (
                         <input 
                           type="date"
-                          min="2020-01-01"
+                          min={new Date().toISOString().split('T')[0]}
                           max="2099-12-31"
                           autoFocus
                           value={inlineValue}
@@ -2023,14 +2035,17 @@ export function JobsPage() {
                   </div>
                 )}
                 <div className={newJobType === 'Designing' ? 'col-span-2' : ''}>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline</label>
-                  <input 
-                    type="date" 
-                    min="2020-01-01"
-                    max="2099-12-31"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Deadline</label>
+                    <span className="text-[10px] text-gray-400 font-medium">Type e.g. <span className="text-primary font-bold">15/10</span> (Year auto-fills)</span>
+                  </div>
+                  <SmartDatePicker 
+                    id="job-deadline-picker"
                     value={formData.dueDate} 
-                    onChange={e => setFormData({...formData, dueDate: e.target.value})} 
-                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                    onChange={val => setFormData({...formData, dueDate: val})} 
+                    placeholder="e.g. 15/10 (Year auto-fills)"
+                    disablePastDates={true}
+                    showShortcuts={true}
                   />
                 </div>
               </div>
