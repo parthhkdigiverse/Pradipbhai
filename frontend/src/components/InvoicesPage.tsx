@@ -1,12 +1,16 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX , ChevronDown, Edit2 } from 'lucide-react';
+import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, FilterX, ChevronDown, Edit2, Eye } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useSettings } from '../context/SettingsContext';
+import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { QuickAddClientModal } from './QuickAddClientModal';
+import { JobDetailsModal } from './JobDetailsModal';
 
 export function InvoicesPage() {
   const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, products, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
+  const { dateFormat } = useSettings();
   const canCreateEditInvoices = hasPermission(currentUserRole, 'Create/Edit Invoices');
   const canDeleteInvoices = hasPermission(currentUserRole, 'Delete Invoices');
   const [searchTerm, setSearchTerm] = useState('');
@@ -14,6 +18,9 @@ export function InvoicesPage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
   const [filterType, setFilterType] = useState('All');
+
+  // View-only job details modal state
+  const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
 
   // Quick Add Client Modal State
   const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
@@ -616,30 +623,67 @@ export function InvoicesPage() {
                     <div className="bg-gray-50/80 px-4 py-2 border-b border-gray-200">
                       <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Select Unpaid Jobs</span>
                     </div>
-                    <div className="p-2 max-h-48 overflow-y-auto bg-white/40">
+                    <div className="p-2 max-h-56 overflow-y-auto bg-white/40">
                       {availableJobs.length > 0 ? (
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {availableJobs.map(job => (
-                            <label key={job.id} className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                              selectedJobIds.includes(job.id) ? 'bg-primary/10 border-primary' : 'bg-white border-transparent hover:bg-gray-50/50'
-                            }`}>
-                              <div className="flex items-center gap-3">
+                            <div 
+                              key={job.id} 
+                              className={`flex items-center justify-between p-2.5 sm:p-3 rounded-xl border transition-all ${
+                                selectedJobIds.includes(job.id) ? 'bg-primary/10 border-primary shadow-xs' : 'bg-white border-gray-200/80 hover:bg-gray-50/80'
+                              }`}
+                            >
+                              {/* Selection checkbox + title */}
+                              <div 
+                                onClick={() => toggleJobSelection(job.id)}
+                                className="flex items-center gap-3 cursor-pointer flex-1 min-w-0 mr-2"
+                              >
                                 <input 
                                   type="checkbox" 
                                   checked={selectedJobIds.includes(job.id)}
                                   onChange={() => toggleJobSelection(job.id)}
-                                  className="w-4 h-4 rounded text-primary focus:ring-primary/50"
+                                  className="w-4 h-4 rounded text-primary focus:ring-primary/50 cursor-pointer shrink-0"
                                 />
-                                <div>
-                                  <p className="text-sm font-bold text-gray-800">{job.title}</p>
-                                  <p className="text-xs text-gray-500">{job.type}</p>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="text-sm font-bold text-gray-800 truncate">{job.title}</p>
+                                    <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                                      job.type === 'Designing' ? 'bg-emerald-100 text-emerald-700' :
+                                      job.type === 'Des+Print' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {job.type}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500">
+                                    {job.dueDate ? `Due: ${formatDate(job.dueDate, dateFormat)}` : (job.createdAt ? `Created: ${formatDate(job.createdAt, dateFormat)}` : 'No date specified')}
+                                  </p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-bold text-gray-800">₹{job.totalAmount - job.paidAmount}</p>
-                                <p className="text-[10px] text-gray-500 uppercase">Balance</p>
+
+                              {/* Balance & View Details Button */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="text-right mr-1">
+                                  <p className="text-sm font-bold text-gray-800">₹{(job.totalAmount - (job.paidAmount || 0)).toLocaleString()}</p>
+                                  <p className="text-[10px] text-gray-500 uppercase font-semibold">Balance</p>
+                                </div>
+
+                                {/* View-only job details button */}
+                                <button
+                                  type="button"
+                                  id={`btn-view-job-${job.id}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setViewOnlyJob(job);
+                                  }}
+                                  className="px-2.5 py-1.5 bg-gray-100/90 hover:bg-primary hover:text-white text-gray-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border border-gray-200 hover:border-primary shadow-2xs group"
+                                  title="View complete job details (View-only format)"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-gray-500 group-hover:text-white" />
+                                  <span>Details</span>
+                                </button>
                               </div>
-                            </label>
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -832,6 +876,14 @@ export function InvoicesPage() {
           setIsQuickClientModalOpen(false);
         }}
       />
+
+      {/* View-Only Job Details Modal */}
+      {viewOnlyJob && (
+        <JobDetailsModal
+          job={viewOnlyJob}
+          onClose={() => setViewOnlyJob(null)}
+        />
+      )}
     </div>
   );
 }

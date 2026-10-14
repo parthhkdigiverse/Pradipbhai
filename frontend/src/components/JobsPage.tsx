@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 import { QuickAddProductModal } from './QuickAddProductModal';
+import { JobDetailsModal } from './JobDetailsModal';
 
 export function JobsPage() {
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
@@ -18,6 +19,9 @@ export function JobsPage() {
   const [filterProduct, setFilterProduct] = useState('All');
   const [filterBilling, setFilterBilling] = useState('All');
   const [filterType, setFilterType] = useState('All');
+
+  // View-only job details modal state
+  const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
   
   // Quick Add Client Modal State
   const [isQuickClientModalOpen, setIsQuickClientModalOpen] = useState(false);
@@ -1616,6 +1620,16 @@ export function JobsPage() {
                             </button>
                           )
                         )}
+                        {/* View Job Details (Read-only) */}
+                        <button 
+                          type="button"
+                          onClick={() => setViewOnlyJob(job)}
+                          className="w-6 h-6 rounded bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
+                          title="View Job Details (Read-only)"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
+
                         {hasPermission(currentUserRole, 'Edit Job') && (
                           <button 
                             onClick={() => handleOpenModal(job.type as 'Designing' | 'Printing', job.id)}
@@ -2253,6 +2267,13 @@ export function JobsPage() {
           setIsQuickProductModalOpen(false);
         }}
       />
+      {/* View-Only Job Details Modal */}
+      {viewOnlyJob && (
+        <JobDetailsModal
+          job={viewOnlyJob}
+          onClose={() => setViewOnlyJob(null)}
+        />
+      )}
     </div>
   );
 }
