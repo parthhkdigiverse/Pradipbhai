@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -21,6 +21,7 @@ export function JobsPage() {
   const [filterProduct, setFilterProduct] = useState('All');
   const [filterBilling, setFilterBilling] = useState('All');
   const [filterType, setFilterType] = useState('All');
+  const [showOnlyReadyToSendPrint, setShowOnlyReadyToSendPrint] = useState(false);
 
   // View-only job details modal state
   const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
@@ -255,6 +256,42 @@ export function JobsPage() {
   const currentStaffId = currentUser?.id || staff.find(s => s.email?.toLowerCase() === (currentUser?.email || '').toLowerCase())?.id;
   const currentStaffName = currentUser?.name || staff.find(s => s.id === currentStaffId)?.name || '';
 
+  // Des+Print jobs where the design is completed, but print has not been sent to vendor
+  const desCompletedPrintPendingJobs = useMemo(() => {
+    return jobs.filter(pJob => {
+      const isPrint = pJob.type === 'Printing' || pJob.type === 'Des+Print' || pJob.title.includes('[PRINT]');
+      if (!isPrint) return false;
+      // Once print is in Progress or Completed, it is no longer awaiting dispatch
+      if (pJob.status !== 'Pending') return false;
+      if (pJob.vendorEmailSent) return false;
+
+      // Find the corresponding design job
+      let dJob = null;
+      if (pJob.id.endsWith('-p')) {
+        const dId = pJob.id.slice(0, -2) + '-d';
+        dJob = jobs.find(j => j.id === dId);
+      }
+      if (!dJob && pJob.delayReason) {
+        dJob = jobs.find(j => j.id === pJob.delayReason);
+      }
+      if (!dJob && pJob.title.includes('[PRINT]')) {
+        const expectedDesignTitle = pJob.title.replace('[PRINT]', '[DESIGN]').trim().toLowerCase();
+        dJob = jobs.find(j => j.title.trim().toLowerCase() === expectedDesignTitle);
+      }
+      if (!dJob && pJob.projectId) {
+        dJob = jobs.find(j => 
+          j.projectId === pJob.projectId && 
+          j.clientId === pJob.clientId && 
+          (j.title.includes('[DESIGN]') || j.type === 'Designing' || j.type === 'Des+Print') &&
+          j.id !== pJob.id
+        );
+      }
+
+      // Design must exist and be Completed or Done
+      return Boolean(dJob && (dJob.status === 'Completed' || dJob.status === 'Done'));
+    });
+  }, [jobs]);
+
   const filteredJobs = useMemo(() => {
     return jobs.filter(job => {
       // Employees only see jobs assigned to them or created by them
@@ -306,9 +343,11 @@ export function JobsPage() {
       const matchDateFrom = !filterDateFrom || (job.dueDate && new Date(job.dueDate) >= new Date(filterDateFrom));
       const matchDateTo = !filterDateTo || (job.dueDate && new Date(job.dueDate) <= new Date(filterDateTo));
       
-      return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDateFrom && matchDateTo;
+      const matchReadyPrint = !showOnlyReadyToSendPrint || desCompletedPrintPendingJobs.some(rp => rp.id === job.id);
+
+      return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDateFrom && matchDateTo && matchReadyPrint;
     });
-  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo]);
+  }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo, showOnlyReadyToSendPrint, desCompletedPrintPendingJobs]);
 
   const totalFilteredJobAmount = useMemo(() => {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
@@ -437,7 +476,7 @@ export function JobsPage() {
       estimatedTime: formData.estimatedTime ? parseFloat(formData.estimatedTime) : null,
       type: newJobType,
       paymentStatus: computedPaymentStatus,
-      status: newJobType === 'Printing' ? 'In Progress' : formData.status,
+      status: (!editingJobId && newJobType === 'Printing') ? 'In Progress' : (formData.status || 'Pending'),
     };
 
     if (editingJobId) {
@@ -664,9 +703,13 @@ export function JobsPage() {
 
     // Wake up linked Printing jobs that were created simultaneously
     if (job.type === 'Designing' || job.type === 'Des+Print') {
-      const linkedPrintJobs = jobs.filter(j => j.status === 'Awaiting Design' && j.delayReason === jobId);
+      const linkedPrintJobs = jobs.filter(j => 
+        (j.status === 'Awaiting Design' || (j.type === 'Des+Print' && j.title.includes('[PRINT]'))) && 
+        (j.delayReason === jobId || j.id === jobId.replace(/-d$/, '-p'))
+      );
       for (const pJob of linkedPrintJobs) {
-        await updateJob(pJob.id, { status: 'In Progress', delayReason: '', startedAt: new Date().toISOString() });
+        // In Des+Print, print jobs should NOT go to 'In Progress' automatically; they stay 'Pending' ready to be sent to print
+        await updateJob(pJob.id, { status: 'Pending', startedAt: null });
       }
     }
 
@@ -678,7 +721,7 @@ export function JobsPage() {
         const printingJobExists = jobs.some(
           j => j.projectId === job.projectId &&
                j.clientId === job.clientId &&
-               j.type === 'Printing'
+               (j.type === 'Printing' || j.type === 'Des+Print')
         );
         if (!printingJobExists) {
           const newPrintingJob = {
@@ -686,11 +729,11 @@ export function JobsPage() {
             createdBy: 'System (Auto)',
             createdAt: new Date().toISOString().split('T')[0],
             title: `[PRINT] ${job.title.replace(/^\[DESIGN\]\s*/i, '')}`,
-            type: 'Printing',
+            type: 'Des+Print',
             clientId: job.clientId,
             projectId: job.projectId,
-            status: 'In Progress',
-            startedAt: new Date().toISOString(),
+            status: 'Pending', // In Des+Print, print job stays Pending until sent to print!
+            startedAt: null,
             teamId: '',
             dueDate: project.deadline || '',
             paymentStatus: 'Unpaid',
@@ -925,6 +968,7 @@ export function JobsPage() {
     setFilterType('All');
     setFilterDateFrom('');
     setFilterDateTo('');
+    setShowOnlyReadyToSendPrint(false);
   };
 
   return (
@@ -964,7 +1008,7 @@ export function JobsPage() {
 
       {/* Admin/Manager Review Required Alert Banner */}
       {(currentUserRole === 'Admin' || currentUserRole === 'Manager') && jobs.filter(j => j.status === 'Under Review').length > 0 && (
-        <div className="bg-amber-500/15 border border-amber-500/30 rounded-2xl p-4 mb-6 backdrop-blur-md flex items-center justify-between gap-4">
+        <div className="bg-amber-500/15 border border-amber-500/30 rounded-2xl p-4 mb-4 backdrop-blur-md flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md">
               <Clock className="w-5 h-5 animate-pulse" />
@@ -983,6 +1027,40 @@ export function JobsPage() {
             className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all whitespace-nowrap cursor-pointer"
           >
             Filter Review Jobs
+          </button>
+        </div>
+      )}
+
+      {/* Des+Print: Design Completed, Ready to Send to Print Alert Banner */}
+      {(currentUserRole === 'Admin' || currentUserRole === 'Manager') && desCompletedPrintPendingJobs.length > 0 && (
+        <div className="bg-amber-500/15 border border-amber-500/30 rounded-2xl p-4 mb-6 backdrop-blur-md flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500 text-white rounded-xl shadow-md flex items-center justify-center">
+              <Printer className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-900 text-sm flex items-center gap-2">
+                <span>🖨️ {desCompletedPrintPendingJobs.length} Des+Print Job(s): Design Completed — Ready to Send to Print</span>
+              </h4>
+              <p className="text-xs text-amber-800 font-medium mt-0.5">
+                Design work is approved & completed. Assign printer/vendor and send required print documents to begin printing.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              if (showOnlyReadyToSendPrint) {
+                setShowOnlyReadyToSendPrint(false);
+              } else {
+                setShowOnlyReadyToSendPrint(true);
+                setFilterStatus('All');
+                setFilterType('All');
+              }
+            }}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-md transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>{showOnlyReadyToSendPrint ? 'Show All Jobs' : 'Filter Print Jobs'}</span>
           </button>
         </div>
       )}
@@ -1312,7 +1390,7 @@ export function JobsPage() {
                             )}
                           </span>
                         )}
-                        {(job.workLink || job.workLocation || job.delayReason) && (
+                        {(job.workLink || job.workLocation || (job.delayReason && !job.delayReason.startsWith('job-')) || desCompletedPrintPendingJobs.some(rp => rp.id === job.id)) && (
                           <div className="flex items-center gap-1.5 flex-wrap mt-1">
                             {job.workLink && (
                               <a
@@ -1342,7 +1420,7 @@ export function JobsPage() {
                                 <ExternalLink className="w-3 h-3 text-indigo-400 group-hover/folder:text-indigo-600 shrink-0" />
                               </button>
                             )}
-                            {job.delayReason && (
+                            {job.delayReason && !job.delayReason.startsWith('job-') && (
                               <span
                                 onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }}
                                 className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300/80 rounded-md hover:bg-amber-100 transition-colors cursor-pointer max-w-[240px] truncate"
@@ -1350,6 +1428,14 @@ export function JobsPage() {
                               >
                                 <MessageSquare className="w-3 h-3 text-amber-600 shrink-0" />
                                 <span className="truncate">{job.delayReason}</span>
+                              </span>
+                            )}
+                            {desCompletedPrintPendingJobs.some(rp => rp.id === job.id) && (
+                              <span 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs animate-pulse"
+                                title="Design phase completed! Ready to send to printer/vendor."
+                              >
+                                <Printer className="w-3 h-3 text-amber-700" /> Send to Print
                               </span>
                             )}
                           </div>

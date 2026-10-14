@@ -20,7 +20,8 @@ async def create_job(job_in: JobCreate, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Job ID already exists")
 
     job_data = job_in.model_dump()
-    if job_data.get("type") == "Printing" and job_data.get("status") in [None, "Pending"]:
+    is_des_print = job_data.get("type") == "Des+Print" or (job_data.get("title") or "").startswith("[PRINT]")
+    if job_data.get("type") == "Printing" and not is_des_print and job_data.get("status") in [None, "Pending"]:
         job_data["status"] = "In Progress"
     
     if job_data.get("status") in ["Progress", "In Progress"] and not job_data.get("startedAt"):
