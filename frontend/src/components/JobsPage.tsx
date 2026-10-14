@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
+import { formatDate } from '../utils/dateFormatter';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
@@ -10,7 +11,7 @@ import { JobDetailsModal } from './JobDetailsModal';
 
 export function JobsPage() {
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
-  const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
+  const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount, dateFormat } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
@@ -52,6 +53,15 @@ export function JobsPage() {
   const handleSaveInlineEdit = async (jobId: string, field: string, val: any) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
+
+    if (field === 'dueDate' && val) {
+      const year = parseInt(val.split('-')[0], 10);
+      if (isNaN(year) || year < 2000 || year > 2099) {
+        alert('Please select a valid deadline year between 2000 and 2099.');
+        setInlineCell(null);
+        return;
+      }
+    }
 
     let patch: any = { [field]: val };
     if (field === 'totalAmount' || field === 'paidAmount') {
@@ -394,6 +404,14 @@ export function JobsPage() {
   const handleSaveJob = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (formData.dueDate) {
+      const year = parseInt(formData.dueDate.split('-')[0], 10);
+      if (isNaN(year) || year < 2000 || year > 2099) {
+        alert('Please enter a valid deadline year between 2000 and 2099.');
+        return;
+      }
+    }
+
     const total = parseFloat(formData.totalAmount) || 0;
     const paid = parseFloat(formData.paidAmount) || 0;
     const computedPaymentStatus = total > 0 && paid >= total ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid');
@@ -1475,6 +1493,8 @@ export function JobsPage() {
                       {inlineCell?.jobId === job.id && inlineCell?.field === 'dueDate' ? (
                         <input 
                           type="date"
+                          min="2020-01-01"
+                          max="2099-12-31"
                           autoFocus
                           value={inlineValue}
                           onChange={e => handleSaveInlineEdit(job.id, 'dueDate', e.target.value)}
@@ -1493,7 +1513,7 @@ export function JobsPage() {
                           className="cursor-pointer hover:text-primary transition-colors inline-flex items-center gap-1 group/date"
                           title="Double-click to edit due date"
                         >
-                          {job.dueDate || '-'}
+                          {job.dueDate ? formatDate(job.dueDate, dateFormat) : '-'}
                           {hasPermission(currentUserRole, 'Edit Job') && (
                             <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/date:opacity-100 transition-opacity shrink-0" />
                           )}
@@ -2004,7 +2024,14 @@ export function JobsPage() {
                 )}
                 <div className={newJobType === 'Designing' ? 'col-span-2' : ''}>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline</label>
-                  <input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                  <input 
+                    type="date" 
+                    min="2020-01-01"
+                    max="2099-12-31"
+                    value={formData.dueDate} 
+                    onChange={e => setFormData({...formData, dueDate: e.target.value})} 
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                  />
                 </div>
               </div>
 
