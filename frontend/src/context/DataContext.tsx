@@ -303,7 +303,11 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const [currentUserRole, setCurrentUserRole] = useState<string>(() => {
-    return localStorage.getItem('userRole') || 'Admin';
+    const r = localStorage.getItem('userRole') || 'Admin';
+    if (r.toLowerCase() === 'admin') return 'Admin';
+    if (r.toLowerCase() === 'manager') return 'Manager';
+    if (r.toLowerCase() === 'employee') return 'Employee';
+    return r;
   });
   const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>(() => {
     const saved = localStorage.getItem('rolePermissions');
@@ -751,16 +755,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setPunchInTime(calculatedTime);
         }
 
-        // Auto-restore activeJobTracker if null but there is a job in Progress or an active punch with jobId
-        if (!activeJobTrackerState) {
-          if (activePunch.jobId) {
-            setActiveJobTracker({ jobId: activePunch.jobId, startTime: calculatedTime });
-          } else if (jobs && jobs.length > 0) {
-            const progressJob = jobs.find((j: any) => j.status === 'Progress');
-            if (progressJob) {
-              setActiveJobTracker({ jobId: progressJob.id, startTime: calculatedTime });
-            }
-          }
+        // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId
+        if (!activeJobTrackerState && activePunch.jobId) {
+          setActiveJobTracker({ jobId: activePunch.jobId, startTime: calculatedTime });
         }
       } else {
         if (!activeJobTrackerState) {

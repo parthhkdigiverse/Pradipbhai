@@ -9,7 +9,7 @@ import { localDateStr } from '../utils/dateUtils';
 export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
-  const isAdmin = currentUserRole === 'Admin';
+  const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
   const canPunch = !isAdmin && hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
@@ -207,131 +207,233 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
   const isPunchedInOrActive = isPunchedIn || Boolean(activeJobTracker);
 
-  const handlePunchToggle = async () => {
-    if (isPunchedInOrActive) {
-      // Punch Out
-      setIsPunchedIn(false);
-      const endTime = Date.now();
-      const duration = punchInTime ? Math.floor((endTime - punchInTime) / 1000) : 0;
-      
-      let finalJobId = 'N/A';
-      let finalJobTitle = 'N/A';
+  const handlePunchOut = async () => {
+    if (!isPunchedInOrActive) return;
+    setIsPunchedIn(false);
+    const endTime = Date.now();
+    const duration = punchInTime ? Math.floor((endTime - punchInTime) / 1000) : 0;
+    
+    let finalJobId = 'N/A';
+    let finalJobTitle = 'N/A';
 
-      if (activeJobTracker) {
-        finalJobId = activeJobTracker.jobId;
-        const job = jobs.find(j => j.id === finalJobId);
-        if (job) {
-          finalJobTitle = job.title;
-          const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-          await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
-        } else if (finalJobId.startsWith('activity-') || finalJobId.startsWith('fd-')) {
-          const duty = (fieldDuties || []).find(d => d.id === finalJobId);
-          if (duty) finalJobTitle = duty.name;
-          else finalJobTitle = 'Field Duty';
-        } else {
-          finalJobTitle = 'General Work';
-        }
-        setActiveJobTracker(null);
+    if (activeJobTracker) {
+      finalJobId = activeJobTracker.jobId;
+      const job = jobs.find(j => j.id === finalJobId);
+      if (job) {
+        finalJobTitle = job.title;
+        const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+      } else if (finalJobId.startsWith('activity-') || finalJobId.startsWith('fd-')) {
+        const duty = (fieldDuties || []).find(d => d.id === finalJobId);
+        if (duty) finalJobTitle = duty.name;
+        else finalJobTitle = 'Field Duty';
+      } else {
+        finalJobTitle = 'General Work';
       }
+      setActiveJobTracker(null);
+    }
 
-      // Resolve current user
-      const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
-      const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+    // Resolve current user
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-      // Save work log to DB via API
-      const todayStr = localDateStr();
-      const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
-      const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
+    // Save work log to DB via API
+    const todayStr = localDateStr();
+    const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
+    const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
 
-      await addWorkLog({
+    await addWorkLog({
+      staff_id: loggedStaffId,
+      staff_name: loggedStaffName,
+      job_id: finalJobId,
+      job_title: finalJobTitle,
+      date: todayStr,
+      start_time: punchInTime || endTime,
+      end_time: endTime,
+      duration,
+      hours: duration / 3600
+    });
+
+    // Save attendance check-out to DB via API
+    const newPunchSession = { in: checkInStr, out: checkOutStr };
+    const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+
+    if (existingRecord) {
+      const existingPunches = existingRecord.punches || [];
+      let hasClosedActive = false;
+      const newPunches = existingPunches.map((p: any) => {
+        if (!p.out) {
+          hasClosedActive = true;
+          return { ...p, out: checkOutStr };
+        }
+        return p;
+      });
+      if (!hasClosedActive) {
+        newPunches.push(newPunchSession);
+      }
+      await updateAttendance(existingRecord.id, {
+        status: 'Present',
+        check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
+        check_out: checkOutStr,
+        punches: newPunches
+      });
+    } else {
+      await addAttendance({
         staff_id: loggedStaffId,
         staff_name: loggedStaffName,
-        job_id: finalJobId,
-        job_title: finalJobTitle,
         date: todayStr,
-        start_time: punchInTime || endTime,
-        end_time: endTime,
-        duration,
-        hours: duration / 3600
+        status: 'Present',
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        punches: [newPunchSession]
       });
+    }
 
-      // Save attendance check-out to DB via API
-      const newPunchSession = { in: checkInStr, out: checkOutStr };
+    // Auto-sync Daily Progress report for today
+    try {
+      const addedHours = Number((duration / 3600).toFixed(1)) || 0.1;
+      const existingProg = (dailyProgressRecords || []).find((p: any) => 
+        (p.employeeName?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
+      );
+      if (existingProg) {
+        const currentTasksDone = Array.isArray(existingProg.tasksDone) ? existingProg.tasksDone : [];
+        const updatedTasksDone = Array.from(new Set([...currentTasksDone, finalJobTitle]));
+        const updatedHours = Number(((existingProg.hoursLogged || 0) + addedHours).toFixed(1));
+        await updateDailyProgress(existingProg.id, {
+          tasks_done: updatedTasksDone,
+          hours_logged: updatedHours
+        });
+      } else {
+        await addDailyProgress({
+          employee_name: loggedStaffName,
+          role: currentUser?.role || 'Staff Member',
+          date: todayStr,
+          tasks_done: [finalJobTitle],
+          tasks_pending: [],
+          hours_logged: addedHours,
+          verification_status: 'Pending',
+          rating: 0
+        });
+      }
+    } catch (err) {
+      console.error('Failed to auto-sync daily progress:', err);
+    }
+
+    setPunchInTime(null);
+  };
+
+  const handlePunchToggle = async () => {
+    if (isPunchedInOrActive) {
+      await handlePunchOut();
+    } else {
+      // Punch In: Employee is now punched in and must select a job
+      const now = Date.now();
+      setIsPunchedIn(true);
+      setPunchInTime(now);
+      setShowJobModal(true);
+      setIsPunchInModalOpen(true);
+
+      // Save attendance check-in to DB via API
+      const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+      const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+      const todayStr = localDateStr(now);
+      const checkInStr = new Date(now).toTimeString().slice(0, 5);
+
       const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
       if (existingRecord) {
         const existingPunches = existingRecord.punches || [];
-        let hasClosedActive = false;
-        const newPunches = existingPunches.map((p: any) => {
-          if (!p.out) {
-            hasClosedActive = true;
-            return { ...p, out: checkOutStr };
-          }
+        const closedPunches = existingPunches.map((p: any) => {
+          if (!p.out) return { ...p, out: checkInStr };
           return p;
         });
-        if (!hasClosedActive) {
-          newPunches.push(newPunchSession);
-        }
+        const newPunches = [...closedPunches, { in: checkInStr, out: '' }];
         await updateAttendance(existingRecord.id, {
-          status: 'Present',
+          status: existingRecord.status || 'Present',
           check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-          check_out: checkOutStr,
-          punches: newPunches
+          punches: newPunches,
+          is_late: existingRecord.isLate || existingRecord.is_late || false,
+          late_minutes: existingRecord.lateMinutes || existingRecord.late_minutes || 0,
+          penalty_amount: existingRecord.penaltyAmount || existingRecord.penalty_amount || 0,
+          warning_note: existingRecord.warningNote || existingRecord.warning_note || ''
         });
       } else {
+        const loggedStaff = staff.find((s: any) => s.id === (currentUser?.id || '') || (s.email && s.email.toLowerCase() === currentUser?.email?.toLowerCase()));
+        const effectiveStartTime = loggedStaff?.officeStartTime || loggedStaff?.office_start_time || (currentUser as any)?.officeStartTime || officeStartTime;
+
+        const lateCalc = calculateLatePunchIn(
+          checkInStr,
+          effectiveStartTime,
+          lateBufferMinutes,
+          enableLatePenalty,
+          latePenaltyAction,
+          latePenaltyAmount
+        );
+
+        if (lateCalc.isLate) {
+          setLateWarningAlert({
+            note: lateCalc.warningNote,
+            lateMins: lateCalc.lateMinutes,
+            penalty: lateCalc.penaltyAmount,
+            action: latePenaltyAction
+          });
+        }
+
         await addAttendance({
           staff_id: loggedStaffId,
           staff_name: loggedStaffName,
           date: todayStr,
-          status: 'Present',
+          status: lateCalc.status || 'Present',
           check_in: checkInStr,
-          check_out: checkOutStr,
-          punches: [newPunchSession]
+          check_out: '',
+          punches: [{ in: checkInStr, out: '' }],
+          is_late: lateCalc.isLate,
+          late_minutes: lateCalc.lateMinutes,
+          penalty_amount: lateCalc.penaltyAmount,
+          warning_note: lateCalc.warningNote
         });
       }
-
-      // Auto-sync Daily Progress report for today
-      try {
-        const addedHours = Number((duration / 3600).toFixed(1)) || 0.1;
-        const existingProg = (dailyProgressRecords || []).find((p: any) => 
-          (p.employeeName?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
-        );
-        if (existingProg) {
-          const currentTasksDone = Array.isArray(existingProg.tasksDone) ? existingProg.tasksDone : [];
-          const updatedTasksDone = Array.from(new Set([...currentTasksDone, finalJobTitle]));
-          const updatedHours = Number(((existingProg.hoursLogged || 0) + addedHours).toFixed(1));
-          await updateDailyProgress(existingProg.id, {
-            tasks_done: updatedTasksDone,
-            hours_logged: updatedHours
-          });
-        } else {
-          await addDailyProgress({
-            employee_name: loggedStaffName,
-            role: currentUser?.role || 'Staff Member',
-            date: todayStr,
-            tasks_done: [finalJobTitle],
-            tasks_pending: [],
-            hours_logged: addedHours,
-            verification_status: 'Pending',
-            rating: 0
-          });
-        }
-      } catch (err) {
-        console.error('Failed to auto-sync daily progress:', err);
-      }
-
-      setPunchInTime(null);
-    } else {
-      // Punch In - open job modal
-      setIsPunchInModalOpen(true);
     }
   };
+
+  // If an employee is punched in but has no active job tracker, force open the punch-in modal to select a job
+  useEffect(() => {
+    if (!isAdmin && isPunchedIn && !activeJobTracker) {
+      setShowJobModal(true);
+      setIsPunchInModalOpen(true);
+    }
+  }, [isAdmin, isPunchedIn, activeJobTracker]);
+
+  const handleCloseJobModal = async () => {
+    const shouldPunchOut = !isAdmin && isPunchedInOrActive;
+    setShowJobModal(false);
+    setIsPunchInModalOpen(false);
+    setSelectedJobId('');
+
+    if (shouldPunchOut) {
+      await handlePunchOut();
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdmin && (showJobModal || isPunchInModalOpen)) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          handleCloseJobModal();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isAdmin, showJobModal, isPunchInModalOpen, isPunchedInOrActive]);
 
   const confirmPunchIn = async () => {
     if (!selectedJobId) return;
     const now = Date.now();
     setIsPunchedIn(true);
-    setPunchInTime(now);
+    if (!punchInTime) {
+      setPunchInTime(now);
+    }
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
     
     if (!selectedJobId.startsWith('activity-')) {
@@ -353,15 +455,17 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
     if (existingRecord) {
-      // Subsequent punch-in of the day: keep first punch-in's late status and penalties
+      // Subsequent punch-in of the day: attach jobId to active punch or add new punch
       const existingPunches = existingRecord.punches || [];
-      const closedPunches = existingPunches.map((p: any) => {
+      let updatedActive = false;
+      const updatedPunches = existingPunches.map((p: any) => {
         if (!p.out) {
-          return { ...p, out: checkInStr };
+          updatedActive = true;
+          return { ...p, jobId: selectedJobId };
         }
         return p;
       });
-      const newPunches = [...closedPunches, { in: checkInStr, out: '', jobId: selectedJobId }];
+      const newPunches = updatedActive ? updatedPunches : [...updatedPunches, { in: checkInStr, out: '', jobId: selectedJobId }];
       await updateAttendance(existingRecord.id, {
         status: existingRecord.status || 'Present',
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
@@ -526,6 +630,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         {/* Punch In / Out Button */}
         {canPunch && (
           <button 
+            id="punch-toggle-btn"
             onClick={handlePunchToggle}
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm cursor-pointer ${
               isPunchedInOrActive 
@@ -667,17 +772,44 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
               <h3 className="font-bold text-base text-gray-800 flex items-center gap-2">
                 <ArrowRightLeft className="w-4 h-4 text-primary" />
-                {activeJobTracker ? 'Switch Active Job / Field Duty' : 'Select Job or Activity for Punch In'}
+                {activeJobTracker 
+                  ? 'Switch Active Job / Field Duty' 
+                  : isPunchedIn 
+                    ? 'Select Job or Activity to Continue' 
+                    : 'Select Job or Activity for Punch In'}
               </h3>
-              <button onClick={() => { setShowJobModal(false); setIsPunchInModalOpen(false); }} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <button 
+                id="close-punch-modal-btn"
+                onClick={handleCloseJobModal} 
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+                title={isPunchedInOrActive ? "Cancel & Punch Out" : "Close"}
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 space-y-3">
+              {isPunchedInOrActive && (
+                <div className="p-3 bg-amber-50/90 border border-amber-200/90 rounded-xl text-xs text-amber-800 flex items-start gap-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    {activeJobTracker ? (
+                      <>
+                        You are currently working on <strong>{jobs.find(j => j.id === activeJobTracker.jobId)?.title || 'active duty'}</strong>. If you close this modal <strong>(X)</strong> without switching jobs, you will be <strong>punched out automatically</strong>.
+                      </>
+                    ) : (
+                      <>
+                        You are currently <strong>Punched In</strong>. Please select an assigned job or field duty to continue your shift. If you close this modal <strong>(X)</strong>, you will be <strong>punched out automatically</strong>.
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+
               <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">
                 {activeJobTracker ? 'Select New Job or Duty:' : 'Select Assigned Job or Field Duty'}
               </label>
               <select 
+                id="punch-job-select"
                 value={selectedJobId} 
                 onChange={(e) => setSelectedJobId(e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 bg-white cursor-pointer"
@@ -717,20 +849,26 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             </div>
             <div className="flex gap-2 p-4 bg-gray-50 border-t border-gray-100 justify-end">
               <button 
+                id="cancel-punch-modal-btn"
                 type="button"
-                onClick={() => { setShowJobModal(false); setIsPunchInModalOpen(false); }}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                onClick={handleCloseJobModal}
+                className={`px-4 py-2 text-sm font-semibold rounded-xl transition-colors cursor-pointer ${
+                  isPunchedInOrActive 
+                    ? 'text-rose-600 hover:bg-rose-50 border border-rose-200' 
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                Cancel
+                {isPunchedInOrActive ? 'Cancel & Punch Out' : 'Cancel'}
               </button>
               <button 
+                id="confirm-punch-modal-btn"
                 type="button"
                 onClick={activeJobTracker ? handleSwitchJob : confirmPunchIn}
                 disabled={!selectedJobId}
                 className="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowRightLeft className="w-4 h-4" />
-                {activeJobTracker ? 'Switch Duty' : 'Confirm Punch In'}
+                {activeJobTracker ? 'Switch Duty' : isPunchedIn ? 'Confirm & Start Job' : 'Confirm Punch In'}
               </button>
             </div>
           </div>
