@@ -158,7 +158,7 @@ export function LeaveManagementPage() {
     // 1. Update leave status
     await updateLeaveRequest(req.id, {
       status: 'Approved',
-      reviewedBy: 'Admin',
+      reviewedBy: currentUser?.name || currentUserRole || 'Admin',
       reviewedOn: new Date().toISOString().slice(0, 10),
       reviewNote: '',
     });
@@ -184,7 +184,7 @@ export function LeaveManagementPage() {
     if (!rejectTarget) return;
     await updateLeaveRequest(rejectTarget.id, {
       status: 'Rejected',
-      reviewedBy: 'Admin',
+      reviewedBy: currentUser?.name || currentUserRole || 'Admin',
       reviewedOn: new Date().toISOString().slice(0, 10),
       reviewNote: rejectNote.trim(),
     });
@@ -505,7 +505,7 @@ export function LeaveManagementPage() {
                           </td>
                           <td className="py-4 px-6 text-center">
                             {req.status === 'Pending' ? (
-                              canApproveReject ? (
+                              (canApproveReject && !((req.staffId || (req as any).staff_id) === currentStaff?.id && currentUserRole === 'Manager')) ? (
                                 <div className="flex items-center justify-center gap-2">
                                   <button
                                     onClick={() => handleApprove(req)}
@@ -521,7 +521,9 @@ export function LeaveManagementPage() {
                                   </button>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">Pending Review</span>
+                                <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                  {(req.staffId || (req as any).staff_id) === currentStaff?.id && currentUserRole === 'Manager' ? 'Pending Admin Review' : 'Pending Review'}
+                                </span>
                               )
                             ) : req.reviewNote ? (
                               <span className="text-[10px] text-gray-400 italic max-w-[100px] block truncate">"{req.reviewNote}"</span>

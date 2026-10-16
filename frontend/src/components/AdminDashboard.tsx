@@ -27,6 +27,7 @@ import {
   Legend,
   Cell
 } from 'recharts';
+import { ManagerEvaluationScorecard } from './ManagerEvaluationScorecard';
 
 function DetailedMetricCard({ title, value, icon: Icon, colorClass, bgClass, subtext, onClick }: any) {
   return (
@@ -288,6 +289,10 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
         </div>
       </div>
 
+      {/* Executive Manager & Floor Evaluation Scorecard */}
+      {!isEmployee && (
+        <ManagerEvaluationScorecard setCurrentPage={setCurrentPage} />
+      )}
 
       {/* 1. Financial Overview */}
       {!isEmployee && (

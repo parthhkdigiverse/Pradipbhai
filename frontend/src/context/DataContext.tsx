@@ -487,7 +487,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [activeJobTrackerState, setActiveJobTrackerState] = useState<{ jobId: string, startTime: number } | null>(null);
   const [isPunchInModalOpen, setIsPunchInModalOpen] = useState<boolean>(false);
   const openPunchInModal = () => {
-    if (currentUserRole === 'Admin') return;
+    if (currentUserRole === 'Admin' || currentUserRole === 'Manager') return;
     setIsPunchInModalOpen(true);
   };
 
@@ -755,8 +755,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setPunchInTime(calculatedTime);
         }
 
-        // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId
-        if (!activeJobTrackerState && activePunch.jobId) {
+        // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId (only for non-managers)
+        if (!activeJobTrackerState && activePunch.jobId && currentUserRole !== 'Manager') {
           setActiveJobTracker({ jobId: activePunch.jobId, startTime: calculatedTime });
         }
       } else {
@@ -1550,6 +1550,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         finalJobTitle = 'General Work';
       }
       setActiveJobTracker(null);
+    } else if (currentUserRole === 'Manager') {
+      finalJobId = 'manager-shift';
+      finalJobTitle = 'Management & Supervision';
     }
 
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';

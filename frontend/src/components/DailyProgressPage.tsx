@@ -2,11 +2,11 @@ import { useState, useMemo } from "react";
 import { useData } from "../context/DataContext";
 import { 
   Search, Filter, CheckCircle2, Clock, X, Star, AlertCircle, MessageSquare, Activity, 
-  Award, BarChart3, ChevronRight, Calendar
+  Award, BarChart3, ChevronRight, Calendar, ShieldCheck, FileCheck, UserCheck
 } from "lucide-react";
 
 export function DailyProgressPage() {
-  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission, jobs, staff } = useData();
+  const { dailyProgressRecords: records, updateDailyProgress, currentUserRole, currentUser, hasPermission, jobs, staff, workLogs, leaveRequests } = useData();
   const canVerifyRate = hasPermission(currentUserRole, 'Verify & Rate Reports');
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [search, setSearch] = useState("");
@@ -141,6 +141,70 @@ export function DailyProgressPage() {
     return { doneTasks, pendingTasks };
   };
 
+  // Determine if a record or staff member is a Manager
+  const checkIsManager = (record: any) => {
+    if (!record) return false;
+    const role = (record?.role || "").toLowerCase().trim();
+    if (role === "manager") return true;
+    const empName = (record?.employeeName || record?.employee_name || "").toLowerCase().trim();
+    const matchedStaff = (staff || []).find((s: any) => (s.name || s.staff_name || "").toLowerCase().trim() === empName);
+    return (matchedStaff?.role || "").toLowerCase().trim() === "manager";
+  };
+
+  // Compute manager-specific daily operational summary
+  const getManagerDailySummary = (record: any) => {
+    if (!record) return {
+      shiftHours: "Shift Logged",
+      verifiedReportsCount: 0,
+      leavesReviewedCount: 0,
+      pendingReportsCount: 0,
+      pendingJobsReviewCount: 0,
+      notes: ""
+    };
+    const mName = (record?.employeeName || record?.employee_name || "").toLowerCase().trim();
+    const recDate = record?.date;
+
+    // 1. Shift duration from workLogs or notes
+    const dayLogs = (workLogs || []).filter((w: any) => {
+      const wDate = w.date || (w.createdAt ? w.createdAt.slice(0, 10) : "");
+      const wName = (w.staffName || w.staff_name || "").toLowerCase().trim();
+      return (!recDate || wDate === recDate) && (wName === mName || wName.includes(mName) || mName.includes(wName));
+    });
+    const totalHours = dayLogs.reduce((acc: number, w: any) => acc + (Number(w.hours) || (Number(w.duration) / 3600) || 0), 0);
+
+    // 2. Reports verified by this manager
+    const verifiedByMgr = (records || []).filter((r: any) => {
+      const vBy = (r.verifiedBy || r.verified_by || "").toLowerCase().trim();
+      const sameDate = !recDate || r.date === recDate;
+      return sameDate && vBy && (vBy === mName || vBy.includes(mName) || mName.includes(vBy));
+    });
+
+    // 3. Leaves reviewed by this manager
+    const leavesReviewed = (leaveRequests || []).filter((l: any) => {
+      const rBy = (l.reviewedBy || l.reviewed_by || "").toLowerCase().trim();
+      return rBy && (rBy === mName || rBy.includes(mName) || mName.includes(rBy));
+    });
+
+    // 4. Team pending items (needing manager attention on this date)
+    const pendingEmployeeReports = (records || []).filter((r: any) => {
+      const rRole = (r.role || "").toLowerCase().trim();
+      const sameDate = !recDate || r.date === recDate;
+      const isPending = (r.verificationStatus || r.verification_status) === "Pending";
+      return sameDate && isPending && rRole !== "manager";
+    });
+
+    const pendingReviewJobs = (jobs || []).filter((j: any) => j.status === "Under Review");
+
+    return {
+      shiftHours: totalHours > 0 ? `${totalHours.toFixed(1)} hrs` : (record.notes?.match(/Shift:\s*([^\-]+)/i)?.[1]?.trim() || "Shift Logged"),
+      verifiedReportsCount: verifiedByMgr.length,
+      leavesReviewedCount: leavesReviewed.length,
+      pendingReportsCount: pendingEmployeeReports.length,
+      pendingJobsReviewCount: pendingReviewJobs.length,
+      notes: record.notes || "Supervised team operations and shift duties"
+    };
+  };
+
   // Calculate Overall Ratings per Employee for the selected Date Range
   const employeeRatingStats = useMemo(() => {
     const map: Record<string, { totalRating: number; verifiedCount: number; totalReports: number; role: string }> = {};
@@ -223,12 +287,18 @@ export function DailyProgressPage() {
       verification_status: "Verified",
       rating: currentRating,
       manager_remarks: currentRemarks,
-      verified_by: "Current Manager"
+      verified_by: currentUser?.name || (currentUserRole === 'Admin' ? 'Admin' : 'Manager')
     });
     
     setVerifyModalOpen(false);
     setSelectedRecord(null);
   };
+
+  const isSelfRecord = selectedRecord && (
+    (selectedRecord.employeeName || selectedRecord.employee_name)?.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim()
+  );
+  const isSelfManagerRecord = Boolean(isSelfRecord && currentUserRole === 'Manager');
+  const canRateSelectedRecord = Boolean(canVerifyRate && !isSelfManagerRecord);
 
   const getRatingBadgeColor = (avg: number | string) => {
     if (avg === "N/A") return "bg-gray-100 text-gray-600 border-gray-200";
@@ -472,6 +542,8 @@ export function DailyProgressPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredRecords.map((record) => {
             const displayName = record?.employeeName || record?.employee_name || "Staff Member";
+            const isMgr = checkIsManager(record);
+            const mgrSummary = isMgr ? getManagerDailySummary(record) : null;
             const { doneTasks, pendingTasks } = getCategorizedTasks(record);
             return (
             <div key={record.id} className="bg-white/40 backdrop-blur-md border border-white/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all group flex flex-col">
@@ -485,7 +557,7 @@ export function DailyProgressPage() {
                     </div>
                     <div>
                       <div className="font-bold text-gray-900 leading-tight">{displayName}</div>
-                      <div className="text-xs text-gray-500">{record?.role || "Staff Member"}</div>
+                      <div className="text-xs text-gray-500">{record?.role || (isMgr ? "Manager" : "Staff Member")}</div>
                     </div>
                   </div>
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-[10px] font-black uppercase border ${
@@ -502,56 +574,125 @@ export function DailyProgressPage() {
                 </div>
               </div>
 
-              {/* Task Summary */}
+              {/* Task / Supervision Summary */}
               <div className="p-5 flex-grow space-y-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 text-sm font-bold text-emerald-600">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Completed Tasks ({doneTasks.length})
-                  </div>
-                  <ul className="space-y-1.5">
-                    {doneTasks.slice(0, 2).map((task: any, idx: number) => {
-                      const { text, dueDate } = renderTaskInfo(task);
-                      return (
-                        <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                          <span>
-                            {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
-                          </span>
-                        </li>
-                      );
-                    })}
-                    {doneTasks.length > 2 && (
-                      <li className="text-xs text-gray-400 font-medium pl-3">
-                        +{doneTasks.length - 2} more...
-                      </li>
-                    )}
-                    {doneTasks.length === 0 && (
-                      <li className="text-xs text-gray-400 italic">No tasks completed yet</li>
-                    )}
-                  </ul>
-                </div>
-
-                {pendingTasks.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2 text-sm font-bold text-amber-600">
-                      <Clock className="w-4 h-4" />
-                      Pending Tasks ({pendingTasks.length})
+                {isMgr && mgrSummary ? (
+                  <div className="space-y-3">
+                    {/* Shift & Supervisory Summary Badge */}
+                    <div className="bg-sky-500/10 border border-sky-500/20 rounded-xl p-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-sky-600" />
+                        <span className="text-xs font-bold text-sky-900">Shift Supervision</span>
+                      </div>
+                      <span className="text-xs font-black text-sky-700 bg-white/80 px-2 py-0.5 rounded-lg border border-sky-200">
+                        {mgrSummary.shiftHours}
+                      </span>
                     </div>
-                    <ul className="space-y-1.5">
-                      {pendingTasks.slice(0, 2).map((task: any, idx: number) => {
-                        const { text, dueDate } = renderTaskInfo(task);
-                        return (
-                          <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                            <span>
-                              {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
+
+                    {/* Supervised Deliverables Completed */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1.5 text-xs font-bold text-emerald-600 uppercase tracking-wide">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Supervisory Deliverables Completed
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-white/50 p-2 rounded-xl border border-white/60">
+                          <span className="text-gray-400 font-bold block text-[10px] uppercase">Reports Verified</span>
+                          <span className="text-sm font-black text-emerald-700 flex items-center gap-1">
+                            <FileCheck className="w-3.5 h-3.5" /> {mgrSummary.verifiedReportsCount}
+                          </span>
+                        </div>
+                        <div className="bg-white/50 p-2 rounded-xl border border-white/60">
+                          <span className="text-gray-400 font-bold block text-[10px] uppercase">Leaves Processed</span>
+                          <span className="text-sm font-black text-emerald-700 flex items-center gap-1">
+                            <UserCheck className="w-3.5 h-3.5" /> {mgrSummary.leavesReviewedCount}
+                          </span>
+                        </div>
+                      </div>
+                      {mgrSummary.notes && (
+                        <p className="mt-2 text-[11px] text-gray-500 italic bg-white/30 px-2.5 py-1 rounded-lg border border-white/40 line-clamp-1">
+                          "{mgrSummary.notes}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Pending Supervisory Queue */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1 text-xs font-bold text-amber-600 uppercase tracking-wide">
+                        <Clock className="w-3.5 h-3.5" />
+                        Supervisory Queue
+                      </div>
+                      {mgrSummary.pendingReportsCount > 0 || mgrSummary.pendingJobsReviewCount > 0 ? (
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center">
+                            <div className="text-xs font-black text-amber-800">{mgrSummary.pendingReportsCount}</div>
+                            <div className="text-[10px] font-semibold text-amber-700 leading-tight">Unreviewed Reports</div>
+                          </div>
+                          <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl text-center">
+                            <div className="text-xs font-black text-amber-800">{mgrSummary.pendingJobsReviewCount}</div>
+                            <div className="text-[10px] font-semibold text-amber-700 leading-tight">Jobs in Review</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-emerald-700 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          All supervisory queues cleared
+                        </div>
+                      )}
+                    </div>
                   </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 text-sm font-bold text-emerald-600">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Completed Tasks ({doneTasks.length})
+                      </div>
+                      <ul className="space-y-1.5">
+                        {doneTasks.slice(0, 2).map((task: any, idx: number) => {
+                          const { text, dueDate } = renderTaskInfo(task);
+                          return (
+                            <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                              <span>
+                                {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
+                              </span>
+                            </li>
+                          );
+                        })}
+                        {doneTasks.length > 2 && (
+                          <li className="text-xs text-gray-400 font-medium pl-3">
+                            +{doneTasks.length - 2} more...
+                          </li>
+                        )}
+                        {doneTasks.length === 0 && (
+                          <li className="text-xs text-gray-400 italic">No tasks completed yet</li>
+                        )}
+                      </ul>
+                    </div>
+
+                    {pendingTasks.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2 text-sm font-bold text-amber-600">
+                          <Clock className="w-4 h-4" />
+                          Pending Tasks ({pendingTasks.length})
+                        </div>
+                        <ul className="space-y-1.5">
+                          {pendingTasks.slice(0, 2).map((task: any, idx: number) => {
+                            const { text, dueDate } = renderTaskInfo(task);
+                            return (
+                              <li key={task?.id || idx} className="text-xs text-gray-600 line-clamp-1 flex items-start gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                                <span>
+                                  {text} <span className="text-gray-400 font-semibold text-[10px]">({dueDate})</span>
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -573,12 +714,19 @@ export function DailyProgressPage() {
                   </div>
                 )}
                 
-                <button 
-                  onClick={() => handleOpenVerify(record)}
-                  className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl transition-colors flex items-center gap-2"
-                >
-                  {canVerifyRate ? (record.verificationStatus === "Verified" ? "View Details" : "Verify & Rate") : "View Details"}
-                </button>
+                {(() => {
+                  const isThisSelfRecord = (record.employeeName || record.employee_name)?.toLowerCase().trim() === (currentUser?.name || '').toLowerCase().trim();
+                  const isThisSelfManager = isThisSelfRecord && currentUserRole === 'Manager';
+                  const canRateThis = canVerifyRate && !isThisSelfManager;
+                  return (
+                    <button 
+                      onClick={() => handleOpenVerify(record)}
+                      className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl transition-colors flex items-center gap-2 cursor-pointer"
+                    >
+                      {canRateThis ? (record.verificationStatus === "Verified" ? "View / Edit Rating" : "Verify & Rate") : "View Details"}
+                    </button>
+                  );
+                })()}
               </div>
 
             </div>
@@ -618,9 +766,78 @@ export function DailyProgressPage() {
             <div className="p-6 md:p-8 space-y-6 overflow-y-auto max-h-[70vh]">
               <div className="grid md:grid-cols-2 gap-6">
                 
-                {/* Tasks List */}
+                {/* Tasks List or Manager Supervisory Summary */}
                 <div className="space-y-6">
                   {(() => {
+                    const isSelectedMgr = checkIsManager(selectedRecord);
+                    if (isSelectedMgr) {
+                      const mgrSummary = getManagerDailySummary(selectedRecord);
+                      return (
+                        <div className="space-y-5">
+                          {/* Shift Badge & Notes */}
+                          <div className="bg-sky-500/10 border border-sky-500/20 rounded-2xl p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                                <ShieldCheck className="w-4 h-4 text-sky-600" /> Shift Hours Logged
+                              </span>
+                              <span className="text-sm font-black text-sky-900 bg-white px-2.5 py-1 rounded-xl border border-sky-200">
+                                {mgrSummary.shiftHours}
+                              </span>
+                            </div>
+                            <p className="text-xs text-sky-900/80 font-medium">
+                              {mgrSummary.notes || "Supervised team shift operations, delegation, and quality compliance."}
+                            </p>
+                          </div>
+
+                          {/* Completed Supervisory Actions */}
+                          <div>
+                            <h3 className="font-bold flex items-center gap-2 text-emerald-600 mb-3 pb-2 border-b border-gray-100">
+                              <CheckCircle2 className="w-5 h-5" />
+                              Supervisory Deliverables Completed
+                            </h3>
+                            <ul className="space-y-2.5">
+                              <li className="flex items-center justify-between p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                <div className="flex items-center gap-2.5">
+                                  <FileCheck className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-sm font-medium text-gray-800">Employee Daily Reports Verified & Rated</span>
+                                </div>
+                                <span className="font-black text-emerald-700 bg-white px-3 py-1 rounded-lg border border-emerald-200 text-sm">
+                                  {mgrSummary.verifiedReportsCount}
+                                </span>
+                              </li>
+                              <li className="flex items-center justify-between p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                <div className="flex items-center gap-2.5">
+                                  <UserCheck className="w-4 h-4 text-emerald-600" />
+                                  <span className="text-sm font-medium text-gray-800">Team Leave Applications Processed</span>
+                                </div>
+                                <span className="font-black text-emerald-700 bg-white px-3 py-1 rounded-lg border border-emerald-200 text-sm">
+                                  {mgrSummary.leavesReviewedCount}
+                                </span>
+                              </li>
+                            </ul>
+                          </div>
+
+                          {/* Pending Supervisory Actions */}
+                          <div>
+                            <h3 className="font-bold flex items-center gap-2 text-amber-600 mb-3 pb-2 border-b border-gray-100">
+                              <Clock className="w-5 h-5" />
+                              Supervisory Queue & Attention Required
+                            </h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-amber-500/5 border border-amber-500/15 p-3 rounded-xl">
+                                <div className="text-2xl font-black text-amber-700">{mgrSummary.pendingReportsCount}</div>
+                                <div className="text-xs font-semibold text-amber-800 mt-0.5">Staff Reports Pending Review</div>
+                              </div>
+                              <div className="bg-amber-500/5 border border-amber-500/15 p-3 rounded-xl">
+                                <div className="text-2xl font-black text-amber-700">{mgrSummary.pendingJobsReviewCount}</div>
+                                <div className="text-xs font-semibold text-amber-800 mt-0.5">Jobs in Under Review</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     const { doneTasks, pendingTasks } = getCategorizedTasks(selectedRecord);
                     return (
                       <>
@@ -678,17 +895,31 @@ export function DailyProgressPage() {
 
                 {/* Rating & Verification Section */}
                 <div className="bg-gray-50/70 p-6 rounded-2xl border border-gray-100 flex flex-col space-y-6">
+                  {isSelfManagerRecord && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Manager daily reports are verified and rated by the <strong>System Admin</strong>. Self-rating is disabled.</span>
+                    </div>
+                  )}
+
                   <div>
-                    <h3 className="font-bold flex items-center gap-2 mb-4 text-gray-800">
+                    <h3 className="font-bold flex items-center gap-2 mb-1 text-gray-800">
                       <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-                      Rate Performance (1 to 5 Stars)
+                      {checkIsManager(selectedRecord) ? "Rate Manager Performance (1 to 5 Stars)" : "Rate Performance (1 to 5 Stars)"}
                     </h3>
+                    {checkIsManager(selectedRecord) && (
+                      <p className="text-[11px] text-gray-500 mb-3 font-medium">
+                        Evaluate shift adherence, review speed of team reports, delegation, and operational leadership.
+                      </p>
+                    )}
                     <div className="flex items-center gap-2">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button
                           key={star}
+                          type="button"
+                          disabled={!canRateSelectedRecord}
                           onClick={() => setCurrentRating(star)}
-                          className={`p-2 rounded-xl transition-all hover:scale-110 ${
+                          className={`p-2 rounded-xl transition-all ${canRateSelectedRecord ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-80'} ${
                             currentRating >= star 
                               ? "bg-amber-400/20 text-amber-500" 
                               : "bg-gray-100 text-gray-300 hover:bg-gray-200"
@@ -708,13 +939,14 @@ export function DailyProgressPage() {
                   <div className="flex-grow flex flex-col">
                     <h3 className="font-bold flex items-center gap-2 mb-3 text-gray-800">
                       <MessageSquare className="w-5 h-5 text-primary" />
-                      Manager Remarks
+                      {currentUserRole === 'Admin' ? 'Admin / Executive Remarks' : 'Manager Remarks'}
                     </h3>
                     <textarea
                       value={currentRemarks}
+                      disabled={!canRateSelectedRecord}
                       onChange={(e) => setCurrentRemarks(e.target.value)}
-                      placeholder="Add feedback or performance notes..."
-                      className="w-full flex-grow min-h-[100px] px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium resize-none"
+                      placeholder={canRateSelectedRecord ? "Add feedback or performance notes..." : "No remarks added yet."}
+                      className="w-full flex-grow min-h-[100px] px-4 py-3 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-medium resize-none disabled:bg-gray-50 disabled:text-gray-600"
                     />
                   </div>
                   
@@ -733,17 +965,19 @@ export function DailyProgressPage() {
             <div className="px-6 md:px-8 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 mt-auto shrink-0">
               <button 
                 onClick={() => setVerifyModalOpen(false)}
-                className="px-4 py-2.5 font-bold text-gray-500 hover:bg-gray-200/60 rounded-xl transition-colors text-sm"
+                className="px-4 py-2.5 font-bold text-gray-500 hover:bg-gray-200/60 rounded-xl transition-colors text-sm cursor-pointer"
               >
-                Cancel
+                {canRateSelectedRecord ? "Cancel" : "Close"}
               </button>
-              <button 
-                onClick={handleVerifySubmit}
-                disabled={currentRating === 0}
-                className="px-6 py-2.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl transition-colors disabled:opacity-50 shadow-md text-sm"
-              >
-                {selectedRecord?.verificationStatus === "Verified" ? "Update Rating" : "Approve & Verify"}
-              </button>
+              {canRateSelectedRecord && (
+                <button 
+                  onClick={handleVerifySubmit}
+                  disabled={currentRating === 0}
+                  className="px-6 py-2.5 bg-primary text-white hover:bg-primary/90 font-bold rounded-xl transition-colors disabled:opacity-50 shadow-md text-sm cursor-pointer"
+                >
+                  {selectedRecord?.verificationStatus === "Verified" ? "Update Rating" : "Approve & Verify"}
+                </button>
+              )}
             </div>
             
           </div>

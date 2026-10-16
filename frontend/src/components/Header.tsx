@@ -10,8 +10,11 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
+  const isManager = (currentUserRole || '').toLowerCase() === 'manager';
+  const isEmployee = !isAdmin && !isManager;
   const canPunch = !isAdmin && hasPermission(currentUserRole, 'Punch In/Out');
   const [elapsedJobTime, setElapsedJobTime] = useState(0);
+  const [managerShiftElapsed, setManagerShiftElapsed] = useState(0);
   const [showJobModal, setShowJobModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -205,6 +208,20 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     return () => clearInterval(interval);
   }, [activeJobTracker]);
 
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isManager && isPunchedIn && punchInTime) {
+      const updateElapsed = () => {
+        setManagerShiftElapsed(Math.max(0, Math.floor((Date.now() - punchInTime) / 1000)));
+      };
+      updateElapsed();
+      interval = setInterval(updateElapsed, 1000);
+    } else {
+      setManagerShiftElapsed(0);
+    }
+    return () => clearInterval(interval);
+  }, [isManager, isPunchedIn, punchInTime]);
+
   const isPunchedInOrActive = isPunchedIn || Boolean(activeJobTracker);
 
   const handlePunchOut = async () => {
@@ -231,6 +248,9 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         finalJobTitle = 'General Work';
       }
       setActiveJobTracker(null);
+    } else if (isManager) {
+      finalJobId = 'manager-shift';
+      finalJobTitle = 'Management & Supervision';
     }
 
     // Resolve current user
@@ -293,27 +313,50 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     try {
       const addedHours = Number((duration / 3600).toFixed(1)) || 0.1;
       const existingProg = (dailyProgressRecords || []).find((p: any) => 
-        (p.employeeName?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
+        ((p.employeeName || p.employee_name)?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
       );
-      if (existingProg) {
-        const currentTasksDone = Array.isArray(existingProg.tasksDone) ? existingProg.tasksDone : [];
-        const updatedTasksDone = Array.from(new Set([...currentTasksDone, finalJobTitle]));
-        const updatedHours = Number(((existingProg.hoursLogged || 0) + addedHours).toFixed(1));
-        await updateDailyProgress(existingProg.id, {
-          tasks_done: updatedTasksDone,
-          hours_logged: updatedHours
-        });
+      if (isManager) {
+        if (existingProg) {
+          const currentTasksDone = Array.isArray(existingProg.tasksDone || existingProg.tasks_done) ? (existingProg.tasksDone || existingProg.tasks_done) : [];
+          const updatedTasksDone = Array.from(new Set([...currentTasksDone, 'Management & Supervision']));
+          const updatedHours = Number(((existingProg.hoursLogged || existingProg.hours_logged || 0) + addedHours).toFixed(1));
+          await updateDailyProgress(existingProg.id, {
+            tasks_done: updatedTasksDone,
+            hours_logged: updatedHours
+          });
+        } else {
+          await addDailyProgress({
+            employee_name: loggedStaffName,
+            role: currentUser?.role || 'Manager',
+            date: todayStr,
+            tasks_done: ['Management & Supervision'],
+            tasks_pending: [],
+            hours_logged: addedHours,
+            verification_status: 'Pending',
+            rating: 0
+          });
+        }
       } else {
-        await addDailyProgress({
-          employee_name: loggedStaffName,
-          role: currentUser?.role || 'Staff Member',
-          date: todayStr,
-          tasks_done: [finalJobTitle],
-          tasks_pending: [],
-          hours_logged: addedHours,
-          verification_status: 'Pending',
-          rating: 0
-        });
+        if (existingProg) {
+          const currentTasksDone = Array.isArray(existingProg.tasksDone || existingProg.tasks_done) ? (existingProg.tasksDone || existingProg.tasks_done) : [];
+          const updatedTasksDone = Array.from(new Set([...currentTasksDone, finalJobTitle]));
+          const updatedHours = Number(((existingProg.hoursLogged || existingProg.hours_logged || 0) + addedHours).toFixed(1));
+          await updateDailyProgress(existingProg.id, {
+            tasks_done: updatedTasksDone,
+            hours_logged: updatedHours
+          });
+        } else {
+          await addDailyProgress({
+            employee_name: loggedStaffName,
+            role: currentUser?.role || 'Staff Member',
+            date: todayStr,
+            tasks_done: [finalJobTitle],
+            tasks_pending: [],
+            hours_logged: addedHours,
+            verification_status: 'Pending',
+            rating: 0
+          });
+        }
       }
     } catch (err) {
       console.error('Failed to auto-sync daily progress:', err);
@@ -326,12 +369,14 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     if (isPunchedInOrActive) {
       await handlePunchOut();
     } else {
-      // Punch In: Employee is now punched in and must select a job
+      // Punch In: Employee must select a job; Manager does not require job selection
       const now = Date.now();
       setIsPunchedIn(true);
       setPunchInTime(now);
-      setShowJobModal(true);
-      setIsPunchInModalOpen(true);
+      if (isEmployee) {
+        setShowJobModal(true);
+        setIsPunchInModalOpen(true);
+      }
 
       // Save attendance check-in to DB via API
       const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
@@ -397,15 +442,16 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   };
 
   // If an employee is punched in but has no active job tracker, force open the punch-in modal to select a job
+  // Managers do not perform jobs, so job selection is not required for managers
   useEffect(() => {
-    if (!isAdmin && isPunchedIn && !activeJobTracker) {
+    if (isEmployee && isPunchedIn && !activeJobTracker) {
       setShowJobModal(true);
       setIsPunchInModalOpen(true);
     }
-  }, [isAdmin, isPunchedIn, activeJobTracker]);
+  }, [isEmployee, isPunchedIn, activeJobTracker]);
 
   const handleCloseJobModal = async () => {
-    const shouldPunchOut = !isAdmin && isPunchedInOrActive;
+    const shouldPunchOut = isEmployee && isPunchedInOrActive;
     setShowJobModal(false);
     setIsPunchInModalOpen(false);
     setSelectedJobId('');
@@ -416,7 +462,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   };
 
   useEffect(() => {
-    if (!isAdmin && (showJobModal || isPunchInModalOpen)) {
+    if (isEmployee && (showJobModal || isPunchInModalOpen)) {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           handleCloseJobModal();
@@ -425,7 +471,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
-  }, [isAdmin, showJobModal, isPunchInModalOpen, isPunchedInOrActive]);
+  }, [isEmployee, showJobModal, isPunchInModalOpen, isPunchedInOrActive]);
 
   const confirmPunchIn = async () => {
     if (!selectedJobId) return;
@@ -595,8 +641,8 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
       <div className="flex items-center gap-4">
         
-        {/* Active Job Tracker */}
-        {!isAdmin && activeJobTracker && (() => {
+        {/* Active Job Tracker for Employees */}
+        {isEmployee && activeJobTracker && (() => {
           const activeJob = jobs.find(j => j.id === activeJobTracker.jobId);
           let title = activeJob?.title;
           if (!title && (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-'))) {
@@ -626,6 +672,17 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             </div>
           );
         })()}
+
+        {/* Manager Shift Active Badge (no job selection required) */}
+        {isManager && isPunchedIn && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-300/80 px-3.5 py-1.5 rounded-full shadow-2xs">
+            <Clock className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
+            <span className="text-xs font-bold text-emerald-800">Shift Active</span>
+            <span className="text-xs font-mono font-bold text-emerald-700 shrink-0">
+              {formatTime(managerShiftElapsed)}
+            </span>
+          </div>
+        )}
 
         {/* Punch In / Out Button */}
         {canPunch && (
@@ -766,7 +823,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       </div>
 
       {/* Job Selection / Switch Modal */}
-      {!isAdmin && (showJobModal || isPunchInModalOpen) && createPortal(
+      {isEmployee && (showJobModal || isPunchInModalOpen) && createPortal(
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">

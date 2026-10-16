@@ -697,7 +697,7 @@ export function JobsPage() {
     const finalTracked = (job?.trackedTime || 0) + Math.max(0, extraElapsed);
 
     await updateJob(jobId, { status: 'Completed', trackedTime: finalTracked, startedAt: null });
-    if (currentUserRole !== 'Admin') {
+    if (currentUserRole !== 'Admin' && currentUserRole !== 'Manager') {
       setTimeout(() => openPunchInModal(), 200);
     }
 
@@ -843,7 +843,7 @@ export function JobsPage() {
       });
 
       setCompletionModalJobId(null);
-      if (currentUserRole !== 'Admin') {
+      if (currentUserRole !== 'Admin' && currentUserRole !== 'Manager') {
         setTimeout(() => openPunchInModal(), 200);
       }
     }
@@ -1546,9 +1546,11 @@ export function JobsPage() {
                           className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none shadow-sm font-medium"
                         >
                           <option value="">Unassigned</option>
-                          {staff.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
+                          {staff
+                            .filter(s => (s.role !== 'Admin' && s.role !== 'Manager') || s.id === job.teamId)
+                            .map(s => (
+                              <option key={s.id} value={s.id}>{s.name} ({s.role || 'Staff'})</option>
+                            ))}
                         </select>
                       ) : (
                         <div className="inline-flex items-center gap-1">
@@ -1996,7 +1998,9 @@ export function JobsPage() {
                     onChange={val => setFormData({...formData, teamId: val})}
                     options={[
                       { value: '', label: 'Unassigned (None)' },
-                      ...staff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))
+                      ...staff
+                        .filter(s => (s.role !== 'Admin' && s.role !== 'Manager') || s.id === formData.teamId)
+                        .map(s => ({ value: s.id, label: `${s.name} (${s.role || 'Staff'})` }))
                     ]}
                     placeholder="Unassigned (None)"
                   />
