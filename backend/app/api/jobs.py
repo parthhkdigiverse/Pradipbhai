@@ -6,12 +6,22 @@ from app.database import get_db
 from app.models.job import Job
 from app.schemas.job import JobCreate, JobUpdate, JobOut
 
+from app.cache import get_cache, set_cache, invalidate_cache
+
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+CACHE_KEY = "cache:jobs:all"
 
 @router.get("", response_model=List[JobOut])
 async def get_jobs(db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(CACHE_KEY)
+    if cached is not None:
+        return cached
+
     result = await db.execute(select(Job).order_by(Job.createdAt.desc()))
-    return result.scalars().all()
+    jobs = result.scalars().all()
+    jobs_dict = [JobOut.model_validate(j).model_dump() for j in jobs]
+    await set_cache(CACHE_KEY, jobs_dict, expire_seconds=120)
+    return jobs
 
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(job_in: JobCreate, db: AsyncSession = Depends(get_db)):
@@ -32,6 +42,7 @@ async def create_job(job_in: JobCreate, db: AsyncSession = Depends(get_db)):
     db.add(job)
     await db.commit()
     await db.refresh(job)
+    await invalidate_cache("cache:jobs")
     return job
 
 @router.put("/{job_id}", response_model=JobOut)
@@ -53,6 +64,7 @@ async def update_job(job_id: str, job_in: JobUpdate, db: AsyncSession = Depends(
         
     await db.commit()
     await db.refresh(job)
+    await invalidate_cache("cache:jobs")
     return job
 
 import os

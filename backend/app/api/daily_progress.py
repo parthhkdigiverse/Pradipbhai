@@ -8,12 +8,22 @@ from app.database import get_db
 from app.models.daily_progress import DailyProgress
 from app.schemas.daily_progress import DailyProgressCreate, DailyProgressUpdate, DailyProgressOut
 
+from app.cache import get_cache, set_cache, invalidate_cache
+
 router = APIRouter(prefix="/daily-progress", tags=["Daily Progress"])
+CACHE_KEY_DP = "cache:daily_progress:all"
 
 @router.get("", response_model=List[DailyProgressOut])
 async def get_daily_progress_records(db: AsyncSession = Depends(get_db)):
+    cached = await get_cache(CACHE_KEY_DP)
+    if cached is not None:
+        return cached
+
     result = await db.execute(select(DailyProgress))
-    return result.scalars().all()
+    records = result.scalars().all()
+    records_dict = [DailyProgressOut.model_validate(r).model_dump() for r in records]
+    await set_cache(CACHE_KEY_DP, records_dict, expire_seconds=120)
+    return records
 
 @router.post("", response_model=DailyProgressOut, status_code=status.HTTP_201_CREATED)
 async def create_daily_progress(progress_in: DailyProgressCreate, db: AsyncSession = Depends(get_db)):
@@ -35,6 +45,7 @@ async def create_daily_progress(progress_in: DailyProgressCreate, db: AsyncSessi
     db.add(progress)
     await db.commit()
     await db.refresh(progress)
+    await invalidate_cache("cache:daily_progress")
     return progress
 
 @router.put("/{progress_id}", response_model=DailyProgressOut)
@@ -49,6 +60,7 @@ async def update_daily_progress(progress_id: str, progress_in: DailyProgressUpda
         
     await db.commit()
     await db.refresh(progress)
+    await invalidate_cache("cache:daily_progress")
     return progress
 
 @router.delete("/{progress_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -59,3 +71,4 @@ async def delete_daily_progress(progress_id: str, db: AsyncSession = Depends(get
         raise HTTPException(status_code=404, detail="Daily progress record not found")
     await db.delete(progress)
     await db.commit()
+    await invalidate_cache("cache:daily_progress")
