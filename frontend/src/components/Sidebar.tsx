@@ -87,20 +87,24 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
   return (
     <aside onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)} className={`flex-shrink-0 glass-panel border-r border-white/40 flex flex-col h-screen fixed top-0 left-0 overflow-y-auto z-50 hidden md:flex custom-scrollbar shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 ${effectiveIsCollapsed ? 'w-20' : 'w-64'}`}>
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/20 z-10 overflow-hidden">
-        <div className="flex items-center gap-2 font-bold text-xl text-gray-800 whitespace-nowrap">
-          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-primary flex items-center justify-center text-white">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
-              <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
-              <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
+      <div className="h-16 flex items-center px-4 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/40 z-10 overflow-hidden">
+        {effectiveIsCollapsed ? (
+          <div className="w-full flex items-center justify-center">
+            <img 
+              src="/alpha-icon.png" 
+              alt="Alpha Creative" 
+              className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-110" 
+            />
           </div>
-          <span className={`transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Alpha Creative</span>
-        </div>
+        ) : (
+          <div className="flex items-center px-2 py-1">
+            <img 
+              src="/alpha-logo.png" 
+              alt="Alpha Creative Hub" 
+              className="h-10 w-auto max-w-[200px] object-contain transition-all duration-300" 
+            />
+          </div>
+        )}
       </div>
 
       <div className="p-4 flex-1 flex flex-col overflow-y-auto custom-scrollbar">

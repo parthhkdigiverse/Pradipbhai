@@ -80,19 +80,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
       <div className="relative z-10 w-full max-w-md mx-auto px-6">
         {/* Logo Area */}
-        <div className="flex flex-col items-center justify-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white mb-4 shadow-xl shadow-primary/20 animate-in zoom-in duration-500">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
-              <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
-              <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight text-center">Staff Portal</h1>
-          <p className="text-gray-500 mt-1 text-center text-sm">Sign in to your registered staff account</p>
+        <div className="flex flex-col items-center justify-center mb-6">
+          <img 
+            src="/alpha-logo.png" 
+            alt="Alpha Creative Hub" 
+            className="h-16 w-auto max-w-[280px] object-contain mb-3 drop-shadow-sm animate-in zoom-in duration-500" 
+          />
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight text-center">Staff Portal</h1>
+          <p className="text-gray-500 mt-0.5 text-center text-sm font-medium">Sign in to your registered staff account</p>
         </div>
 
         {/* Login Card */}

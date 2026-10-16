@@ -71,8 +71,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const [radius, setRadius] = useState<number>(0.75);
   const [fontFamily, setFontFamily] = useState<string>("Inter");
-  const [logoUrl, setLogoUrl] = useState<string>("");
-  const [companyName, setCompanyName] = useState<string>("HR Suite");
+  const [logoUrl, setLogoUrl] = useState<string>("/alpha-logo.png");
+  const [companyName, setCompanyName] = useState<string>("Alpha Creative Hub");
 
   useEffect(() => {
     const savedColor = localStorage.getItem("app-theme-color");
@@ -99,8 +99,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
     } if (savedRadius) setRadius(parseFloat(savedRadius));
     if (savedFont) setFontFamily(savedFont);
-    if (savedLogo) setLogoUrl(savedLogo);
-    if (savedName) setCompanyName(savedName);
+    if (savedLogo) {
+      setLogoUrl(savedLogo);
+    } else {
+      setLogoUrl("/alpha-logo.png");
+    }
+    if (savedName && savedName !== "HR Suite") {
+      setCompanyName(savedName);
+    } else {
+      setCompanyName("Alpha Creative Hub");
+    }
   }, []);
 
   useEffect(() => {

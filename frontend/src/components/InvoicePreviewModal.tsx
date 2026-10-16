@@ -35,15 +35,12 @@ export function InvoicePreviewModal({ invoice, onClose }: { invoice: any, onClos
             {/* Header */}
             <div className="flex justify-between items-start p-[10mm] pb-4">
               <div className="max-w-[60%]">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-8 h-8 bg-black rounded-tl-full rounded-bl-full flex items-center justify-center">
-                     <span className="text-white text-[10px] font-bold">A</span>
-                  </div>
-                  <h1 className="text-4xl font-light tracking-widest text-black">ALPHA</h1>
-                </div>
-                <div className="text-[10px] tracking-[0.3em] font-bold ml-10 mb-2 border-b border-black/20 pb-2">C R E A T I V E  H U B</div>
-                <p className="font-serif italic text-sm text-gray-700 ml-2">We Design Your Dreams...!!</p>
-                <p className="font-bold text-xs ml-2 mt-1">SURAT • JUNAGADH</p>
+                <img 
+                  src="/alpha-logo.png" 
+                  alt="Alpha Creative Hub" 
+                  className="h-20 w-auto object-contain mb-1" 
+                />
+                <p className="font-bold text-[11px] ml-1 mt-1 tracking-wider text-gray-800">SURAT • JUNAGADH</p>
               </div>
               <div className="text-right text-[10px] space-y-1">
                 <p>E-mail: contact@alphacreativehub.com</p>
