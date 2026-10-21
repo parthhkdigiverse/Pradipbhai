@@ -94,7 +94,9 @@ export function CatalogPage() {
       description: formData.description,
       type: formData.type,
       price: parsedPrice,
+      estimatedTime: parsedTime,
       estimated_time: parsedTime,
+      estimatedTimeUnit: formData.estimatedTimeUnit,
       estimated_time_unit: formData.estimatedTimeUnit
     };
 
@@ -232,10 +234,10 @@ export function CatalogPage() {
                       {getTypeBadge(product.type)}
                     </td>
                     <td className="py-4 px-6 text-center">
-                      {product.estimatedTime ? (
+                      {(product.estimatedTime || product.estimated_time) ? (
                         <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg text-xs font-bold">
                           <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                          {product.estimatedTime} {product.estimatedTimeUnit || 'Hours'}
+                          {product.estimatedTime || product.estimated_time} {product.estimatedTimeUnit || product.estimated_time_unit || 'Hours'}
                         </span>
                       ) : (
                         <span className="text-gray-400 font-medium">-</span>

@@ -8,6 +8,8 @@ class ProductBase(BaseModel):
     price: Optional[float] = None
     estimated_time: Optional[float] = None
     estimated_time_unit: Optional[str] = "Hours"
+    estimatedTime: Optional[float] = None
+    estimatedTimeUnit: Optional[str] = "Hours"
 
 class ProductCreate(ProductBase):
     id: Optional[str] = None
@@ -19,6 +21,8 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = None
     estimated_time: Optional[float] = None
     estimated_time_unit: Optional[str] = None
+    estimatedTime: Optional[float] = None
+    estimatedTimeUnit: Optional[str] = None
 
 class ProductOut(ProductBase):
     id: str

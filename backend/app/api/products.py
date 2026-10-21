@@ -17,6 +17,8 @@ class ProductBase(BaseModel):
     price: Optional[float] = None
     estimated_time: Optional[float] = None
     estimated_time_unit: Optional[str] = "Hours"
+    estimatedTime: Optional[float] = None
+    estimatedTimeUnit: Optional[str] = "Hours"
 
 class ProductCreate(ProductBase):
     pass
@@ -28,6 +30,8 @@ class ProductUpdate(BaseModel):
     price: Optional[float] = None
     estimated_time: Optional[float] = None
     estimated_time_unit: Optional[str] = None
+    estimatedTime: Optional[float] = None
+    estimatedTimeUnit: Optional[str] = None
 
 class ProductOut(ProductBase):
     class Config:
@@ -60,7 +64,13 @@ async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_
             detail=f"A product named '{product.name.strip()}' with type '{product.type}' already exists."
         )
 
-    db_product = Product(**product.model_dump())
+    dump = product.model_dump(exclude={'estimatedTime', 'estimatedTimeUnit'})
+    est_time = product.estimated_time if product.estimated_time is not None else product.estimatedTime
+    est_unit = product.estimated_time_unit or product.estimatedTimeUnit or "Hours"
+    dump['estimated_time'] = est_time
+    dump['estimated_time_unit'] = est_unit
+
+    db_product = Product(**dump)
     db.add(db_product)
     await db.commit()
     await db.refresh(db_product)
@@ -90,7 +100,18 @@ async def update_product(product_id: str, product_data: ProductUpdate, db: Async
             detail=f"A product named '{new_name}' with type '{new_type}' already exists."
         )
 
-    for key, value in product_data.model_dump(exclude_unset=True).items():
+    dump = product_data.model_dump(exclude_unset=True)
+    if 'estimatedTime' in dump and 'estimated_time' not in dump:
+        dump['estimated_time'] = dump.pop('estimatedTime')
+    else:
+        dump.pop('estimatedTime', None)
+
+    if 'estimatedTimeUnit' in dump and 'estimated_time_unit' not in dump:
+        dump['estimated_time_unit'] = dump.pop('estimatedTimeUnit')
+    else:
+        dump.pop('estimatedTimeUnit', None)
+
+    for key, value in dump.items():
         setattr(db_product, key, value)
     
     await db.commit()

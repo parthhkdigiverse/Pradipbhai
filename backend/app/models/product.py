@@ -12,3 +12,11 @@ class Product(Base):
     price: Mapped[float] = mapped_column(Float, nullable=True)
     estimated_time: Mapped[float] = mapped_column(Float, nullable=True)
     estimated_time_unit: Mapped[str] = mapped_column(String(50), default="Hours")
+
+    @property
+    def estimatedTime(self):
+        return self.estimated_time
+
+    @property
+    def estimatedTimeUnit(self):
+        return self.estimated_time_unit

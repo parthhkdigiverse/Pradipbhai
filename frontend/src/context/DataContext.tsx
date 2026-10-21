@@ -485,7 +485,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const [leads, setLeads] = useState<any[]>(() => loadCachedData('cache_leads', []));
   const [clients, setClients] = useState<any[]>(() => loadCachedData('cache_clients', []));
-  const [products, setProducts] = useState<any[]>(() => loadCachedData('cache_products', []));
+  const [products, setProducts] = useState<any[]>(() => {
+    const cached = loadCachedData('cache_products', []);
+    return Array.isArray(cached) ? cached.map((p: any) => ({
+      ...p,
+      estimatedTime: (p.estimatedTime !== undefined && p.estimatedTime !== null && p.estimatedTime !== '')
+        ? p.estimatedTime
+        : ((p.estimated_time !== undefined && p.estimated_time !== null && p.estimated_time !== '') ? p.estimated_time : undefined),
+      estimated_time: (p.estimated_time !== undefined && p.estimated_time !== null && p.estimated_time !== '')
+        ? p.estimated_time
+        : ((p.estimatedTime !== undefined && p.estimatedTime !== null && p.estimatedTime !== '') ? p.estimatedTime : undefined),
+      estimatedTimeUnit: p.estimatedTimeUnit || p.estimated_time_unit || 'Hours',
+      estimated_time_unit: p.estimated_time_unit || p.estimatedTimeUnit || 'Hours'
+    })) : [];
+  });
   const [staff, setStaff] = useState<any[]>(() => loadCachedData('cache_staff', []));
 
   const currentUser = useMemo(() => {
@@ -686,6 +699,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
     contentCalendar: Array.isArray(p.content_calendar) ? p.content_calendar : (Array.isArray(p.contentCalendar) ? p.contentCalendar : [])
   });
 
+  const normalizeProduct = (p: any) => {
+    if (!p) return p;
+    const estTime = (p.estimatedTime !== undefined && p.estimatedTime !== null && p.estimatedTime !== '')
+      ? p.estimatedTime
+      : ((p.estimated_time !== undefined && p.estimated_time !== null && p.estimated_time !== '') ? p.estimated_time : undefined);
+    const estUnit = p.estimatedTimeUnit || p.estimated_time_unit || 'Hours';
+    return {
+      ...p,
+      id: p.id,
+      name: p.name || '',
+      description: p.description !== undefined && p.description !== null ? p.description : '',
+      type: p.type || 'Designing',
+      price: p.price !== undefined && p.price !== null ? p.price : 0,
+      estimatedTime: estTime,
+      estimated_time: estTime,
+      estimatedTimeUnit: estUnit,
+      estimated_time_unit: estUnit
+    };
+  };
+
   const refreshApiData = async () => {
     try {
       const headers = getAuthHeaders();
@@ -789,8 +822,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         saveCache('cache_holidays', holRes.value);
       }
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
-        setProducts(prodRes.value);
-        saveCache('cache_products', prodRes.value);
+        const normProds = prodRes.value.map(normalizeProduct);
+        setProducts(normProds);
+        saveCache('cache_products', normProds);
       }
       if (fdRes.status === 'fulfilled' && Array.isArray(fdRes.value)) {
         setFieldDuties(fdRes.value);
@@ -1341,12 +1375,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Products API
   const addProduct = async (productData: any) => {
     try {
-      const payload = { ...productData, id: productData.id || `PROD-${Date.now()}` };
+      const payload = {
+        ...productData,
+        id: productData.id || `PROD-${Date.now()}`,
+        estimated_time: productData.estimated_time !== undefined ? productData.estimated_time : productData.estimatedTime,
+        estimated_time_unit: productData.estimated_time_unit || productData.estimatedTimeUnit || 'Hours',
+        estimatedTime: productData.estimatedTime !== undefined ? productData.estimatedTime : productData.estimated_time,
+        estimatedTimeUnit: productData.estimatedTimeUnit || productData.estimated_time_unit || 'Hours'
+      };
       const data = await apiFetch(`${API_BASE_URL}/products`, { method: 'POST', body: JSON.stringify(payload) });
-      setProducts(prev => [data, ...prev]);
-      return data;
+      const norm = normalizeProduct(data || payload);
+      setProducts(prev => [norm, ...prev]);
+      return norm;
     } catch {
-      const fallbackPayload = { ...productData, id: productData.id || `PROD-${Date.now()}` };
+      const fallbackPayload = normalizeProduct({ ...productData, id: productData.id || `PROD-${Date.now()}` });
       setProducts(prev => [fallbackPayload, ...prev]);
       return fallbackPayload;
     }
@@ -1354,11 +1396,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const updateProduct = async (id: string, updateData: any) => {
     try {
-      const data = await apiFetch(`${API_BASE_URL}/products/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setProducts(prev => prev.map(p => p.id === id ? data : p));
-      return data;
+      const payload = {
+        ...updateData,
+        estimated_time: updateData.estimated_time !== undefined ? updateData.estimated_time : updateData.estimatedTime,
+        estimated_time_unit: updateData.estimated_time_unit || updateData.estimatedTimeUnit,
+        estimatedTime: updateData.estimatedTime !== undefined ? updateData.estimatedTime : updateData.estimated_time,
+        estimatedTimeUnit: updateData.estimatedTimeUnit || updateData.estimated_time_unit
+      };
+      const data = await apiFetch(`${API_BASE_URL}/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      const norm = normalizeProduct(data || { ...updateData, id });
+      setProducts(prev => prev.map(p => p.id === id ? norm : p));
+      return norm;
     } catch {
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updateData } : p));
+      setProducts(prev => prev.map(p => p.id === id ? normalizeProduct({ ...p, ...updateData }) : p));
     }
   };
 

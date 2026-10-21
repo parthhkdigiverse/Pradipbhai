@@ -71,7 +71,9 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         description: formData.description.trim() || '-',
         type: formData.type,
         price: !isEmployee && formData.price !== '' ? parseFloat(formData.price) : 0,
+        estimatedTime: formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0,
         estimated_time: formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0,
+        estimatedTimeUnit: formData.estimatedTimeUnit || 'Hours',
         estimated_time_unit: formData.estimatedTimeUnit || 'Hours'
       });
 
