@@ -24,6 +24,7 @@ from app.api.restrictions import router as restrictions_router
 from app.api.chat import router as chat_router, ws_router as chat_ws_router
 from app.api.field_duties import router as field_duties_router
 from app.api.projects import router as projects_router
+from app.api.employee_of_month import router as employee_of_month_router
 
 # Lifespan event handler for startup/shutdown
 @asynccontextmanager
@@ -73,6 +74,7 @@ app.include_router(chat_router, prefix="/api", dependencies=[Depends(get_current
 app.include_router(chat_ws_router, prefix="/api") # No HTTPBearer auth dependency for WebSocket
 app.include_router(field_duties_router, prefix="/api", dependencies=[Depends(get_current_user)])
 app.include_router(projects_router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(employee_of_month_router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 @app.get("/api/health")
 async def health_check():

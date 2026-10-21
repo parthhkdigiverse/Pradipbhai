@@ -24,6 +24,7 @@ import { PermissionsPage } from './components/PermissionsPage';
 import { RestrictionsPage } from './components/RestrictionsPage';
 import { HolidaysPage } from './components/HolidaysPage';
 import { LeaveManagementPage } from './components/LeaveManagementPage';
+import { EmployeeOfMonthPage } from './components/EmployeeOfMonthPage';
 import { InactivityTimeoutGuard } from './components/InactivityTimeoutGuard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
@@ -79,6 +80,7 @@ function AppContent() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/daily-progress" element={<DailyProgressPage />} />
+        <Route path="/employee-of-month" element={<EmployeeOfMonthPage />} />
         <Route path="/staff" element={isEmployee ? <Navigate to="/" replace /> : <StaffPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/worklogs" element={<WorkLogsPage />} />

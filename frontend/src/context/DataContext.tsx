@@ -110,6 +110,26 @@ export const isPrintingJob = (job: any): boolean => {
   return false;
 };
 
+export interface EmployeeEvaluationRecord {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  employee_role?: string;
+  month: string; // e.g. "2026-10"
+  year: number;
+  criteria_scores: Record<string, number>;
+  total_score: number;
+  max_score: number;
+  percentage: number;
+  is_winner: boolean;
+  badge?: string;
+  manager_remarks?: string;
+  evaluated_by?: string;
+  evaluated_by_role?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 interface DataContextType {
   leads: any[];
   setLeads: React.Dispatch<React.SetStateAction<any[]>>;
@@ -214,6 +234,12 @@ interface DataContextType {
   setDailyProgressRecords: React.Dispatch<React.SetStateAction<DailyRecord[]>>;
   addDailyProgress: (progressData: any) => Promise<any>;
   updateDailyProgress: (id: string, updateData: any) => Promise<any>;
+
+  employeeEvaluations: EmployeeEvaluationRecord[];
+  setEmployeeEvaluations: React.Dispatch<React.SetStateAction<EmployeeEvaluationRecord[]>>;
+  addOrUpdateEvaluation: (evalData: Partial<EmployeeEvaluationRecord>) => Promise<any>;
+  crownWinner: (evalId: string) => Promise<any>;
+  deleteEvaluation: (evalId: string) => Promise<void>;
   
   rolePermissions: Record<string, Record<string, boolean>>;
   toggleRolePermission: (role: string, action: string) => void;
@@ -241,6 +267,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'View Attendance': true, 'Punch In/Out': false,
     'View Work Logs': true, 'Add Work Log': true,
     'View Daily Progress': true, 'Verify & Rate Reports': true,
+    'View Employee of the Month': true, 'Evaluate Employee of the Month': true,
     'View Payroll': true, 'Manage Payroll': true,
     'View Leaves': true, 'Apply Leave': true, 'Approve/Reject Leaves': true,
     'View Holidays': true, 'Manage Holidays': true,
@@ -263,6 +290,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'View Attendance': true, 'Punch In/Out': true,
     'View Work Logs': true, 'Add Work Log': true,
     'View Daily Progress': true, 'Verify & Rate Reports': true,
+    'View Employee of the Month': true, 'Evaluate Employee of the Month': true,
     'View Payroll': true, 'Manage Payroll': true,
     'View Leaves': true, 'Apply Leave': true, 'Approve/Reject Leaves': true,
     'View Holidays': true, 'Manage Holidays': true,
@@ -285,6 +313,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'View Attendance': true, 'Punch In/Out': true,
     'View Work Logs': true, 'Add Work Log': true,
     'View Daily Progress': true, 'Verify & Rate Reports': false,
+    'View Employee of the Month': true, 'Evaluate Employee of the Month': false,
     'View Payroll': false, 'Manage Payroll': false,
     'View Leaves': true, 'Apply Leave': true, 'Approve/Reject Leaves': false,
     'View Holidays': true, 'Manage Holidays': false,
@@ -420,6 +449,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       'attendance': 'View Attendance',
       'worklogs': 'View Work Logs',
       'daily-progress': 'View Daily Progress',
+      'employee-of-month': 'View Employee of the Month',
       'payroll': 'View Payroll',
       'leaves': 'View Leaves',
       'holidays': 'View Holidays',
@@ -488,6 +518,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
   const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>(() => loadCachedData('cache_daily_progress', []));
+  const [employeeEvaluations, setEmployeeEvaluations] = useState<EmployeeEvaluationRecord[]>(() => loadCachedData('cache_employee_evaluations', []));
   const [fieldDuties, setFieldDuties] = useState<any[]>(() => loadCachedData('cache_field_duties', []));
   const [projects, setProjects] = useState<any[]>(() => loadCachedData('cache_projects', []));
 
@@ -661,7 +692,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -678,6 +709,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/products`),
         fetchWithAuth(`${API_BASE_URL}/field-duties`),
         fetchWithAuth(`${API_BASE_URL}/projects`),
+        fetchWithAuth(`${API_BASE_URL}/employee-of-month`),
       ]);
 
       const saveCache = (key: string, val: any) => {
@@ -770,6 +802,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (permRes.status === 'fulfilled' && permRes.value && typeof permRes.value === 'object') {
         setRolePermissions(permRes.value);
         saveCache('cache_permissions', permRes.value);
+      }
+      if (eomRes.status === 'fulfilled' && Array.isArray(eomRes.value)) {
+        setEmployeeEvaluations(eomRes.value);
+        saveCache('cache_employee_evaluations', eomRes.value);
       }
     } catch (err) {
       console.warn("FastAPI Backend connecting...", err);
@@ -1087,6 +1123,87 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch {
       setDailyProgressRecords(prev => prev.map(r => r.id === id ? normalizeDailyProgress({ ...r, ...updateData }) : r));
     }
+  };
+
+  // Employee of the Month evaluations API
+  const addOrUpdateEvaluation = async (evalData: Partial<EmployeeEvaluationRecord>) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/employee-of-month`, {
+        method: 'POST',
+        body: JSON.stringify(evalData)
+      });
+      setEmployeeEvaluations(prev => {
+        const next = [data, ...prev.filter(e => e.id !== data.id && !(e.employee_id === data.employee_id && e.month === data.month))];
+        try { localStorage.setItem('cache_employee_evaluations', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      return data;
+    } catch {
+      const fallbackItem: EmployeeEvaluationRecord = {
+        id: evalData.id || `eom-${Date.now()}`,
+        employee_id: evalData.employee_id || '',
+        employee_name: evalData.employee_name || '',
+        employee_role: evalData.employee_role || '',
+        month: evalData.month || '',
+        year: evalData.year || 2026,
+        criteria_scores: evalData.criteria_scores || {},
+        total_score: evalData.total_score || 0,
+        max_score: evalData.max_score || 100,
+        percentage: evalData.percentage || 0,
+        is_winner: evalData.is_winner || false,
+        badge: evalData.badge || '',
+        manager_remarks: evalData.manager_remarks || '',
+        evaluated_by: evalData.evaluated_by || currentUser.name,
+        evaluated_by_role: evalData.evaluated_by_role || currentUserRole
+      };
+      setEmployeeEvaluations(prev => {
+        const next = [fallbackItem, ...prev.filter(e => e.id !== fallbackItem.id && !(e.employee_id === fallbackItem.employee_id && e.month === fallbackItem.month))];
+        try { localStorage.setItem('cache_employee_evaluations', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      return fallbackItem;
+    }
+  };
+
+  const crownWinner = async (evalId: string) => {
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/employee-of-month/${evalId}/crown`, {
+        method: 'POST'
+      });
+      setEmployeeEvaluations(prev => {
+        const next = prev.map(e => {
+          if (e.id === evalId) return { ...e, is_winner: true, badge: e.badge || 'Employee of the Month' };
+          if (e.month === data.month) return { ...e, is_winner: false };
+          return e;
+        });
+        try { localStorage.setItem('cache_employee_evaluations', JSON.stringify(next)); } catch {}
+        return next;
+      });
+      return data;
+    } catch {
+      setEmployeeEvaluations(prev => {
+        const target = prev.find(e => e.id === evalId);
+        const targetMonth = target?.month;
+        const next = prev.map(e => {
+          if (e.id === evalId) return { ...e, is_winner: true, badge: e.badge || 'Employee of the Month' };
+          if (targetMonth && e.month === targetMonth) return { ...e, is_winner: false };
+          return e;
+        });
+        try { localStorage.setItem('cache_employee_evaluations', JSON.stringify(next)); } catch {}
+        return next;
+      });
+    }
+  };
+
+  const deleteEvaluation = async (evalId: string) => {
+    try {
+      await apiFetch(`${API_BASE_URL}/employee-of-month/${evalId}`, { method: 'DELETE' });
+    } catch {}
+    setEmployeeEvaluations(prev => {
+      const next = prev.filter(e => e.id !== evalId);
+      try { localStorage.setItem('cache_employee_evaluations', JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   const syncDailyProgressForTask = async (staffName: string, role: string, taskTitle: string, hoursAdded = 0) => {
@@ -1701,6 +1818,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setDailyProgressRecords,
       addDailyProgress,
       updateDailyProgress,
+      employeeEvaluations,
+      setEmployeeEvaluations,
+      addOrUpdateEvaluation,
+      crownWinner,
+      deleteEvaluation,
       rolePermissions,
       toggleRolePermission,
       hasPermission,

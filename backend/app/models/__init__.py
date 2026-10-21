@@ -16,6 +16,7 @@ from app.models.worklog import WorkLog
 from app.models.permission import RolePermission
 from app.models.restriction import AccessRestriction
 from app.models.field_duty import FieldDuty
+from app.models.employee_of_month import EmployeeEvaluation
 
 __all__ = [
     "Client",
@@ -34,5 +35,6 @@ __all__ = [
     "LeaveBalance",
     "WorkLog",
     "RolePermission",
-    "AccessRestriction"
+    "AccessRestriction",
+    "EmployeeEvaluation"
 ]

@@ -68,6 +68,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
     { name: 'Attendance', group: 'HR' },
     { name: 'Work Logs', group: 'HR' },
     { name: 'Daily Progress', group: 'HR' },
+    { name: 'Employee of the Month', group: 'HR' },
     { name: 'Payroll', group: 'HR' },
     { name: 'Leaves', group: 'HR' },
     { name: 'Holidays', group: 'HR' },
@@ -225,7 +226,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
           )}
 
           {/* HR Management */}
-          {(hasTabPermission(currentUserRole, 'staff') || hasTabPermission(currentUserRole, 'attendance') || hasTabPermission(currentUserRole, 'worklogs') || hasTabPermission(currentUserRole, 'daily-progress') || hasTabPermission(currentUserRole, 'payroll') || hasTabPermission(currentUserRole, 'leaves') || hasTabPermission(currentUserRole, 'holidays')) && (
+          {(hasTabPermission(currentUserRole, 'staff') || hasTabPermission(currentUserRole, 'attendance') || hasTabPermission(currentUserRole, 'worklogs') || hasTabPermission(currentUserRole, 'daily-progress') || hasTabPermission(currentUserRole, 'employee-of-month') || hasTabPermission(currentUserRole, 'payroll') || hasTabPermission(currentUserRole, 'leaves') || hasTabPermission(currentUserRole, 'holidays')) && (
             <div>
               <button 
                 onClick={() => {
@@ -264,6 +265,12 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                   {hasTabPermission(currentUserRole, 'daily-progress') && (
                     <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Daily Progress
+                    </button>
+                  )}
+                  {hasTabPermission(currentUserRole, 'employee-of-month') && (
+                    <button onClick={() => setCurrentPage('employee-of-month')} className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'employee-of-month' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                      <span className="truncate">Employee of the Month</span>
+                      <span className="text-xs">🏆</span>
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'payroll') && (
