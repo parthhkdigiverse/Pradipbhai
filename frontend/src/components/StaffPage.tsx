@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, FilterX, ChevronDown, Eye, EyeOff, Trash2, Shield, Sparkles, RotateCcw, Clock } from 'lucide-react';
+import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, Eye, EyeOff, Trash2, Shield, Sparkles, RotateCcw, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -33,7 +33,6 @@ export function StaffPage() {
   const canCreateEditStaff = hasPermission(currentUserRole, 'Create/Edit Staff');
   const canDeleteStaff = hasPermission(currentUserRole, 'Delete Staff');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterRole, setFilterRole] = useState('All');
 
@@ -211,75 +210,71 @@ export function StaffPage() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
-        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FilterX className="w-4 h-4 text-gray-500" />
-            Filter Staff
-          </h3>
-          <div className="flex items-center gap-4">
-            {(searchTerm !== '' || filterStatus !== 'All' || filterRole !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
-                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Clear Filters
-              </button>
-            )}
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
-          </div>
-        </button>
-        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-            <SearchableSelect
-              value={filterStatus}
-              onChange={setFilterStatus}
-              options={[
-                { value: 'All', label: 'All Status' },
-                { value: 'Active', label: 'Active' },
-                { value: 'Inactive', label: 'Inactive' },
-                { value: 'On Leave', label: 'On Leave' }
-              ]}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Role</label>
-            <SearchableSelect
-              value={filterRole}
-              onChange={setFilterRole}
-              options={[
-                { value: 'All', label: 'All Roles' },
-                ...uniqueRoles.map(r => ({ value: r, label: r }))
-              ]}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Join Date From</label>
-            <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-          </div>
-          <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Join Date To</label>
-            <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-          </div>
-        </div>
-        
-        <div className="mt-3 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+      {/* Filters Bar */}
+      <div className="glass-panel border border-white/60 rounded-2xl shadow-sm mb-6 p-3 sm:p-4 bg-white/40 backdrop-blur-md flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input 
             type="text" 
             placeholder="Search staff by name or email..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+            className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
           />
         </div>
-          </div>
+
+        <div className="w-full sm:w-44 shrink-0">
+          <SearchableSelect
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: 'All', label: 'All Status' },
+              { value: 'Active', label: 'Active' },
+              { value: 'Inactive', label: 'Inactive' },
+              { value: 'On Leave', label: 'On Leave' }
+            ]}
+          />
         </div>
+
+        <div className="w-full sm:w-44 shrink-0">
+          <SearchableSelect
+            value={filterRole}
+            onChange={setFilterRole}
+            options={[
+              { value: 'All', label: 'All Roles' },
+              ...uniqueRoles.map(r => ({ value: r, label: r }))
+            ]}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 bg-white/70 border border-white/80 rounded-xl px-3 py-1.5 shrink-0 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+          <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Joined:</span>
+          <input 
+            type="date" 
+            value={filterDateFrom} 
+            onChange={(e) => setFilterDateFrom(e.target.value)} 
+            className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer" 
+            title="Join Date From" 
+          />
+          <span className="text-gray-400 text-xs font-bold">to</span>
+          <input 
+            type="date" 
+            value={filterDateTo} 
+            onChange={(e) => setFilterDateTo(e.target.value)} 
+            className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer" 
+            title="Join Date To" 
+          />
+        </div>
+
+        {(searchTerm !== '' || filterStatus !== 'All' || filterRole !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+          <button 
+            onClick={resetFilters}
+            className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+            Clear Filters
+          </button>
+        )}
       </div>
 
       <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">

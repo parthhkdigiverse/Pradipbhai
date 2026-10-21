@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Search, FilterX, ChevronDown } from 'lucide-react';
+import { Megaphone, Calendar as CalendarIcon, Plus, X, Maximize, Minimize, Search } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -79,7 +79,6 @@ export function SocialMediaPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClient, setFilterClient] = useState('All');
-  const [showFilters, setShowFilters] = useState(false);
 
   const uniqueClients = useMemo(() => {
     const clients = new Set(smProjects.map(p => p.clientName));
@@ -322,42 +321,39 @@ export function SocialMediaPage() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
-        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FilterX className="w-4 h-4 text-gray-500" />
-            Filter Social Media
-          </h3>
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
-        </button>
-        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client</label>
-                <SearchableSelect
-                  value={filterClient}
-                  onChange={setFilterClient}
-                  options={[
-                    { value: 'All', label: 'All Clients' },
-                    ...uniqueClients.map(c => ({ value: c, label: c }))
-                  ]}
-                />
-              </div>
-            </div>
-            <div className="mt-3 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input 
-                type="text" 
-                placeholder="Search projects by name..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-              />
-            </div>
-          </div>
+      {/* Filters Bar */}
+      <div className="glass-panel border border-white/60 rounded-2xl shadow-sm mb-6 p-3 sm:p-4 bg-white/40 backdrop-blur-md flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input 
+            type="text" 
+            placeholder="Search projects by name..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
+          />
         </div>
+        
+        <div className="w-full sm:w-60 shrink-0">
+          <SearchableSelect
+            value={filterClient}
+            onChange={setFilterClient}
+            options={[
+              { value: 'All', label: 'All Clients' },
+              ...uniqueClients.map(c => ({ value: c, label: c }))
+            ]}
+          />
+        </div>
+
+        {(searchTerm !== '' || filterClient !== 'All') && (
+          <button 
+            onClick={resetFilters}
+            className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+            Clear Filters
+          </button>
+        )}
       </div>
 
       <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">

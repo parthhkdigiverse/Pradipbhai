@@ -16,8 +16,7 @@ import {
   TrendingUp,
   Activity,
   Calendar,
-  Building,
-  FilterX
+  Building
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
@@ -39,7 +38,6 @@ export function ClientsPage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   
   const resetFilters = () => {
     setSearchTerm('');
@@ -375,67 +373,64 @@ export function ClientsPage() {
       </div>
 
       <div className="glass-panel rounded-2xl overflow-hidden flex flex-col min-h-[500px]">
-        {/* Advanced Filters Panel */}
-        <div className="border-b border-white/40">
-          <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-5 hover:bg-white/20 transition-colors cursor-pointer select-none">
-            <h3 className="font-bold text-gray-800 flex items-center gap-2">
-              <FilterX className="w-4 h-4 text-gray-500" />
-              Filter Clients
-            </h3>
-            <div className="flex items-center gap-4">
-              {(searchTerm !== '' || filterStatus !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
-                <button 
-                  onClick={(e) => { e.stopPropagation(); resetFilters(); }}
-                  className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Clear
-              </button>
-              )}
-              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
-            </div>
-          </button>
-          <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
-            <div className="px-5 pb-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                  <SearchableSelect
-                    value={filterStatus}
-                    onChange={setFilterStatus}
-                    options={[
-                      { value: 'All', label: 'All Status' },
-                      { value: 'Active', label: 'Active' },
-                      { value: 'Onboarding', label: 'Onboarding' },
-                      { value: 'Inactive', label: 'Inactive' }
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since From</label>
-                  <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-                </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Client Since To</label>
-                  <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="w-full px-2 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-                </div>
-              </div>
-              <div className="mt-3 relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                <input 
-                  type="text" 
-                  placeholder="Search by company, contact, or email..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-                />
-              </div>
-            </div>
+        {/* Filters Bar */}
+        <div className="p-4 border-b border-white/40 bg-white/30 backdrop-blur-xs flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search by company, contact, or email..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
+            />
           </div>
+
+          <div className="w-full sm:w-48 shrink-0">
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Status' },
+                { value: 'Active', label: 'Active' },
+                { value: 'Onboarding', label: 'Onboarding' },
+                { value: 'Inactive', label: 'Inactive' }
+              ]}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 bg-white/70 border border-white/80 rounded-xl px-3 py-1.5 shrink-0 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Since:</span>
+            <input 
+              type="date" 
+              value={filterDateFrom} 
+              onChange={(e) => setFilterDateFrom(e.target.value)} 
+              className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer" 
+              title="Client Since From"
+            />
+            <span className="text-gray-400 text-xs font-bold">to</span>
+            <input 
+              type="date" 
+              value={filterDateTo} 
+              onChange={(e) => setFilterDateTo(e.target.value)} 
+              className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer" 
+              title="Client Since To"
+            />
+          </div>
+
+          {(searchTerm !== '' || filterStatus !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+            <button 
+              onClick={resetFilters}
+              className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              Clear Filters
+            </button>
+          )}
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto flex-1 bg-white/10 p-4 pt-0">
+        <div className="overflow-x-auto flex-1 bg-white/10 p-4">
           <div className="glass-panel border border-white/60 rounded-xl overflow-hidden shadow-sm">
             <table className="w-full text-left border-collapse">
               <thead>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, FilterX, Calculator, IndianRupee, FileText, X, CheckCircle, Calendar, ChevronDown } from 'lucide-react';
+import { Search, Calculator, IndianRupee, FileText, X, CheckCircle, Calendar } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -21,7 +21,6 @@ export function PayrollPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedPayslip, setSelectedPayslip] = useState<any>(null);
-  const [showFilters, setShowFilters] = useState(false);
 
   // Deduction Breakdown & Note Modal State
   const [deductionModalData, setDeductionModalData] = useState<{
@@ -959,64 +958,51 @@ export function PayrollPage() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
-        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FilterX className="w-4 h-4 text-gray-500" />
-            Filter Payroll
-          </h3>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-4 text-sm font-bold text-gray-600 bg-white/40 px-4 py-2 rounded-xl border border-white/60">
-              <div className="flex items-center gap-1.5">
-                <span className="text-gray-400 font-medium">Total Paid:</span>
-                <span className="text-emerald-700 text-lg flex items-center font-black">
-                  <IndianRupee className="w-4 h-4" />
-                  {payrollSummary.totalPaid.toLocaleString()}
-                </span>
-              </div>
-            </div>
-            {(searchTerm !== '' || filterStatus !== 'All') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
-                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                Clear
-              </button>
-            )}
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
+      {/* Filters Bar */}
+      <div className="glass-panel border border-white/60 rounded-2xl shadow-sm mb-6 p-3 sm:p-4 bg-white/40 backdrop-blur-md flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search staff by name or role..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
+            />
           </div>
-        </button>
-        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status & Account</label>
-                <SearchableSelect
-                  value={filterStatus}
-                  onChange={setFilterStatus}
-                  options={[
-                    { value: 'All', label: 'All Status' },
-                    { value: 'Pending', label: 'Pending' },
-                    { value: 'Paid', label: 'All Paid' },
-                    { value: 'Current', label: 'Paid via Current A/c' },
-                    { value: 'Savings', label: 'Paid via Savings A/c' }
-                  ]}
-                />
-              </div>
-            </div>
-            <div className="mt-3 relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input 
-                type="text" 
-                placeholder="Search staff by name or role..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
-              />
-            </div>
+          
+          <div className="w-full sm:w-64 shrink-0">
+            <SearchableSelect
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'All', label: 'All Status' },
+                { value: 'Pending', label: 'Pending' },
+                { value: 'Paid', label: 'All Paid' },
+                { value: 'Current', label: 'Paid via Current A/c' },
+                { value: 'Savings', label: 'Paid via Savings A/c' }
+              ]}
+            />
           </div>
+
+          {(searchTerm !== '' || filterStatus !== 'All') && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); resetFilters(); }}
+              className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 self-start lg:self-auto text-sm font-bold text-gray-600 bg-white/50 px-4 py-2 rounded-xl border border-white/60 shrink-0 shadow-2xs">
+          <span className="text-gray-400 font-medium">Total Paid:</span>
+          <span className="text-emerald-700 text-base flex items-center font-black">
+            <IndianRupee className="w-4 h-4" />
+            {payrollSummary.totalPaid.toLocaleString()}
+          </span>
         </div>
       </div>
 

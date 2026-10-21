@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Calendar, Search, CheckCircle, Check, X, FilterX, ChevronDown, User, Clock, History, AlertTriangle, Edit2, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Search, CheckCircle, Check, X, User, Clock, History, AlertTriangle, Edit2, Plus, Trash2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -9,7 +9,6 @@ export function AttendancePage() {
   const [activeTab, setActiveTab] = useState<'daily' | 'employee' | 'history'>('daily');
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -333,93 +332,77 @@ export function AttendancePage() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
-        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FilterX className="w-4 h-4 text-gray-500" />
-            Filter Attendance
-          </h3>
-          <div className="flex items-center gap-4">
-            {(searchTerm !== '' || filterStatus !== 'All' || historyDateFrom !== '' || historyDateTo !== '' || historyStaffId !== 'All') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
-                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
-              >
-                <X className="w-4 h-4" />
-                Clear Filters
-              </button>
-            )}
-            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
-          </div>
-        </button>
-        
-        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 pb-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
-                <SearchableSelect
-                  value={filterStatus}
-                  onChange={setFilterStatus}
-                  options={[
-                    { value: 'All', label: 'All Status' },
-                    { value: 'Unmarked', label: 'Unmarked' },
-                    { value: 'Present', label: 'Present' },
-                    { value: 'Absent', label: 'Absent' },
-                    { value: 'Half Day', label: 'Half Day' },
-                    { value: 'Leave', label: 'Leave' }
-                  ]}
-                />
-              </div>
+      {/* Filters Bar */}
+      <div className="glass-panel border border-white/60 rounded-2xl shadow-sm mb-6 p-3 sm:p-4 bg-white/40 backdrop-blur-md flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input 
+            type="text" 
+            placeholder="Search staff by name or role..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
+          />
+        </div>
 
-              {activeTab === 'history' && isAdminOrManager && (
-                <>
-                  <div>
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Employee</label>
-                    <SearchableSelect
-                      value={historyStaffId}
-                      onChange={setHistoryStaffId}
-                      options={[
-                        { value: 'All', label: 'All Employees' },
-                        ...displayStaff.map(s => ({ value: s.id, label: s.name }))
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date From</label>
-                    <input 
-                      type="date"
-                      value={historyDateFrom}
-                      onChange={(e) => setHistoryDateFrom(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Date To</label>
-                    <input 
-                      type="date"
-                      value={historyDateTo}
-                      onChange={(e) => setHistoryDateTo(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-            
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input 
-                type="text" 
-                placeholder="Search staff by name or role..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 bg-white/60 border border-white/80 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-500"
+        <div className="w-full sm:w-44 shrink-0">
+          <SearchableSelect
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={[
+              { value: 'All', label: 'All Status' },
+              { value: 'Unmarked', label: 'Unmarked' },
+              { value: 'Present', label: 'Present' },
+              { value: 'Absent', label: 'Absent' },
+              { value: 'Half Day', label: 'Half Day' },
+              { value: 'Leave', label: 'Leave' }
+            ]}
+          />
+        </div>
+
+        {activeTab === 'history' && isAdminOrManager && (
+          <>
+            <div className="w-full sm:w-48 shrink-0">
+              <SearchableSelect
+                value={historyStaffId}
+                onChange={setHistoryStaffId}
+                options={[
+                  { value: 'All', label: 'All Employees' },
+                  ...displayStaff.map(s => ({ value: s.id, label: s.name }))
+                ]}
               />
             </div>
-          </div>
-        </div>
+
+            <div className="flex items-center gap-2 bg-white/70 border border-white/80 rounded-xl px-3 py-1.5 shrink-0 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+              <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Dates:</span>
+              <input 
+                type="date"
+                value={historyDateFrom}
+                onChange={(e) => setHistoryDateFrom(e.target.value)}
+                className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer"
+                title="Date From"
+              />
+              <span className="text-gray-400 text-xs font-bold">to</span>
+              <input 
+                type="date"
+                value={historyDateTo}
+                onChange={(e) => setHistoryDateTo(e.target.value)}
+                className="bg-transparent focus:outline-none text-xs font-semibold text-gray-800 cursor-pointer"
+                title="Date To"
+              />
+            </div>
+          </>
+        )}
+
+        {(searchTerm !== '' || filterStatus !== 'All' || historyDateFrom !== '' || historyDateTo !== '' || historyStaffId !== 'All') && (
+          <button 
+            onClick={resetFilters}
+            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 border border-rose-200"
+          >
+            <X className="w-3.5 h-3.5" />
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* TAB 1: DAILY ENTRY */}
