@@ -9,6 +9,7 @@ import { QuickAddClientModal } from './QuickAddClientModal';
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
   const { clients, jobs, products, addProject, updateProject, currentUserRole, hasPermission } = useData();
+  const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const canCreateEditProjects = hasPermission(currentUserRole, 'Create/Edit Projects');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -107,7 +108,7 @@ export function ProjectsPage() {
       productId: project.productId || '',
       category: project.category,
       status: project.status,
-      budget: project.budget,
+      budget: isEmployee ? '' : (project.budget || ''),
       deadline: project.deadline
     });
     setEditingClientIndex({ clientId: project.clientId, projectIndex: project.originalProjectIndex });
@@ -135,10 +136,20 @@ export function ProjectsPage() {
 
   const handleSaveProject = (e: React.FormEvent) => {
     e.preventDefault();
+    const dataToSave = { ...projectFormData };
+    if (isEmployee) {
+      if (editingClientIndex) {
+        const client = clients.find(c => c.id === editingClientIndex.clientId);
+        const origProj = client?.projects?.[editingClientIndex.projectIndex];
+        dataToSave.budget = origProj?.budget || '0';
+      } else {
+        dataToSave.budget = '0';
+      }
+    }
     if (editingClientIndex) {
-      updateProject(editingClientIndex.clientId, editingClientIndex.projectIndex, projectFormData);
+      updateProject(editingClientIndex.clientId, editingClientIndex.projectIndex, dataToSave);
     } else if (selectedClientId) {
-      addProject(selectedClientId, projectFormData);
+      addProject(selectedClientId, dataToSave);
     }
     handleCloseProjectModal();
   };
@@ -272,7 +283,7 @@ export function ProjectsPage() {
                 <th className="py-4 px-6">Project Name</th>
                 <th className="py-4 px-6">Client Name</th>
                 <th className="py-4 px-6">Category</th>
-                <th className="py-4 px-6">Budget / Financials</th>
+                {!isEmployee && <th className="py-4 px-6">Budget / Financials</th>}
                 <th className="py-4 px-6">Jobs</th>
                 <th className="py-4 px-6">Deadline</th>
                 <th className="py-4 px-6 text-center">Status</th>
@@ -304,41 +315,43 @@ export function ProjectsPage() {
                       <span className="text-[10px] font-semibold text-gray-500 bg-gray-100/50 px-2 py-0.5 rounded">{proj.category}</span>
                     </td>
                     {/* Budget & Live Financials */}
-                    <td className="py-4 px-6 min-w-[180px]">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Budget</span>
-                          <span className="font-bold text-gray-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{budget.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Billed</span>
-                          <span className="font-bold text-primary flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalBilled.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-gray-400 font-semibold uppercase tracking-wide">Paid</span>
-                          <span className="font-bold text-emerald-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalPaid.toLocaleString()}</span>
-                        </div>
-                        {proj.balance > 0 && (
+                    {!isEmployee && (
+                      <td className="py-4 px-6 min-w-[180px]">
+                        <div className="space-y-1">
                           <div className="flex items-center justify-between text-[10px]">
-                            <span className="text-gray-400 font-semibold uppercase tracking-wide">Balance</span>
-                            <span className="font-bold text-rose-500 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.balance.toLocaleString()}</span>
+                            <span className="text-gray-400 font-semibold uppercase tracking-wide">Budget</span>
+                            <span className="font-bold text-gray-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{budget.toLocaleString()}</span>
                           </div>
-                        )}
-                        {proj.totalBilled > 0 && (
-                          <div className="mt-1.5">
-                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className={`h-1.5 rounded-full transition-all ${
-                                  paidPct === 100 ? 'bg-emerald-500' : paidPct >= 50 ? 'bg-amber-400' : 'bg-rose-400'
-                                }`}
-                                style={{ width: `${paidPct}%` }}
-                              />
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-gray-400 font-semibold uppercase tracking-wide">Billed</span>
+                            <span className="font-bold text-primary flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalBilled.toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-gray-400 font-semibold uppercase tracking-wide">Paid</span>
+                            <span className="font-bold text-emerald-600 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.totalPaid.toLocaleString()}</span>
+                          </div>
+                          {proj.balance > 0 && (
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-gray-400 font-semibold uppercase tracking-wide">Balance</span>
+                              <span className="font-bold text-rose-500 flex items-center"><IndianRupee className="w-2.5 h-2.5" />{proj.balance.toLocaleString()}</span>
                             </div>
-                            <p className="text-[9px] text-gray-400 mt-0.5 text-right">{paidPct}% paid</p>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                          )}
+                          {proj.totalBilled > 0 && (
+                            <div className="mt-1.5">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-1.5 rounded-full transition-all ${
+                                    paidPct === 100 ? 'bg-emerald-500' : paidPct >= 50 ? 'bg-amber-400' : 'bg-rose-400'
+                                  }`}
+                                  style={{ width: `${paidPct}%` }}
+                                />
+                              </div>
+                              <p className="text-[9px] text-gray-400 mt-0.5 text-right">{paidPct}% paid</p>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     {/* Job progress */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-1.5">
@@ -442,9 +455,9 @@ export function ProjectsPage() {
                   value={projectFormData.productId || ''}
                   onChange={val => {
                     const selectedProd = products.find(p => p.id === val);
-                    const autoBudget = (selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '')
+                    const autoBudget = (!isEmployee && selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '')
                       ? String(selectedProd.price)
-                      : projectFormData.budget;
+                      : (isEmployee ? '' : projectFormData.budget);
                     setProjectFormData(prev => ({
                       ...prev,
                       productId: val,
@@ -452,10 +465,10 @@ export function ProjectsPage() {
                     }));
                   }}
                   options={[
-                    { value: '', label: 'Select product to auto-fetch price...' },
+                    { value: '', label: isEmployee ? 'Select product...' : 'Select product to auto-fetch price...' },
                     ...products.map(p => ({
                       value: p.id,
-                      label: p.price !== undefined && p.price !== null && p.price !== ''
+                      label: (!isEmployee && p.price !== undefined && p.price !== null && p.price !== '')
                         ? `${p.name} (₹${Number(p.price).toLocaleString('en-IN')})`
                         : p.name
                     }))
@@ -482,7 +495,7 @@ export function ProjectsPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid ${!isEmployee ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Status</label>
                   <select disabled title="Status is calculated automatically from Jobs" value={projectFormData.status} onChange={e => setProjectFormData({...projectFormData, status: e.target.value})} className="w-full px-3 py-2 bg-gray-100/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-400 cursor-not-allowed">
@@ -493,10 +506,12 @@ export function ProjectsPage() {
                     <option value="Completed">Completed</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Budget (₹)</label>
-                  <input type="number" value={projectFormData.budget} onChange={e => setProjectFormData({...projectFormData, budget: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
-                </div>
+                {!isEmployee && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Budget (₹)</label>
+                    <input type="number" value={projectFormData.budget} onChange={e => setProjectFormData({...projectFormData, budget: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Deadline</label>

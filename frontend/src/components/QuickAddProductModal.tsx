@@ -17,7 +17,8 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
   onClose,
   onProductCreated
 }) => {
-  const { products, addProduct } = useData();
+  const { products, addProduct, currentUserRole } = useData();
+  const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const [errorMessage, setErrorMessage] = useState('');
   const [formData, setFormData] = useState({
     name: '',
@@ -69,7 +70,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
         name: trimmedName,
         description: formData.description.trim() || '-',
         type: formData.type,
-        price: formData.price !== '' ? parseFloat(formData.price) : 0,
+        price: !isEmployee && formData.price !== '' ? parseFloat(formData.price) : 0,
         estimated_time: formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0,
         estimated_time_unit: formData.estimatedTimeUnit || 'Hours'
       });
@@ -118,7 +119,7 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid ${!isEmployee ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
             <div>
               <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">Product Type</label>
               <select
@@ -133,20 +134,22 @@ export const QuickAddProductModal: React.FC<QuickAddProductModalProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">Standard Price (₹)</label>
-              <div className="relative">
-                <IndianRupee className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="number"
-                  step="any" 
-                  value={formData.price} 
-                  onChange={e => setFormData({ ...formData, price: e.target.value })} 
-                  placeholder="0.00" 
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800" 
-                />
+            {!isEmployee && (
+              <div>
+                <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block mb-1">Standard Price (₹)</label>
+                <div className="relative">
+                  <IndianRupee className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="number"
+                    step="any" 
+                    value={formData.price} 
+                    onChange={e => setFormData({ ...formData, price: e.target.value })} 
+                    placeholder="0.00" 
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800" 
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

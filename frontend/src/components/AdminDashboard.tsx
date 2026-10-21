@@ -326,9 +326,13 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
             nextWeek.setDate(today.getDate() + 7);
             handleCardClick('jobs', { dateFrom: today.toISOString().split('T')[0], dateTo: nextWeek.toISOString().split('T')[0], status: 'All', type: 'All' });
           }} />
-          <DetailedMetricCard title="Paid" value={overallSummary.paid} icon={IndianRupee} bgClass="bg-teal-100" colorClass="text-teal-600" onClick={() => handleCardClick('jobs', { billing: 'Paid', status: 'All', type: 'All' })} />
-          <DetailedMetricCard title="Partial Paid" value={overallSummary.partialPaid} icon={Wallet} bgClass="bg-amber-100" colorClass="text-amber-600" onClick={() => handleCardClick('jobs', { billing: 'Partial', status: 'All', type: 'All' })} />
-          <DetailedMetricCard title="Unpaid" value={overallSummary.unpaid} icon={AlertCircle} bgClass="bg-rose-100" colorClass="text-rose-600" onClick={() => handleCardClick('jobs', { billing: 'Unpaid', status: 'All', type: 'All' })} />
+          {!isEmployee && (
+            <>
+              <DetailedMetricCard title="Paid" value={overallSummary.paid} icon={IndianRupee} bgClass="bg-teal-100" colorClass="text-teal-600" onClick={() => handleCardClick('jobs', { billing: 'Paid', status: 'All', type: 'All' })} />
+              <DetailedMetricCard title="Partial Paid" value={overallSummary.partialPaid} icon={Wallet} bgClass="bg-amber-100" colorClass="text-amber-600" onClick={() => handleCardClick('jobs', { billing: 'Partial', status: 'All', type: 'All' })} />
+              <DetailedMetricCard title="Unpaid" value={overallSummary.unpaid} icon={AlertCircle} bgClass="bg-rose-100" colorClass="text-rose-600" onClick={() => handleCardClick('jobs', { billing: 'Unpaid', status: 'All', type: 'All' })} />
+            </>
+          )}
         </div>
       </div>
 

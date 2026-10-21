@@ -5,6 +5,7 @@ import { SearchableSelect } from './SearchableSelect';
 
 export function CatalogPage() {
   const { products, addProduct, updateProduct, deleteProduct, currentUserRole, hasPermission } = useData();
+  const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const canManageProducts = hasPermission(currentUserRole, 'Manage Products');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -34,7 +35,8 @@ export function CatalogPage() {
       const sLower = searchTerm.toLowerCase();
       const matchSearch = (p.name && p.name.toLowerCase().includes(sLower)) || 
                           (p.description && p.description.toLowerCase().includes(sLower)) ||
-                          (p.type && p.type.toLowerCase().includes(sLower));
+                          (p.type && p.type.toLowerCase().includes(sLower)) ||
+                          (!isEmployee && p.price && p.price.toString().includes(sLower));
       const matchType = filterType === 'All' || p.type === filterType;
       return matchSearch && matchType;
     });
@@ -51,7 +53,7 @@ export function CatalogPage() {
         name: product.name,
         description: product.description || '',
         type: product.type || 'Designing',
-        price: product.price !== undefined && product.price !== null ? String(product.price) : '',
+        price: (!isEmployee && product.price !== undefined && product.price !== null) ? String(product.price) : '',
         estimatedTime: (product.estimated_time || product.estimatedTime) !== undefined && (product.estimated_time || product.estimatedTime) !== null ? String(product.estimated_time || product.estimatedTime) : '',
         estimatedTimeUnit: product.estimated_time_unit || product.estimatedTimeUnit || 'Hours'
       });
@@ -85,7 +87,7 @@ export function CatalogPage() {
     }
 
     setErrorMessage('');
-    const parsedPrice = formData.price !== '' ? parseFloat(formData.price) : 0;
+    const parsedPrice = !isEmployee && formData.price !== '' ? parseFloat(formData.price) : (editingId ? products.find(p => p.id === editingId)?.price || 0 : 0);
     const parsedTime = formData.estimatedTime !== '' ? parseFloat(formData.estimatedTime) : 0;
     const dataToSave = {
       name: trimmedName,
@@ -209,7 +211,7 @@ export function CatalogPage() {
                 <th className="py-4 px-6">Description</th>
                 <th className="py-4 px-6 text-center">Type</th>
                 <th className="py-4 px-6 text-center">Approx. Timeline</th>
-                <th className="py-4 px-6 text-right">Price (₹)</th>
+                {!isEmployee && <th className="py-4 px-6 text-right">Price (₹)</th>}
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
@@ -239,11 +241,13 @@ export function CatalogPage() {
                         <span className="text-gray-400 font-medium">-</span>
                       )}
                     </td>
-                    <td className="py-4 px-6 text-right font-bold text-gray-800">
-                      {product.price !== undefined && product.price !== null && product.price !== '' 
-                        ? `₹${Number(product.price).toLocaleString('en-IN')}` 
-                        : '-'}
-                    </td>
+                    {!isEmployee && (
+                      <td className="py-4 px-6 text-right font-bold text-gray-800">
+                        {product.price !== undefined && product.price !== null && product.price !== '' 
+                          ? `₹${Number(product.price).toLocaleString('en-IN')}` 
+                          : '-'}
+                      </td>
+                    )}
                     <td className="py-4 px-6 text-center">
                       {canManageProducts ? (
                         <div className="flex items-center justify-center gap-2">
@@ -353,19 +357,21 @@ export function CatalogPage() {
                   ]}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Default Price (₹)</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    step="any"
-                    placeholder="e.g. 1500"
-                    value={formData.price} 
-                    onChange={e => setFormData({...formData, price: e.target.value})} 
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
-                  />
-                </div>
+              <div className={`grid ${!isEmployee ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                {!isEmployee && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Default Price (₹)</label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      step="any"
+                      placeholder="e.g. 1500"
+                      value={formData.price} 
+                      onChange={e => setFormData({...formData, price: e.target.value})} 
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" 
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">Approx. Timeline</label>
                   <div className="flex gap-2">

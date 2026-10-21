@@ -314,14 +314,14 @@ export function JobsPage() {
       
       const matchSearch = (job.title || '').toLowerCase().includes(sLower) || 
                           (job.status || '').toLowerCase().includes(sLower) ||
-                          (job.paymentStatus || '').toLowerCase().includes(sLower) ||
+                          (!isEmployee && (job.paymentStatus || '').toLowerCase().includes(sLower)) ||
                           (job.type || '').toLowerCase().includes(sLower) ||
                           clientName.toLowerCase().includes(sLower) ||
                           staffName.toLowerCase().includes(sLower) ||
                           productName.toLowerCase().includes(sLower) ||
                           printerName.toLowerCase().includes(sLower) ||
                           (job.delayReason || '').toLowerCase().includes(sLower) ||
-                          (job.totalAmount && job.totalAmount.toString().includes(sLower));
+                          (!isEmployee && job.totalAmount && job.totalAmount.toString().includes(sLower));
       const matchStatus = filterStatus === 'All' || 
         job.status === filterStatus || 
         ((filterStatus === 'Progress' || filterStatus === 'In Progress') && (job.status === 'Progress' || job.status === 'In Progress')) ||
@@ -331,7 +331,7 @@ export function JobsPage() {
       const matchStaff = filterStaff === 'All' || 
         (filterStaff === 'Unassigned' ? (!job.teamId && !job.assignedStaffId) : job.teamId === filterStaff);
       const matchProduct = filterProduct === 'All' || job.productId === filterProduct;
-      const matchBilling = filterBilling === 'All' || job.paymentStatus === filterBilling;
+      const matchBilling = isEmployee || filterBilling === 'All' || job.paymentStatus === filterBilling;
       const matchType = filterType === 'All' || 
         (filterType === 'Printing' && isPrintingJob(job)) ||
         (filterType === 'Designing' && isDesigningJob(job)) ||
@@ -399,8 +399,8 @@ export function JobsPage() {
           printerId: job.printerId || '',
           teamId: job.teamId || '',
           dueDate: job.dueDate || '',
-          totalAmount: job.totalAmount.toString(),
-          paidAmount: job.paidAmount.toString(),
+          totalAmount: !isEmployee && job.totalAmount !== undefined && job.totalAmount !== null ? job.totalAmount.toString() : '',
+          paidAmount: !isEmployee && job.paidAmount !== undefined && job.paidAmount !== null ? job.paidAmount.toString() : '',
           status: job.status,
           paymentStatus: job.paymentStatus,
           vendorEmailSent: job.vendorEmailSent || false,
@@ -463,9 +463,16 @@ export function JobsPage() {
       }
     }
 
-    const total = parseFloat(formData.totalAmount) || 0;
-    const paid = parseFloat(formData.paidAmount) || 0;
-    const computedPaymentStatus = total > 0 && paid >= total ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid');
+    const existingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
+    const total = isEmployee 
+      ? (existingJob ? (existingJob.totalAmount || 0) : 0)
+      : (parseFloat(formData.totalAmount) || 0);
+    const paid = isEmployee 
+      ? (existingJob ? (existingJob.paidAmount || 0) : 0)
+      : (parseFloat(formData.paidAmount) || 0);
+    const computedPaymentStatus = isEmployee
+      ? (existingJob ? (existingJob.paymentStatus || 'Unpaid') : 'Unpaid')
+      : (total > 0 && paid >= total ? 'Paid' : (paid > 0 ? 'Partial' : 'Unpaid'));
 
     const jobData = {
       ...formData,
@@ -1199,7 +1206,7 @@ export function JobsPage() {
             Filter Jobs
           </h3>
           <div className="flex items-center gap-4">
-            {currentUserRole !== 'Employee' && (
+            {!isEmployee && (
               <div className="text-right">
                 <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
                 <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
@@ -1270,7 +1277,7 @@ export function JobsPage() {
               ]}
             />
           </div>
-          {currentUserRole !== 'Employee' && (
+          {!isEmployee && (
             <div>
               <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Billing</label>
               <SearchableSelect
@@ -1339,7 +1346,7 @@ export function JobsPage() {
                 <th className="py-4 px-6">Team</th>
                 <th className="py-4 px-6">Due Date</th>
                 <th className="py-4 px-6 text-center">Time</th>
-                {currentUserRole !== 'Employee' && (
+                {!isEmployee && (
                   <th className="py-4 px-6 text-center">Payment</th>
                 )}
                 <th className="py-4 px-6 text-center">Actions</th>
@@ -1686,7 +1693,7 @@ export function JobsPage() {
                         );
                       })()}
                     </td>
-                    {currentUserRole !== 'Employee' && (
+                    {!isEmployee && (
                       <td className="py-4 px-6 text-center whitespace-nowrap">
                         {inlineCell?.jobId === job.id && inlineCell?.field === 'paymentStatus' ? (
                           <select
@@ -2024,9 +2031,9 @@ export function JobsPage() {
                     value={formData.productId}
                     onChange={val => {
                       const selectedProd = products.find(p => p.id === val);
-                      const autoPrice = (selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '') 
+                      const autoPrice = (!isEmployee && selectedProd && selectedProd.price !== undefined && selectedProd.price !== null && selectedProd.price !== '') 
                         ? String(selectedProd.price) 
-                        : formData.totalAmount;
+                        : (isEmployee ? '' : formData.totalAmount);
                       const autoTime = (selectedProd && selectedProd.estimatedTime !== undefined && selectedProd.estimatedTime !== null && selectedProd.estimatedTime !== '')
                         ? String(selectedProd.estimatedTime)
                         : formData.estimatedTime;
@@ -2053,7 +2060,7 @@ export function JobsPage() {
                         })
                         .map(p => {
                           let labelStr = p.name;
-                          const priceStr = p.price !== undefined && p.price !== null && p.price !== '' ? `₹${Number(p.price).toLocaleString('en-IN')}` : '';
+                          const priceStr = (!isEmployee && p.price !== undefined && p.price !== null && p.price !== '') ? `₹${Number(p.price).toLocaleString('en-IN')}` : '';
                           const timeStr = p.estimatedTime ? `${p.estimatedTime} ${p.estimatedTimeUnit || 'Hours'}` : '';
                           const meta = [priceStr, timeStr].filter(Boolean).join(' • ');
                           if (meta) labelStr += ` (${meta})`;
@@ -2162,7 +2169,7 @@ export function JobsPage() {
               )}
 
               {/* Amounts */}
-              {currentUserRole !== 'Employee' && (
+              {!isEmployee && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Total Amount (₹)</label>
@@ -2385,7 +2392,7 @@ export function JobsPage() {
         initialName={quickProductName}
         initialType={newJobType === 'Des+Print' ? 'Designing' : newJobType}
         onProductCreated={(newProd) => {
-          const autoPrice = (newProd && newProd.price !== undefined && newProd.price !== null && newProd.price !== '') ? String(newProd.price) : formData.totalAmount;
+          const autoPrice = (!isEmployee && newProd && newProd.price !== undefined && newProd.price !== null && newProd.price !== '') ? String(newProd.price) : (isEmployee ? '' : formData.totalAmount);
           const autoTime = (newProd && (newProd.estimated_time || newProd.estimatedTime)) ? String(newProd.estimated_time || newProd.estimatedTime) : formData.estimatedTime;
           const autoTimeUnit = (newProd && (newProd.estimated_time_unit || newProd.estimatedTimeUnit)) ? (newProd.estimated_time_unit || newProd.estimatedTimeUnit) : formData.estimatedTimeUnit;
           

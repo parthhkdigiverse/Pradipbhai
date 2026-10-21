@@ -25,7 +25,8 @@ interface JobDetailsModalProps {
 }
 
 export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
-  const { clients, staff, vendors, products } = useData();
+  const { clients, staff, vendors, products, currentUserRole } = useData();
+  const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const { dateFormat } = useSettings();
   const [copiedLocation, setCopiedLocation] = useState(false);
 
@@ -115,7 +116,7 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
         <div className="p-6 overflow-y-auto space-y-5 flex-1">
           {/* Main Title & Status Hero */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/5 via-primary/2 to-transparent border border-primary/15">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${!isEmployee ? 'mb-2.5' : ''}`}>
               <h2 className="text-xl font-bold text-gray-900 leading-snug">{job.title}</h2>
               <div className="flex items-center gap-1.5 flex-wrap">
                 {/* Type Badge */}
@@ -137,33 +138,37 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
                 </span>
 
                 {/* Payment Badge */}
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                  job.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                  job.paymentStatus === 'Partial' || (paidAmount > 0 && balanceAmount > 0) ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                  'bg-rose-50 text-rose-700 border-rose-200'
-                }`}>
-                  {job.paymentStatus || (balanceAmount === 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid'))}
-                </span>
+                {!isEmployee && (
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                    job.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    job.paymentStatus === 'Partial' || (paidAmount > 0 && balanceAmount > 0) ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}>
+                    {job.paymentStatus || (balanceAmount === 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid'))}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Financial Summary Highlight Bar */}
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-primary/10 mt-3 text-center">
-              <div className="bg-white/80 p-2.5 rounded-xl border border-gray-100 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Total Amount</span>
-                <span className="text-base font-extrabold text-gray-800">₹{totalAmount.toLocaleString()}</span>
+            {!isEmployee && (
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-primary/10 mt-3 text-center">
+                <div className="bg-white/80 p-2.5 rounded-xl border border-gray-100 shadow-2xs">
+                  <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Total Amount</span>
+                  <span className="text-base font-extrabold text-gray-800">₹{totalAmount.toLocaleString()}</span>
+                </div>
+                <div className="bg-white/80 p-2.5 rounded-xl border border-gray-100 shadow-2xs">
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 block mb-0.5">Amount Paid</span>
+                  <span className="text-base font-extrabold text-emerald-600">₹{paidAmount.toLocaleString()}</span>
+                </div>
+                <div className={`p-2.5 rounded-xl border shadow-2xs ${
+                  balanceAmount > 0 ? 'bg-rose-50/80 border-rose-200 text-rose-700' : 'bg-emerald-50/80 border-emerald-200 text-emerald-700'
+                }`}>
+                  <span className="text-[10px] uppercase font-bold block mb-0.5">Remaining Balance</span>
+                  <span className="text-base font-extrabold">₹{balanceAmount.toLocaleString()}</span>
+                </div>
               </div>
-              <div className="bg-white/80 p-2.5 rounded-xl border border-gray-100 shadow-2xs">
-                <span className="text-[10px] uppercase font-bold text-emerald-600 block mb-0.5">Amount Paid</span>
-                <span className="text-base font-extrabold text-emerald-600">₹{paidAmount.toLocaleString()}</span>
-              </div>
-              <div className={`p-2.5 rounded-xl border shadow-2xs ${
-                balanceAmount > 0 ? 'bg-rose-50/80 border-rose-200 text-rose-700' : 'bg-emerald-50/80 border-emerald-200 text-emerald-700'
-              }`}>
-                <span className="text-[10px] uppercase font-bold block mb-0.5">Remaining Balance</span>
-                <span className="text-base font-extrabold">₹{balanceAmount.toLocaleString()}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Details Grid */}
