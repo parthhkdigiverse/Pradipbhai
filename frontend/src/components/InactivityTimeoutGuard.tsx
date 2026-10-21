@@ -15,13 +15,15 @@ export function InactivityTimeoutGuard() {
   const warningActiveRef = useRef<boolean>(false);
   const isAutoLoggingOutRef = useRef<boolean>(false);
 
+  const role = (currentUserRole || localStorage.getItem('userRole') || '').trim().toLowerCase();
+  const isAdmin = role === 'admin';
+
   const isFieldDutyActive = isPunchedIn && (activeJobTracker?.jobId?.startsWith('activity-') || activeJobTracker?.jobId?.startsWith('fd-'));
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
     localStorage.removeItem('userName');
-    localStorage.removeItem('userEmail');
     localStorage.removeItem('userRole');
     localStorage.removeItem('isAuthenticated');
     window.location.href = '/';
@@ -49,7 +51,7 @@ export function InactivityTimeoutGuard() {
 
   // Listen to mouse clicks, mouse movements, keyboard presses, scroll & touch
   useEffect(() => {
-    if (!inactivityTimeoutEnabled) return;
+    if (!inactivityTimeoutEnabled || isAdmin) return;
 
     const events = ['mousemove', 'mousedown', 'keydown', 'keypress', 'scroll', 'touchstart', 'click'];
     
@@ -64,10 +66,12 @@ export function InactivityTimeoutGuard() {
     return () => {
       events.forEach(evt => window.removeEventListener(evt, onUserActivity));
     };
-  }, [inactivityTimeoutEnabled]);
+  }, [inactivityTimeoutEnabled, isAdmin]);
 
   // Allowed End Time check loop (Only for Courier / Field Duty activities)
   useEffect(() => {
+    if (isAdmin) return;
+
     const checkEndTimeRestrictions = async () => {
       const isAuth = localStorage.getItem('isAuthenticated') === 'true';
       if (!isAuth || isAutoLoggingOutRef.current) return;
@@ -94,7 +98,7 @@ export function InactivityTimeoutGuard() {
       const [endH, endM] = endTime.split(':').map(Number);
       const endMins = (endH || 18) * 60 + (endM || 0);
 
-      if (currentMins >= endMins && currentUserRole !== 'Admin') {
+      if (currentMins >= endMins && !isAdmin) {
         isAutoLoggingOutRef.current = true;
         if (isPunchedIn) {
           await performAutoPunchOut();
@@ -105,11 +109,11 @@ export function InactivityTimeoutGuard() {
 
     const interval = setInterval(checkEndTimeRestrictions, 3000);
     return () => clearInterval(interval);
-  }, [isPunchedIn, isFieldDutyActive, currentUserRole, performAutoPunchOut, handleLogout]);
+  }, [isPunchedIn, isFieldDutyActive, isAdmin, performAutoPunchOut, handleLogout, fieldDuties, activeJobTracker]);
 
-  // Periodic check loop for idle inactivity
+  // Periodic check loop for idle inactivity (Admins are completely exempt)
   useEffect(() => {
-    if (!inactivityTimeoutEnabled) {
+    if (!inactivityTimeoutEnabled || isAdmin) {
       setShowWarning(false);
       warningActiveRef.current = false;
       return;
@@ -117,7 +121,8 @@ export function InactivityTimeoutGuard() {
 
     const interval = setInterval(() => {
       const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-      if (!isAuth || isFieldDutyActive) return;
+      const currentRole = (localStorage.getItem('userRole') || currentUserRole || '').trim().toLowerCase();
+      if (!isAuth || isFieldDutyActive || currentRole === 'admin') return;
 
       const elapsed = Date.now() - lastActiveRef.current;
       const timeoutMs = inactivityTimeoutMinutes * 60 * 1000;
@@ -130,11 +135,11 @@ export function InactivityTimeoutGuard() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [inactivityTimeoutEnabled, inactivityTimeoutMinutes, isFieldDutyActive]);
+  }, [inactivityTimeoutEnabled, inactivityTimeoutMinutes, isFieldDutyActive, isAdmin, currentUserRole]);
 
   // Warning countdown timer
   useEffect(() => {
-    if (!showWarning) return;
+    if (!showWarning || isAdmin) return;
 
     const timer = setInterval(() => {
       setSecondsRemaining(prev => {
@@ -148,9 +153,9 @@ export function InactivityTimeoutGuard() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showWarning, handleLogout]);
+  }, [showWarning, isAdmin, handleLogout]);
 
-  if (!showWarning) return null;
+  if (!showWarning || isAdmin) return null;
 
   const progressPercent = (secondsRemaining / WARNING_COUNTDOWN_SECONDS) * 100;
 
