@@ -349,10 +349,6 @@ export function JobsPage() {
     });
   }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo, showOnlyReadyToSendPrint, desCompletedPrintPendingJobs]);
 
-  const totalFilteredJobAmount = useMemo(() => {
-    return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
-  }, [filteredJobs]);
-
   const statusCounts = useMemo(() => {
     const baseJobs = jobs.filter(job => {
       if (isEmployee) {
@@ -1072,160 +1068,157 @@ export function JobsPage() {
         </div>
       )}
 
-      {/* Quick Status Sorting Icon Buttons Bar (All, Pending, In Progress, Under Review, Completed) */}
-      <div className="glass-panel border border-white/60 rounded-2xl p-2.5 mb-6 bg-white/60 backdrop-blur-md flex items-center justify-between gap-3 shadow-sm overflow-x-auto">
-        <div className="flex items-center gap-3">
-          {[
-            {
-              id: 'All',
-              label: 'All Jobs',
-              icon: LayoutGrid,
-              count: statusCounts.All,
-              activeColor: 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-500/20 scale-105',
-              inactiveColor: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm opacity-90 hover:opacity-100',
-              iconColor: '',
-            },
-            {
-              id: 'Pending',
-              label: 'Pending',
-              icon: Clock,
-              count: statusCounts.Pending,
-              activeColor: 'bg-gray-800 text-white shadow-md shadow-gray-700/30 ring-4 ring-gray-400/20 scale-105',
-              inactiveColor: 'bg-gray-100/90 text-gray-600 hover:bg-gray-200/90 hover:text-gray-900 border border-gray-200/50',
-              iconColor: 'text-gray-600',
-            },
-            {
-              id: 'Progress',
-              label: 'In Progress',
-              icon: RotateCcw,
-              count: statusCounts.Progress,
-              activeColor: 'bg-blue-500 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-400/20 scale-105',
-              inactiveColor: 'bg-blue-50 text-blue-600 hover:bg-blue-100/90 border border-blue-200/50',
-              iconColor: 'text-blue-600',
-            },
-            {
-              id: 'Under Review',
-              label: 'Under Review',
-              icon: Pause,
-              count: statusCounts['Under Review'],
-              activeColor: 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-4 ring-amber-400/20 scale-105',
-              inactiveColor: 'bg-amber-50 text-amber-700 hover:bg-amber-100/90 border border-amber-200/50',
-              iconColor: 'text-amber-700',
-            },
-            {
-              id: 'Completed',
-              label: 'Completed',
-              icon: CheckCircle2,
-              count: statusCounts.Completed,
-              activeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 ring-4 ring-emerald-500/20 scale-105',
-              inactiveColor: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100/90 border border-emerald-200/50',
-              iconColor: 'text-emerald-600',
-            },
-          ].map((btn) => {
-            const Icon = btn.icon;
-            const isActive = filterStatus === btn.id;
-            return (
-              <button
-                key={btn.id}
-                onClick={() => setFilterStatus(btn.id)}
-                title={`${btn.label}: ${btn.count.toLocaleString()} ${btn.count === 1 ? 'job' : 'jobs'}`}
-                className={`relative group w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
-                  isActive ? btn.activeColor : btn.inactiveColor
-                }`}
-              >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : btn.iconColor}`} />
-                {btn.count > 0 && (
-                  <span className={`absolute -top-1.5 -right-1.5 h-5 min-w-[20px] px-1.5 inline-flex items-center justify-center text-[10px] font-extrabold rounded-full leading-none shadow-md ring-2 ring-white select-none pointer-events-none transition-all ${
-                    isActive ? 'bg-gray-900 text-white' : 'bg-gray-800 text-white'
-                  }`}>
-                    {formatBadgeCount(btn.count)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      {/* Unified Quick Status & Filter Bar */}
+      <div className="glass-panel border border-white/60 rounded-2xl mb-6 bg-white/60 backdrop-blur-md shadow-sm overflow-hidden">
+        <div className="p-2.5 flex items-center justify-between gap-3 flex-wrap">
+          {/* Left: Quick Status Buttons + Filter Jobs Toggle */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-2">
+              {[
+                {
+                  id: 'All',
+                  label: 'All Jobs',
+                  icon: LayoutGrid,
+                  count: statusCounts.All,
+                  activeColor: 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-500/20 scale-105',
+                  inactiveColor: 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm opacity-90 hover:opacity-100',
+                  iconColor: '',
+                },
+                {
+                  id: 'Pending',
+                  label: 'Pending',
+                  icon: Clock,
+                  count: statusCounts.Pending,
+                  activeColor: 'bg-gray-800 text-white shadow-md shadow-gray-700/30 ring-4 ring-gray-400/20 scale-105',
+                  inactiveColor: 'bg-gray-100/90 text-gray-600 hover:bg-gray-200/90 hover:text-gray-900 border border-gray-200/50',
+                  iconColor: 'text-gray-600',
+                },
+                {
+                  id: 'Progress',
+                  label: 'In Progress',
+                  icon: RotateCcw,
+                  count: statusCounts.Progress,
+                  activeColor: 'bg-blue-500 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-400/20 scale-105',
+                  inactiveColor: 'bg-blue-50 text-blue-600 hover:bg-blue-100/90 border border-blue-200/50',
+                  iconColor: 'text-blue-600',
+                },
+                {
+                  id: 'Under Review',
+                  label: 'Under Review',
+                  icon: Pause,
+                  count: statusCounts['Under Review'],
+                  activeColor: 'bg-amber-500 text-white shadow-md shadow-amber-500/30 ring-4 ring-amber-400/20 scale-105',
+                  inactiveColor: 'bg-amber-50 text-amber-700 hover:bg-amber-100/90 border border-amber-200/50',
+                  iconColor: 'text-amber-700',
+                },
+                {
+                  id: 'Completed',
+                  label: 'Completed',
+                  icon: CheckCircle2,
+                  count: statusCounts.Completed,
+                  activeColor: 'bg-emerald-600 text-white shadow-md shadow-emerald-500/30 ring-4 ring-emerald-500/20 scale-105',
+                  inactiveColor: 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100/90 border border-emerald-200/50',
+                  iconColor: 'text-emerald-600',
+                },
+              ].map((btn) => {
+                const Icon = btn.icon;
+                const isActive = filterStatus === btn.id;
+                return (
+                  <button
+                    key={btn.id}
+                    onClick={() => setFilterStatus(btn.id)}
+                    title={`${btn.label}: ${btn.count.toLocaleString()} ${btn.count === 1 ? 'job' : 'jobs'}`}
+                    className={`relative group w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
+                      isActive ? btn.activeColor : btn.inactiveColor
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-white' : btn.iconColor}`} />
+                    {btn.count > 0 && (
+                      <span className={`absolute -top-1.5 -right-1.5 h-4.5 min-w-[18px] px-1 inline-flex items-center justify-center text-[10px] font-extrabold rounded-full leading-none shadow-md ring-2 ring-white select-none pointer-events-none transition-all ${
+                        isActive ? 'bg-gray-900 text-white' : 'bg-gray-800 text-white'
+                      }`}>
+                        {formatBadgeCount(btn.count)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 font-semibold pr-2">
-          <span>Active Filter:</span>
-          <span className="px-2.5 py-1 bg-gray-100 text-gray-800 rounded-lg font-bold">
-            {filterStatus === 'Progress' ? 'In Progress' : filterStatus}
-          </span>
-          {filterType !== 'All' && (
-            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-lg font-bold flex items-center gap-1">
-              Type: {filterType}
-              <button
-                onClick={() => setFilterType('All')}
-                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
-                title="Clear type filter"
-              >
-                ✕
-              </button>
-            </span>
-          )}
-          {filterBilling !== 'All' && (
-            <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200/60 rounded-lg font-bold flex items-center gap-1">
-              Billing: {filterBilling}
-              <button
-                onClick={() => setFilterBilling('All')}
-                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
-                title="Clear billing filter"
-              >
-                ✕
-              </button>
-            </span>
-          )}
-          {filterStaff === 'Unassigned' && (
-            <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200/60 rounded-lg font-bold flex items-center gap-1">
-              Unassigned
-              <button
-                onClick={() => setFilterStaff('All')}
-                className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
-                title="Clear staff filter"
-              >
-                ✕
-              </button>
-            </span>
-          )}
-          {(filterStatus !== 'All' || filterType !== 'All' || filterBilling !== 'All' || filterStaff !== 'All' || searchTerm !== '' || filterClient !== 'All' || filterProduct !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+            {/* Subtle Divider */}
+            <div className="h-6 w-px bg-gray-200/80 mx-1 hidden sm:block" />
+
+            {/* Filter Jobs Toggle Button */}
             <button
-              onClick={resetFilters}
-              className="text-xs text-blue-600 hover:text-blue-800 underline font-semibold cursor-pointer ml-1"
+              onClick={() => setShowFilters(f => !f)}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                showFilters 
+                  ? 'bg-primary text-white border-primary shadow-sm' 
+                  : 'bg-white/80 hover:bg-white text-gray-700 border-gray-200/80 shadow-2xs hover:shadow-sm'
+              }`}
             >
-              Reset All
+              <FilterX className="w-3.5 h-3.5" />
+              <span>Filter Jobs</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
             </button>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Advanced Filters Panel */}
-      <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
-        <button onClick={() => setShowFilters(f => !f)} className="w-full flex items-center justify-between p-4 hover:bg-white/20 transition-colors cursor-pointer select-none">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FilterX className="w-4 h-4 text-gray-500" />
-            Filter Jobs
-          </h3>
-          <div className="flex items-center gap-4">
-            {!isEmployee && (
-              <div className="text-right">
-                <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
-                <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
-              </div>
+          {/* Right: Active Filters & Clear Filter */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 font-semibold pr-2">
+            <span>Active Filter:</span>
+            <span className="px-2.5 py-1 bg-gray-100 text-gray-800 rounded-lg font-bold">
+              {filterStatus === 'Progress' ? 'In Progress' : filterStatus}
+            </span>
+            {filterType !== 'All' && (
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200/60 rounded-lg font-bold flex items-center gap-1">
+                Type: {filterType}
+                <button
+                  onClick={() => setFilterType('All')}
+                  className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                  title="Clear type filter"
+                >
+                  ✕
+                </button>
+              </span>
             )}
-            {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterStaff !== 'All' || filterProduct !== 'All' || filterBilling !== 'All' || filterType !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); resetFilters(); }}
-                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+            {filterBilling !== 'All' && !isEmployee && (
+              <span className="px-2.5 py-1 bg-teal-50 text-teal-700 border border-teal-200/60 rounded-lg font-bold flex items-center gap-1">
+                Billing: {filterBilling}
+                <button
+                  onClick={() => setFilterBilling('All')}
+                  className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                  title="Clear billing filter"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {filterStaff === 'Unassigned' && (
+              <span className="px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200/60 rounded-lg font-bold flex items-center gap-1">
+                Unassigned
+                <button
+                  onClick={() => setFilterStaff('All')}
+                  className="hover:text-red-500 ml-1 font-bold cursor-pointer text-xs"
+                  title="Clear staff filter"
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {(filterStatus !== 'All' || filterType !== 'All' || filterBilling !== 'All' || filterStaff !== 'All' || searchTerm !== '' || filterClient !== 'All' || filterProduct !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+              <button
+                onClick={resetFilters}
+                className="text-xs text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 px-2 py-1 rounded-lg font-bold cursor-pointer transition-colors"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 Clear Filters
               </button>
             )}
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showFilters ? 'rotate-180' : ''}`} />
           </div>
-        </button>
-        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="px-4 pb-4">
+        </div>
+
+        {/* Expandable Advanced Filters Drawer */}
+        <div className={`transition-all duration-300 overflow-hidden ${showFilters ? 'max-h-[600px] opacity-100 border-t border-white/40' : 'max-h-0 opacity-0'}`}>
+          <div className="p-4 bg-white/30 backdrop-blur-xs">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
