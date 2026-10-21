@@ -29,6 +29,10 @@ async def get_clients(skip: int = 0, limit: int = 100, db: AsyncSession = Depend
 async def create_client(client_in: ClientCreate, db: AsyncSession = Depends(get_db)):
     client_id = client_in.id or f"client-{uuid.uuid4().hex[:8]}"
     client_data = client_in.model_dump(exclude={"id"})
+    if not client_data.get("name"):
+        client_data["name"] = client_data.get("company") or client_data.get("contact") or "Unknown"
+    if not client_data.get("company"):
+        client_data["company"] = client_data.get("name") or client_data.get("contact") or "Unknown"
     client = Client(
         id=client_id,
         **client_data

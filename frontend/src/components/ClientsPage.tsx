@@ -28,11 +28,13 @@ export function ClientsPage() {
   const { dateFormat } = useSettings();
   const { 
     clients, 
+    jobs,
     addClient, updateClient, deleteClient,
-    currentUserRole, addProject, updateProject, hasPermission 
+    currentUserRole, addProject, updateProject, deleteProject, hasPermission 
   } = useData();
-  const canCreateEditClients = hasPermission(currentUserRole, 'Create/Edit Clients');
-  const canDeleteClients = hasPermission(currentUserRole, 'Delete Clients');
+  const canCreateEditClients = hasPermission(currentUserRole, 'Create/Edit Clients') || currentUserRole === 'Admin';
+  const canDeleteClients = hasPermission(currentUserRole, 'Delete Clients') || currentUserRole === 'Admin';
+  const canDeleteProjects = hasPermission(currentUserRole, 'Delete Projects') || currentUserRole === 'Admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -208,7 +210,7 @@ export function ClientsPage() {
 
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fullPhone = `${countryCode} ${formData.phone.trim()}`;
+    const fullPhone = formData.phone.trim() ? `${countryCode} ${formData.phone.trim()}` : '';
     const payload = {
       ...formData,
       phone: fullPhone
@@ -227,7 +229,13 @@ export function ClientsPage() {
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (confirm('Are you sure you want to delete this client? This cannot be undone.')) {
+    const client = clients.find(c => c.id === id);
+    const clientName = client?.company || client?.name || 'this client';
+    const linkedJobs = jobs.filter(j => j.clientId === id);
+    const jobWarning = linkedJobs.length > 0 
+      ? `\n\nNotice: There are ${linkedJobs.length} job(s) currently linked to this client.`
+      : '';
+    if (window.confirm(`Are you sure you want to delete "${clientName}"? This cannot be undone.${jobWarning}`)) {
       await deleteClient(id);
       setOpenMenuId(null);
     }
@@ -528,27 +536,46 @@ export function ClientsPage() {
                               ₹{(client.projects || []).reduce((sum: number, p: any) => sum + parseFloat(p.budget || '0'), 0).toLocaleString()}
                             </td>
                             <td className="px-5 py-4 text-right relative">
-                              {canCreateEditClients && (
-                                <button onClick={() => handleStartInlineEdit(client)} className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                              )}
-                              {(canCreateEditClients || canDeleteClients) && (
-                                <button onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)} className="p-1.5 text-gray-400 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors ml-1">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </button>
-                              )}
+                              <div className="flex items-center justify-end gap-1.5">
+                                {canCreateEditClients && (
+                                  <button 
+                                    onClick={() => handleStartInlineEdit(client)} 
+                                    className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-2xs cursor-pointer"
+                                    title="Quick Edit"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {canDeleteClients && (
+                                  <button 
+                                    onClick={() => handleDeleteClient(client.id)} 
+                                    className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center hover:bg-rose-100 hover:text-rose-700 transition-colors shadow-2xs cursor-pointer"
+                                    title="Delete Client"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {(canCreateEditClients || canDeleteClients) && (
+                                  <button 
+                                    onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)} 
+                                    className="w-7 h-7 rounded-lg bg-gray-50 text-gray-500 border border-gray-200/80 flex items-center justify-center hover:bg-gray-100 hover:text-gray-800 transition-colors cursor-pointer"
+                                    title="More Options"
+                                  >
+                                    <MoreHorizontal className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
                               
                               {openMenuId === client.id && (canCreateEditClients || canDeleteClients) && (
-                                <div className="absolute right-6 top-10 w-32 glass-panel border border-white/60 rounded-xl shadow-lg z-50 py-1 overflow-hidden">
+                                <div className="absolute right-6 top-10 w-36 glass-panel border border-white/60 rounded-xl shadow-lg z-50 py-1 overflow-hidden bg-white/95 backdrop-blur-md">
                                   {canCreateEditClients && (
-                                    <button onClick={() => handleOpenModal(client.id)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-primary/10 hover:text-primary flex items-center gap-2">
-                                      <Edit className="w-4 h-4" /> Full Edit
+                                    <button onClick={() => handleOpenModal(client.id)} className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-primary/10 hover:text-primary flex items-center gap-2 cursor-pointer">
+                                      <Edit className="w-3.5 h-3.5" /> Full Edit
                                     </button>
                                   )}
                                   {canDeleteClients && (
-                                    <button onClick={() => handleDeleteClient(client.id)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50/50 flex items-center gap-2">
-                                      <Trash2 className="w-4 h-4" /> Delete
+                                    <button onClick={() => handleDeleteClient(client.id)} className="w-full text-left px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer">
+                                      <Trash2 className="w-3.5 h-3.5" /> Delete Client
                                     </button>
                                   )}
                                 </div>
@@ -582,9 +609,24 @@ export function ClientsPage() {
                                             <h5 className="font-bold text-gray-800 text-sm truncate">{proj.name}</h5>
                                             <div className="mt-0.5">{getProjectStatusBadge(proj.status)}</div>
                                           </div>
-                                          <button onClick={() => handleOpenProjectModal(client.id, idx)} className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors shrink-0" title="Edit Project">
-                                            <Edit className="w-3.5 h-3.5" />
-                                          </button>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button onClick={() => handleOpenProjectModal(client.id, idx)} className="p-1 text-gray-400 hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit Project">
+                                              <Edit className="w-3.5 h-3.5" />
+                                            </button>
+                                            {canDeleteProjects && (
+                                              <button 
+                                                onClick={() => {
+                                                  if (window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?`)) {
+                                                    deleteProject(proj.id || proj.name, client.id);
+                                                  }
+                                                }} 
+                                                className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors" 
+                                                title="Delete Project"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
                                         </div>
                                         <div className="flex flex-col gap-1.5 mt-2">
                                           {proj.category && (
@@ -769,13 +811,29 @@ export function ClientsPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-3 pt-5 border-t border-white/40 mt-6">
-                <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200">
-                  Cancel
-                </button>
-                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md">
-                  {editingClientId ? 'Save Changes' : 'Create Client'}
-                </button>
+              <div className="flex items-center justify-between pt-5 border-t border-white/40 mt-6">
+                <div>
+                  {editingClientId && canDeleteClients && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDeleteClient(editingClientId);
+                        handleCloseModal();
+                      }}
+                      className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-1.5 border border-rose-200 cursor-pointer shadow-2xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Client
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200 cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md cursor-pointer">
+                    {editingClientId ? 'Save Changes' : 'Create Client'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -836,13 +894,33 @@ export function ClientsPage() {
                 <input required type="date" value={projectFormData.deadline} onChange={e => setProjectFormData({...projectFormData, deadline: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
               </div>
               
-              <div className="flex items-center justify-end gap-3 pt-5 border-t border-white/40 mt-6">
-                <button type="button" onClick={handleCloseProjectModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200">
-                  Cancel
-                </button>
-                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md">
-                  {editingProjectIndex !== null ? 'Save Changes' : 'Add Project'}
-                </button>
+              <div className="flex items-center justify-between pt-5 border-t border-white/40 mt-6">
+                <div>
+                  {editingProjectIndex !== null && canDeleteProjects && projectClientId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const client = clients.find(c => c.id === projectClientId);
+                        const proj = client?.projects?.[editingProjectIndex];
+                        if (proj && window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?`)) {
+                          deleteProject(proj.id || proj.name, projectClientId);
+                          handleCloseProjectModal();
+                        }
+                      }}
+                      className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-1.5 border border-rose-200 cursor-pointer shadow-2xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Project
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={handleCloseProjectModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200 cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md cursor-pointer">
+                    {editingProjectIndex !== null ? 'Save Changes' : 'Add Project'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

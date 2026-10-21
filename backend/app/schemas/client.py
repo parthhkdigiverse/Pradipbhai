@@ -20,13 +20,12 @@ class ClientBase(BaseModel):
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
         if v and v.strip():
-            pattern = r'^\+?[0-9\s\-\(\)]{7,20}$'
-            if not re.match(pattern, v.strip()):
-                raise ValueError("Invalid phone number format")
-        return v
+            return v.strip()
+        return None
 
 class ClientCreate(ClientBase):
     id: Optional[str] = None
+    model_config = ConfigDict(extra="ignore")
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None

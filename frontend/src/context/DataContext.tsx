@@ -208,7 +208,7 @@ interface DataContextType {
   setProjects: React.Dispatch<React.SetStateAction<any[]>>;
   addProject: (clientId: string, projectData: any) => Promise<any> | void;
   updateProject: (clientId: string, projectIndexOrId: any, projectData: any) => Promise<any> | void;
-  deleteProject: (id: string) => Promise<void>;
+  deleteProject: (id: string, clientId?: string) => Promise<void>;
   
   activeFilterIntent: ActiveFilterIntent | null;
   setActiveFilterIntent: React.Dispatch<React.SetStateAction<ActiveFilterIntent | null>>;
@@ -259,7 +259,7 @@ interface DataContextType {
 const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   'Admin': {
     'View Dashboard': true, 'View Metrics': true, 'Export Data': true,
-    'View Projects': true, 'Create/Edit Projects': true,
+    'View Projects': true, 'Create/Edit Projects': true, 'Delete Projects': true,
     'View Jobs': true, 'Create Job': true, 'Edit Job': true, 'Delete Job': true,
     'View Catalog': true, 'Manage Products': true,
     'View Vendors': true, 'Manage Vendors': true,
@@ -282,7 +282,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   'Manager': {
     'View Dashboard': true, 'View Metrics': true, 'Export Data': true,
-    'View Projects': true, 'Create/Edit Projects': true,
+    'View Projects': true, 'Create/Edit Projects': true, 'Delete Projects': false,
     'View Jobs': true, 'Create Job': true, 'Edit Job': true, 'Delete Job': false,
     'View Catalog': true, 'Manage Products': true,
     'View Vendors': true, 'Manage Vendors': true,
@@ -305,7 +305,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
   'Employee': {
     'View Dashboard': true, 'View Metrics': true, 'Export Data': false,
-    'View Projects': true, 'Create/Edit Projects': false,
+    'View Projects': true, 'Create/Edit Projects': false, 'Delete Projects': false,
     'View Jobs': true, 'Create Job': false, 'Edit Job': false, 'Delete Job': false,
     'View Catalog': true, 'Manage Products': false,
     'View Vendors': false, 'Manage Vendors': false,
@@ -566,12 +566,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   // Fetch live API data directly from FastAPI / MySQL backend
-  const normalizeClient = (c: any) => ({
-    ...c,
-    contact: c.contact || c.name || '',
-    clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
-    projects: c.projects || []
-  });
+  const normalizeClient = (c: any) => {
+    const fallbackId = c.id || c._id || `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const comp = c.company || c.name || c.contact || 'Client';
+    return {
+      ...c,
+      id: fallbackId,
+      company: comp,
+      contact: c.contact || c.name || comp,
+      name: c.name || comp,
+      email: c.email || '',
+      phone: c.phone || '',
+      status: c.status || 'Onboarding',
+      trafficLight: c.trafficLight || 'Green',
+      clientSince: c.clientSince || c.created_at || new Date().toISOString().split('T')[0],
+      projects: Array.isArray(c.projects) ? c.projects : []
+    };
+  };
 
   const normalizeJob = (j: any) => {
     // If teamId is explicitly specified (including empty string or null), respect it.
@@ -858,18 +869,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Clients API
   const addClient = async (clientData: any) => {
+    const generatedId = clientData.id || `client-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const compName = (clientData.company || clientData.name || clientData.contact || '').trim() || 'New Client';
+    const contactName = (clientData.contact || clientData.name || compName).trim();
+    const cleanPhone = (clientData.phone || '').trim();
+
+    const payload = {
+      ...clientData,
+      id: generatedId,
+      company: compName,
+      name: contactName,
+      contact: contactName,
+      phone: cleanPhone,
+      email: (clientData.email || '').trim(),
+      trafficLight: clientData.trafficLight || 'Green',
+      clientSince: clientData.clientSince || new Date().toISOString().split('T')[0],
+      projects: []
+    };
+
     try {
-      const payload = {
-        ...clientData,
-        name: clientData.contact || clientData.company || 'Unknown'
-      };
       const data = await apiFetch(`${API_BASE_URL}/clients`, { method: 'POST', body: JSON.stringify(payload) });
-      const norm = normalizeClient(data);
-      setClients(prev => [norm, ...prev]);
+      const norm = normalizeClient(data || payload);
+      setClients(prev => {
+        const next = [norm, ...prev.filter(c => c.id !== norm.id)];
+        try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+        return next;
+      });
       return norm;
-    } catch {
-      const norm = normalizeClient(clientData);
-      setClients(prev => [norm, ...prev]);
+    } catch (err) {
+      console.warn('[addClient] Server save failed or offline, caching locally:', err);
+      const norm = normalizeClient(payload);
+      setClients(prev => {
+        const next = [norm, ...prev.filter(c => c.id !== norm.id)];
+        try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+        return next;
+      });
       return norm;
     }
   };
@@ -878,16 +912,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const data = await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       const norm = normalizeClient(data);
-      setClients(prev => prev.map(c => c.id === id ? norm : c));
+      setClients(prev => {
+        const next = prev.map(c => c.id === id ? norm : c);
+        try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+        return next;
+      });
       return norm;
     } catch {
-      setClients(prev => prev.map(c => c.id === id ? normalizeClient({ ...c, ...updateData }) : c));
+      setClients(prev => {
+        const next = prev.map(c => c.id === id ? normalizeClient({ ...c, ...updateData }) : c);
+        try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+        return next;
+      });
     }
   };
 
   const deleteClient = async (id: string) => {
-    try { await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'DELETE' }); } catch {}
-    setClients(prev => prev.filter(c => c.id !== id));
+    try { await apiFetch(`${API_BASE_URL}/clients/${id}`, { method: 'DELETE' }); } catch (e) {
+      console.warn('Backend delete client error:', e);
+    }
+    setClients(prev => {
+      const next = prev.filter(c => c.id !== id);
+      try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   // Jobs API
@@ -1674,15 +1722,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const deleteProject = async (id: string) => {
+  const deleteProject = async (id: string, clientId?: string) => {
     try {
       await apiFetch(`${API_BASE_URL}/projects/${id}`, { method: 'DELETE' });
-    } catch {}
-    setProjects(prev => prev.filter(p => p.id !== id));
-    setClients(prev => prev.map(c => ({
-      ...c,
-      projects: (c.projects || []).filter((p: any) => p.id !== id)
-    })));
+    } catch (e) {
+      console.warn('Backend delete project error:', e);
+    }
+    setProjects(prev => {
+      const next = prev.filter(p => p.id !== id && p.name !== id);
+      try { localStorage.setItem('cache_projects', JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setClients(prev => {
+      const next = prev.map(c => {
+        if (!clientId || c.id === clientId) {
+          return {
+            ...c,
+            projects: (c.projects || []).filter((p: any) => p.id !== id && p.name !== id)
+          };
+        }
+        return c;
+      });
+      try { localStorage.setItem('cache_clients', JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   const updateDailyRating = (userName: string, date: string, rating: number) => {

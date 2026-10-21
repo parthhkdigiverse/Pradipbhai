@@ -1243,7 +1243,7 @@ export function JobsPage() {
               onChange={setFilterClient}
               options={[
                 { value: 'All', label: 'All Clients' },
-                ...clients.map(c => ({ value: c.id, label: c.company }))
+                ...clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))
               ]}
             />
           </div>
@@ -1951,7 +1951,7 @@ export function JobsPage() {
                   <SearchableSelect
                     value={formData.clientId}
                     onChange={val => setFormData({...formData, clientId: val, projectId: ''})}
-                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    options={clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))}
                     placeholder="Select client by name..."
                     onCreateOption={(query) => {
                       setQuickClientName(query);

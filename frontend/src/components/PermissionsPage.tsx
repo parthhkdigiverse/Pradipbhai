@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 const ROLES = ['Admin', 'Manager', 'Employee'];
 const SYSTEM_PERMISSIONS = [
   { module: 'DASHBOARD', actions: ['View Dashboard', 'View Metrics', 'Export Data'] },
-  { module: 'PROJECTS', actions: ['View Projects', 'Create/Edit Projects'] },
+  { module: 'PROJECTS', actions: ['View Projects', 'Create/Edit Projects', 'Delete Projects'] },
   { module: 'JOBS', actions: ['View Jobs', 'Create Job', 'Edit Job', 'Delete Job'] },
   { module: 'CATALOG (PRODUCT)', actions: ['View Catalog', 'Manage Products'] },
   { module: 'VENDORS', actions: ['View Vendors', 'Manage Vendors'] },

@@ -429,7 +429,7 @@ export function InvoicesPage() {
               onChange={setFilterClient}
               options={[
                 { value: 'All', label: 'All Clients' },
-                ...clients.map(c => ({ value: c.id, label: c.company }))
+                ...clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))
               ]}
             />
           </div>
@@ -607,7 +607,7 @@ export function InvoicesPage() {
                   <SearchableSelect
                     value={selectedClientId}
                     onChange={setSelectedClientId}
-                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    options={clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))}
                     placeholder="Select client..."
                     onCreateOption={(query) => {
                       setQuickClientName(query);

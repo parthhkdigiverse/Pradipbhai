@@ -320,7 +320,7 @@ async def init_db():
     # Initial Database Seeding if tables are empty
     async with AsyncSessionLocal() as session:
         try:
-            # Check if Staff exists
+            # Ensure Default Admin exists if Staff table is empty
             result = await session.execute(select(models.Staff))
             staff_list = result.scalars().all()
             if not staff_list:
@@ -335,36 +335,7 @@ async def init_db():
                     base_salary=120000.0,
                     password="password"
                 )
-                emp_jane = models.Staff(
-                    id="emp-001",
-                    name="Jane Doe",
-                    role="Senior Graphic Designer",
-                    email="jane@alphacreative.com",
-                    phone="+1 (555) 234-5678",
-                    status="Active",
-                    join_date="2024-02-15",
-                    base_salary=65000.0,
-                    password="password"
-                )
-                emp_john = models.Staff(
-                    id="emp-002",
-                    name="John Smith",
-                    role="UI/UX Specialist",
-                    email="john@alphacreative.com",
-                    phone="+1 (555) 876-5432",
-                    status="Active",
-                    join_date="2024-03-01",
-                    base_salary=70000.0,
-                    password="password"
-                )
-                session.add_all([admin_staff, emp_jane, emp_john])
-
-            # Check if Clients exist
-            client_result = await session.execute(select(models.Client))
-            if not client_result.scalars().first():
-                c1 = models.Client(id="client-001", name="Acme Corp", company="Acme Corporation", email="contact@acme.com", phone="+1 (555) 111-2222", status="Active")
-                c2 = models.Client(id="client-002", name="Starlight Inc", company="Starlight Media", email="hello@starlight.io", phone="+1 (555) 333-4444", status="Active")
-                session.add_all([c1, c2])
+                session.add(admin_staff)
 
             # Check if Holidays exist
             holiday_result = await session.execute(select(models.Holiday))
@@ -374,95 +345,8 @@ async def init_db():
                 h3 = models.Holiday(id="hol-003", date="2026-12-25", name="Christmas Day", type="National")
                 session.add_all([h1, h2, h3])
 
-            # Check if Jobs exist
-            job_result = await session.execute(select(models.Job))
-            if not job_result.scalars().first():
-                j1 = models.Job(
-                    id="JOB-2026-001",
-                    title="Brand Identity & Logo Design",
-                    type="Designing",
-                    clientId="client-001",
-                    teamId="emp-001",
-                    dueDate="2026-10-15",
-                    totalAmount=15000.0,
-                    paidAmount=5000.0,
-                    status="In Progress",
-                    paymentStatus="Partially Paid",
-                    estimatedTime=20.0,
-                    estimatedTimeUnit="Hours",
-                    trackedTime=8.5,
-                    createdBy="Admin",
-                    createdAt="2026-10-01"
-                )
-                j2 = models.Job(
-                    id="JOB-2026-002",
-                    title="Corporate Brochure Printing",
-                    type="Printing",
-                    clientId="client-002",
-                    teamId="emp-002",
-                    dueDate="2026-10-20",
-                    totalAmount=8500.0,
-                    paidAmount=0.0,
-                    status="Pending",
-                    paymentStatus="Unpaid",
-                    estimatedTime=15.0,
-                    estimatedTimeUnit="Hours",
-                    trackedTime=0.0,
-                    createdBy="Admin",
-                    createdAt="2026-10-01"
-                )
-                j3 = models.Job(
-                    id="JOB-2026-003",
-                    title="Website Redesign & UI Assets",
-                    type="Des+Print",
-                    clientId="client-001",
-                    teamId="emp-admin",
-                    dueDate="2026-09-28",
-                    totalAmount=35000.0,
-                    paidAmount=35000.0,
-                    status="Completed",
-                    paymentStatus="Paid",
-                    vendorEmailSent=True,
-                    workLink="https://alphacreative.com/preview",
-                    workLocation="Google Drive / Assets",
-                    estimatedTime=40.0,
-                    estimatedTimeUnit="Hours",
-                    trackedTime=38.0,
-                    createdBy="Admin",
-                    createdAt="2026-09-15"
-                )
-                session.add_all([j1, j2, j3])
+            # Check if FieldDuty activities exist
 
-            # Check if DailyProgress exist
-            dp_result = await session.execute(select(models.DailyProgress))
-            if not dp_result.scalars().first():
-                dp1 = models.DailyProgress(
-                    id="prog-001",
-                    employee_name="Jane Doe",
-                    role="Senior Graphic Designer",
-                    date="2026-10-02",
-                    submitted_at="18:15",
-                    tasks_done=["Completed Brand Guidelines PDF v2", "Exported high-res PNG vectors"],
-                    tasks_pending=["Awaiting client feedback on color palette"],
-                    verification_status="Verified",
-                    rating=5,
-                    manager_remarks="Excellent work on vector quality!",
-                    verified_by="Admin"
-                )
-                dp2 = models.DailyProgress(
-                    id="prog-002",
-                    employee_name="John Smith",
-                    role="UI/UX Specialist",
-                    date="2026-10-03",
-                    submitted_at="17:45",
-                    tasks_done=["Figma UI Prototype for Mobile App", "Client presentation prep"],
-                    tasks_pending=["Desktop responsive layout"],
-                    verification_status="Pending",
-                    rating=0,
-                    manager_remarks=None,
-                    verified_by=None
-                )
-                session.add_all([dp1, dp2])
 
             fd_result = await session.execute(select(models.FieldDuty))
             if not fd_result.scalars().first():

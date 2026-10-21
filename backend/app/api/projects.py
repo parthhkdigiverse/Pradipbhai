@@ -81,6 +81,10 @@ async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
+        result2 = await db.execute(select(Project).where((Project.name == project_id) | (Project.title == project_id)))
+        project = result2.scalars().first()
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     await db.delete(project)
     await db.commit()
+

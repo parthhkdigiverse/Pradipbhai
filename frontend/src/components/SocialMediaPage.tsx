@@ -717,7 +717,7 @@ export function SocialMediaPage() {
                 <SearchableSelect
                   value={selectedClientIdForSM}
                   onChange={setSelectedClientIdForSM}
-                  options={clients.map(c => ({ value: c.id, label: c.company }))}
+                  options={clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))}
                   placeholder="Select client..."
                 />
               </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Building2, User, Mail, Phone } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, UserPlus, Building2, User, Mail, Phone, Loader2 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 
 interface QuickAddClientModalProps {
@@ -16,6 +17,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
   onClientCreated
 }) => {
   const { addClient } = useData();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     company: '',
     contact: '',
@@ -33,6 +35,7 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
         phone: '',
         trafficLight: 'Green'
       });
+      setIsSubmitting(false);
     }
   }, [isOpen, initialName]);
 
@@ -40,22 +43,32 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.company.trim()) return;
+    e.stopPropagation();
+    if (!formData.company.trim() || isSubmitting) return;
 
-    const newClient = await addClient({
-      company: formData.company.trim(),
-      contact: formData.contact.trim() || formData.company.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      trafficLight: formData.trafficLight,
-      projects: [],
-      clientSince: new Date().toISOString().split('T')[0]
-    });
-    onClientCreated(newClient);
-    onClose();
+    setIsSubmitting(true);
+    try {
+      const newClient = await addClient({
+        company: formData.company.trim(),
+        contact: formData.contact.trim() || formData.company.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        trafficLight: formData.trafficLight,
+        projects: [],
+        clientSince: new Date().toISOString().split('T')[0]
+      });
+      if (newClient) {
+        onClientCreated(newClient);
+      }
+      onClose();
+    } catch (err) {
+      console.error('Error adding client:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
       <div className="relative bg-white shadow-2xl rounded-3xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -172,13 +185,16 @@ export const QuickAddClientModal: React.FC<QuickAddClientModalProps> = ({
             </button>
             <button 
               type="submit" 
-              className="px-6 py-2 text-sm font-bold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md"
+              disabled={isSubmitting}
+              className="px-6 py-2 text-sm font-bold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
             >
-              Add Client
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isSubmitting ? 'Adding...' : 'Add Client'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

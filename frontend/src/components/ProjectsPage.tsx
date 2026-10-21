@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Briefcase, IndianRupee, Edit, X, FilterX, ChevronDown, Plus, TrendingUp } from 'lucide-react';
+import { Search, Briefcase, IndianRupee, Edit, Trash2, X, FilterX, ChevronDown, Plus, TrendingUp } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -8,9 +8,10 @@ import { QuickAddClientModal } from './QuickAddClientModal';
 
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
-  const { clients, jobs, products, addProject, updateProject, currentUserRole, hasPermission } = useData();
+  const { clients, jobs, products, addProject, updateProject, deleteProject, currentUserRole, hasPermission } = useData();
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const canCreateEditProjects = hasPermission(currentUserRole, 'Create/Edit Projects');
+  const canDeleteProjects = hasPermission(currentUserRole, 'Delete Projects') || currentUserRole === 'Admin';
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
@@ -53,7 +54,7 @@ export function ProjectsPage() {
         client.projects.forEach((proj: any, idx: number) => {
           // Aggregate financials from all linked jobs
           const linkedJobs = jobs.filter(
-            (j: any) => j.clientId === client.id && j.projectId === proj.name
+            (j: any) => j.clientId === client.id && (j.projectId === proj.name || j.projectId === proj.id || j.projectId === proj.title)
           );
           const totalBilled = linkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
           const totalPaid   = linkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
@@ -152,6 +153,15 @@ export function ProjectsPage() {
       addProject(selectedClientId, dataToSave);
     }
     handleCloseProjectModal();
+  };
+
+  const handleDeleteProject = async (proj: any) => {
+    const jobWarning = proj.jobCount > 0 
+      ? `\n\nNotice: There are ${proj.jobCount} job(s) currently linked to this project.`
+      : '';
+    if (window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?${jobWarning}`)) {
+      await deleteProject(proj.id || proj.name, proj.clientId);
+    }
   };
 
   const getProjectStatusBadge = (proj: any) => {
@@ -367,19 +377,29 @@ export function ProjectsPage() {
                       {getProjectStatusBadge(proj)}
                     </td>
                     <td className="py-4 px-6 text-center">
-                      {canCreateEditProjects ? (
-                        <div className="flex items-center justify-center">
+                      <div className="flex items-center justify-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                        {canCreateEditProjects && (
                           <button 
                             onClick={() => handleOpenProjectModal(proj)}
-                            className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                            className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/80 flex items-center justify-center hover:bg-emerald-100 hover:text-emerald-700 transition-colors shadow-2xs cursor-pointer"
                             title="Edit Project"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 font-medium cursor-default" title="Read Only">—</span>
-                      )}
+                        )}
+                        {canDeleteProjects && (
+                          <button 
+                            onClick={() => handleDeleteProject(proj)}
+                            className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center hover:bg-rose-100 hover:text-rose-700 transition-colors shadow-2xs cursor-pointer"
+                            title="Delete Project"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {!canCreateEditProjects && !canDeleteProjects && (
+                          <span className="text-gray-400 font-medium cursor-default" title="Read Only">—</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   );
@@ -429,7 +449,7 @@ export function ProjectsPage() {
                   <SearchableSelect
                     value={selectedClientId}
                     onChange={setSelectedClientId}
-                    options={clients.map(c => ({ value: c.id, label: c.company }))}
+                    options={clients.map(c => ({ value: c.id, label: c.company || c.name || c.contact || 'Client' }))}
                     placeholder="Select client..."
                     onCreateOption={(query) => {
                       setQuickClientName(query);
@@ -440,15 +460,6 @@ export function ProjectsPage() {
                 </div>
               )}
 
-              <QuickAddClientModal
-                isOpen={isQuickClientModalOpen}
-                onClose={() => setIsQuickClientModalOpen(false)}
-                initialName={quickClientName}
-                onClientCreated={(newClient) => {
-                  setSelectedClientId(newClient.id);
-                  setIsQuickClientModalOpen(false);
-                }}
-              />
               <div>
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Product (Optional)</label>
                 <SearchableSelect
@@ -518,18 +529,52 @@ export function ProjectsPage() {
                 <input type="date" value={projectFormData.deadline} onChange={e => setProjectFormData({...projectFormData, deadline: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
               </div>
               
-              <div className="flex items-center justify-end gap-3 pt-5 border-t border-white/40 mt-6">
-                <button type="button" onClick={handleCloseProjectModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200">
-                  Cancel
-                </button>
-                <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md">
-                  Save Changes
-                </button>
+              <div className="flex items-center justify-between pt-5 border-t border-white/40 mt-6">
+                <div>
+                  {editingClientIndex && canDeleteProjects && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const projToDelete = allProjects.find(
+                          p => p.clientId === editingClientIndex.clientId && p.originalProjectIndex === editingClientIndex.projectIndex
+                        );
+                        if (projToDelete) {
+                          handleDeleteProject(projToDelete);
+                          handleCloseProjectModal();
+                        }
+                      }}
+                      className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-1.5 border border-rose-200 cursor-pointer shadow-2xs"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Delete Project
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={handleCloseProjectModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-white/50 rounded-xl transition-all border border-transparent hover:border-gray-200 cursor-pointer">
+                    Cancel
+                  </button>
+                  <button type="submit" className="px-6 py-2 text-sm font-semibold text-white bg-primary hover:bg-primary rounded-xl transition-all shadow-md cursor-pointer">
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Quick Add Client Modal */}
+      <QuickAddClientModal
+        isOpen={isQuickClientModalOpen}
+        onClose={() => setIsQuickClientModalOpen(false)}
+        initialName={quickClientName}
+        onClientCreated={(newClient) => {
+          if (newClient?.id) {
+            setSelectedClientId(newClient.id);
+          }
+          setIsQuickClientModalOpen(false);
+        }}
+      />
     </div>
   );
 }
