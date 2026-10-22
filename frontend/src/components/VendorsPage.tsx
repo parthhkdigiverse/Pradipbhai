@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Edit, X, Printer, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, X, Printer, Trash2, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
@@ -15,6 +15,7 @@ export function VendorsPage() {
   };
     const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -35,6 +36,7 @@ export function VendorsPage() {
   }, [vendors, searchTerm, filterCategory]);
 
   const handleOpenModal = (vendorId: string | null = null) => {
+    setErrorMessage('');
     if (vendorId) {
       const v = vendors.find(x => x.id === vendorId);
       if (v) {
@@ -59,16 +61,48 @@ export function VendorsPage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingVendorId(null);
+    setErrorMessage('');
   };
 
   const handleSaveVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingVendorId) {
-      await updateVendor(editingVendorId, formData);
-    } else {
-      await addVendor(formData);
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) return;
+
+    const category = formData.category || 'Printer';
+
+    // Check duplicate name + category in frontend (same as products)
+    const isDuplicate = vendors.some(
+      v => v.id !== editingVendorId && 
+           v.name && 
+           v.name.trim().toLowerCase() === trimmedName.toLowerCase() && 
+           (v.category || 'Printer') === category
+    );
+
+    if (isDuplicate) {
+      setErrorMessage(`A vendor named "${trimmedName}" with category "${category}" already exists.`);
+      return;
     }
-    handleCloseModal();
+
+    setErrorMessage('');
+    try {
+      if (editingVendorId) {
+        await updateVendor(editingVendorId, {
+          name: trimmedName,
+          category,
+          description: formData.description
+        });
+      } else {
+        await addVendor({
+          name: trimmedName,
+          category,
+          description: formData.description
+        });
+      }
+      handleCloseModal();
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Failed to save vendor.');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -86,8 +120,9 @@ export function VendorsPage() {
         <div className="flex items-center gap-3">
           {canManageVendors && (
             <button 
+              id="btn-add-new-vendor"
               onClick={() => handleOpenModal()}
-              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+              className="px-4 py-2 bg-primary hover:bg-primary text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/20 transition-all hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Add New Vendor
@@ -217,17 +252,38 @@ export function VendorsPage() {
             </div>
             
             <form onSubmit={handleSaveVendor} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              {errorMessage && (
+                <div id="vendor-error-banner" className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Vendor Name <span className="text-rose-500">*</span></label>
-                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" placeholder="e.g. Laxmi Bag Manufacturer" />
+                  <input 
+                    id="input-vendor-name"
+                    required 
+                    type="text" 
+                    value={formData.name} 
+                    onChange={e => {
+                      setFormData({...formData, name: e.target.value});
+                      if (errorMessage) setErrorMessage('');
+                    }} 
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
+                    placeholder="e.g. Laxmi Bag Manufacturer" 
+                  />
                 </div>
                 
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Category</label>
                   <SearchableSelect
                     value={formData.category}
-                    onChange={val => setFormData({...formData, category: val})}
+                    onChange={val => {
+                      setFormData({...formData, category: val});
+                      if (errorMessage) setErrorMessage('');
+                    }}
                     options={[
                       { value: 'Printer', label: 'Printer' },
                       { value: 'Designer', label: 'Designer' },
@@ -244,10 +300,10 @@ export function VendorsPage() {
               </div>
               
               <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-white/40">
-                <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all">
+                <button id="btn-cancel-vendor" type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 hover:bg-white/50 rounded-xl transition-all cursor-pointer">
                   Cancel
                 </button>
-                <button type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all">
+                <button id="btn-submit-vendor" type="submit" className="px-6 py-2 bg-primary hover:bg-primary text-white text-sm font-bold rounded-xl shadow-sm transition-all cursor-pointer">
                   {editingVendorId ? 'Save Changes' : 'Add Vendor'}
                 </button>
               </div>

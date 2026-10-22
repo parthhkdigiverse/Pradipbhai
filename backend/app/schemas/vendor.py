@@ -9,6 +9,11 @@ class VendorBase(BaseModel):
 class VendorCreate(VendorBase):
     id: Optional[str] = None
 
+class VendorUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+
 class VendorOut(VendorBase):
     id: str
     model_config = ConfigDict(from_attributes=True)

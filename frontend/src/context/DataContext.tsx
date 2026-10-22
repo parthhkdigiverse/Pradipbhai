@@ -1558,7 +1558,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const data = await apiFetch(`${API_BASE_URL}/vendors`, { method: 'POST', body: JSON.stringify(vendorData) });
       setVendors(prev => [data, ...prev]);
       return data;
-    } catch {
+    } catch (err: any) {
+      if (err?.message?.includes('already exists') || err?.message?.includes('HTTP 400')) {
+        throw err;
+      }
       setVendors(prev => [vendorData, ...prev]);
       return vendorData;
     }
@@ -1569,7 +1572,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const data = await apiFetch(`${API_BASE_URL}/vendors/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
       setVendors(prev => prev.map(v => v.id === id ? data : v));
       return data;
-    } catch {
+    } catch (err: any) {
+      if (err?.message?.includes('already exists') || err?.message?.includes('HTTP 400')) {
+        throw err;
+      }
       setVendors(prev => prev.map(v => v.id === id ? { ...v, ...updateData } : v));
     }
   };
