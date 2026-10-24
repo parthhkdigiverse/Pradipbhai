@@ -872,11 +872,6 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 bg-white cursor-pointer"
               >
                 <option value="" disabled>Select Job or Duty...</option>
-                <optgroup label="🚚 Out-of-Office / Courier Duty">
-                  {(fieldDuties || []).map(duty => (
-                    <option key={duty.id} value={duty.id}>{duty.name}</option>
-                  ))}
-                </optgroup>
                 <optgroup label="📋 Assigned In-Office Jobs">
                   {jobs
                     .filter(j => j.type !== 'Printing' && j.type?.toLowerCase() !== 'printing' && j.status !== 'Done' && j.status !== 'Completed' && j.status !== 'Under Review' && j.status !== 'Awaiting Design' && j.id !== activeJobTracker?.jobId)
@@ -894,6 +889,11 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
                       <option key={job.id} value={job.id}>{job.title} ({job.status})</option>
                     ))
                   }
+                </optgroup>
+                <optgroup label="🚚 Out-of-Office / Courier Duty">
+                  {(fieldDuties || []).map(duty => (
+                    <option key={duty.id} value={duty.id}>{duty.name}</option>
+                  ))}
                 </optgroup>
               </select>
               
