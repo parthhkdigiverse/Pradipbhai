@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer } from 'lucide-react';
+import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -148,6 +148,37 @@ export function JobsPage() {
   const [showOnlyReadyToSendPrint, setShowOnlyReadyToSendPrint] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  type SortKey = 'createdAt' | 'title' | 'type' | 'client' | 'status' | 'team' | 'dueDate' | 'trackedTime' | 'payment';
+  type SortDirection = 'asc' | 'desc';
+
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      if (key === 'createdAt' || key === 'dueDate' || key === 'trackedTime') {
+        setSortDirection('desc');
+      } else {
+        setSortDirection('asc');
+      }
+    }
+    setCurrentPage(1);
+  };
+
+  const renderSortIcon = (key: SortKey) => {
+    if (sortKey !== key) {
+      return <ArrowUpDown className="w-3 h-3 text-gray-300 group-hover/th:text-gray-500 transition-colors shrink-0" />;
+    }
+    return sortDirection === 'asc' ? (
+      <ArrowUp className="w-3.5 h-3.5 text-primary shrink-0" />
+    ) : (
+      <ArrowDown className="w-3.5 h-3.5 text-primary shrink-0" />
+    );
+  };
 
   // View-only job details modal state
   const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
@@ -484,9 +515,85 @@ export function JobsPage() {
     });
   }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo, showOnlyReadyToSendPrint, desCompletedPrintPendingJobs]);
 
+  const sortedJobs = useMemo(() => {
+    if (!sortKey) return filteredJobs;
+    const clientMap = new Map((clients || []).map(c => [c.id, (c.company || '').toLowerCase()]));
+    const staffMap = new Map((staff || []).map(s => [s.id, (s.name || '').toLowerCase()]));
+
+    return [...filteredJobs].sort((a, b) => {
+      let valA: any = '';
+      let valB: any = '';
+
+      switch (sortKey) {
+        case 'createdAt':
+          valA = a.createdAt || '';
+          valB = b.createdAt || '';
+          break;
+        case 'title':
+          valA = (a.title || '').toLowerCase();
+          valB = (b.title || '').toLowerCase();
+          break;
+        case 'type':
+          valA = (a.type || '').toLowerCase();
+          valB = (b.type || '').toLowerCase();
+          break;
+        case 'client':
+          valA = clientMap.get(a.clientId) || '';
+          valB = clientMap.get(b.clientId) || '';
+          break;
+        case 'status': {
+          const statusOrder: Record<string, number> = {
+            'progress': 1,
+            'in progress': 1,
+            'pending': 2,
+            'awaiting design': 3,
+            'hold': 4,
+            'on hold': 4,
+            'under review': 5,
+            'completed': 6,
+            'done': 6
+          };
+          const orderA = statusOrder[(a.status || '').toLowerCase()] || 99;
+          const orderB = statusOrder[(b.status || '').toLowerCase()] || 99;
+          if (orderA !== orderB) {
+            return sortDirection === 'asc' ? orderA - orderB : orderB - orderA;
+          }
+          valA = (a.status || '').toLowerCase();
+          valB = (b.status || '').toLowerCase();
+          break;
+        }
+        case 'team':
+          valA = staffMap.get(a.teamId) || '';
+          valB = staffMap.get(b.teamId) || '';
+          break;
+        case 'dueDate':
+          valA = a.dueDate || '';
+          valB = b.dueDate || '';
+          break;
+        case 'trackedTime':
+          valA = Number(a.trackedTime) || 0;
+          valB = Number(b.trackedTime) || 0;
+          break;
+        case 'payment':
+          valA = (a.paymentStatus || '').toLowerCase();
+          valB = (b.paymentStatus || '').toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+
+      const cmp = String(valA).localeCompare(String(valB));
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredJobs, sortKey, sortDirection, clients, staff]);
+
   const paginatedJobs = useMemo(() => {
-    return filteredJobs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  }, [filteredJobs, currentPage, itemsPerPage]);
+    return sortedJobs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [sortedJobs, currentPage, itemsPerPage]);
 
   const statusCounts = useMemo(() => {
     const baseJobs = jobs.filter(job => {
@@ -1430,24 +1537,105 @@ export function JobsPage() {
             <thead>
               <tr className="border-b border-gray-200 text-gray-500 font-extrabold uppercase tracking-widest bg-gray-50/50">
                 <th className="py-4 px-6 w-12">#</th>
-                <th className="py-4 px-6 w-32">Created By</th>
-                <th className="py-4 px-6 min-w-[200px]">Title</th>
-                <th className="py-4 px-6 text-center">Type</th>
+                <th 
+                  onClick={() => handleSort('createdAt')}
+                  className="py-4 px-6 w-32 cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Created Date"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Created By</span>
+                    {renderSortIcon('createdAt')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('title')}
+                  className="py-4 px-6 min-w-[200px] cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Title"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Title</span>
+                    {renderSortIcon('title')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('type')}
+                  className="py-4 px-6 text-center cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Type"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Type</span>
+                    {renderSortIcon('type')}
+                  </div>
+                </th>
 
-                <th className="py-4 px-6">Client & Project</th>
-                <th className="py-4 px-6 text-center">Status</th>
+                <th 
+                  onClick={() => handleSort('client')}
+                  className="py-4 px-6 cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Client"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Client & Project</span>
+                    {renderSortIcon('client')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('status')}
+                  className="py-4 px-6 text-center cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Status"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Status</span>
+                    {renderSortIcon('status')}
+                  </div>
+                </th>
                 <th className="py-4 px-6 text-center">Docs Sent</th>
-                <th className="py-4 px-6">Team</th>
-                <th className="py-4 px-6">Due Date</th>
-                <th className="py-4 px-6 text-center">Time</th>
+                <th 
+                  onClick={() => handleSort('team')}
+                  className="py-4 px-6 cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Team Member"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Team</span>
+                    {renderSortIcon('team')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('dueDate')}
+                  className="py-4 px-6 cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Due Date"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Due Date</span>
+                    {renderSortIcon('dueDate')}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => handleSort('trackedTime')}
+                  className="py-4 px-6 text-center cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                  title="Sort by Tracked Time"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>Time</span>
+                    {renderSortIcon('trackedTime')}
+                  </div>
+                </th>
                 {!isEmployee && (
-                  <th className="py-4 px-6 text-center">Payment</th>
+                  <th 
+                    onClick={() => handleSort('payment')}
+                    className="py-4 px-6 text-center cursor-pointer select-none group/th hover:text-gray-800 transition-colors"
+                    title="Sort by Payment Status"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Payment</span>
+                      {renderSortIcon('payment')}
+                    </div>
+                  </th>
                 )}
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredJobs.length > 0 ? (
+              {sortedJobs.length > 0 ? (
                 paginatedJobs.map((job, index) => (
                   <tr key={job.id} className="hover:bg-white/60 transition-colors group">
                     <td className="py-4 px-6 font-bold text-gray-400">{(currentPage - 1) * itemsPerPage + index + 1}</td>
@@ -1860,7 +2048,7 @@ export function JobsPage() {
 
         <Pagination
           currentPage={currentPage}
-          totalItems={filteredJobs.length}
+          totalItems={sortedJobs.length}
           itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
           onItemsPerPageChange={setItemsPerPage}
