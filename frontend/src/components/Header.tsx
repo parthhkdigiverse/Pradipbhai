@@ -239,7 +239,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       if (job) {
         finalJobTitle = job.title;
         const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending', startedAt: null });
       } else if (finalJobId.startsWith('activity-') || finalJobId.startsWith('fd-')) {
         const duty = (fieldDuties || []).find(d => d.id === finalJobId);
         if (duty) finalJobTitle = duty.name;
@@ -483,7 +483,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
     
     if (!selectedJobId.startsWith('activity-')) {
-      await updateJob(selectedJobId, { status: 'Progress' });
+      await updateJob(selectedJobId, { status: 'Progress', startedAt: new Date(now).toISOString() });
     }
     
     setShowJobModal(false);
@@ -507,11 +507,11 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       const updatedPunches = existingPunches.map((p: any) => {
         if (!p.out) {
           updatedActive = true;
-          return { ...p, jobId: selectedJobId };
+          return { ...p, jobId: selectedJobId, jobStartedAt: now };
         }
         return p;
       });
-      const newPunches = updatedActive ? updatedPunches : [...updatedPunches, { in: checkInStr, out: '', jobId: selectedJobId }];
+      const newPunches = updatedActive ? updatedPunches : [...updatedPunches, { in: checkInStr, out: '', jobId: selectedJobId, jobStartedAt: now }];
       await updateAttendance(existingRecord.id, {
         status: existingRecord.status || 'Present',
         check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
@@ -551,7 +551,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
         status: lateCalc.status || 'Present',
         check_in: checkInStr,
         check_out: '',
-        punches: [{ in: checkInStr, out: '', jobId: selectedJobId }],
+        punches: [{ in: checkInStr, out: '', jobId: selectedJobId, jobStartedAt: now }],
         is_late: lateCalc.isLate,
         late_minutes: lateCalc.lateMinutes,
         penalty_amount: lateCalc.penaltyAmount,
@@ -571,7 +571,8 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
       if (prevJob) {
         await updateJob(activeJobTracker.jobId, {
           trackedTime: (prevJob.trackedTime || 0) + elapsed,
-          status: 'Pending'
+          status: 'Pending',
+          startedAt: null
         });
       } else if (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-')) {
         let prevTitle = 'Field Duty';
@@ -600,7 +601,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     setActiveJobTracker({ jobId: selectedJobId, startTime: now });
     const nextJob = jobs.find(j => j.id === selectedJobId);
     if (nextJob) {
-      await updateJob(selectedJobId, { status: 'Progress' });
+      await updateJob(selectedJobId, { status: 'Progress', startedAt: new Date(now).toISOString() });
     }
 
     // Update active punch jobId for restoration on refresh
@@ -609,7 +610,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const existingAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffIdForSwitch && a.date === todayStrForSwitch);
     if (existingAtt && existingAtt.punches) {
       const updatedPunches = existingAtt.punches.map((p: any) => {
-        if (!p.out) return { ...p, jobId: selectedJobId };
+        if (!p.out) return { ...p, jobId: selectedJobId, jobStartedAt: now };
         return p;
       });
       await updateAttendance(existingAtt.id, { punches: updatedPunches });

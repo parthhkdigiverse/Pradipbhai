@@ -887,7 +887,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId (only for non-managers)
         if (!activeJobTrackerState && activePunch.jobId && currentUserRole !== 'Manager') {
-          setActiveJobTracker({ jobId: activePunch.jobId, startTime: calculatedTime });
+          const targetJob = jobs.find(j => j.id === activePunch.jobId);
+          let jobStartTime = activePunch.jobStartedAt;
+          if (!jobStartTime && targetJob?.startedAt) {
+            const ms = new Date(targetJob.startedAt).getTime();
+            if (!isNaN(ms)) jobStartTime = ms;
+          }
+          if (!jobStartTime) {
+            jobStartTime = calculatedTime;
+          }
+          setActiveJobTracker({ jobId: activePunch.jobId, startTime: jobStartTime });
         }
       } else {
         if (!activeJobTrackerState) {
@@ -1825,7 +1834,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (job) {
         finalJobTitle = job.title;
         const jobDuration = Math.max(0, Math.floor((endTime - activeJobTracker.startTime) / 1000));
-        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending' });
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending', startedAt: null });
       } else if (finalJobId.startsWith('activity-')) {
         if (finalJobId === 'activity-courier-drop') finalJobTitle = '📦 Courier Drop-off';
         else if (finalJobId === 'activity-courier-collect') finalJobTitle = '📦 Courier Collection / Pickup';

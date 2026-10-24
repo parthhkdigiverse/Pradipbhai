@@ -30,47 +30,44 @@ function LiveJobTimeCell({
 }: LiveJobTimeCellProps) {
   const isProgress = job.status === 'Progress' || job.status === 'In Progress';
 
-  const calculateElapsed = () => {
+  const getTimeState = () => {
     const baseTracked = Number(job.trackedTime) || 0;
-    if (!isProgress) return baseTracked;
+    if (!isProgress) return { totalSec: baseTracked, sessionSec: 0 };
 
     const now = Date.now();
+    let sessionSec = 0;
+
     if (activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
-      const activeElapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
-      return baseTracked + Math.max(0, activeElapsed);
-    }
-    if (job.startedAt) {
+      sessionSec = Math.max(0, Math.floor((now - activeJobTracker.startTime) / 1000));
+    } else if (job.startedAt) {
       const startMs = new Date(job.startedAt).getTime();
       if (!isNaN(startMs)) {
-        const liveElapsed = Math.floor((now - startMs) / 1000);
-        return baseTracked + Math.max(0, liveElapsed);
+        sessionSec = Math.max(0, Math.floor((now - startMs) / 1000));
       }
     }
-    if (job.createdAt && job.createdAt.includes('T')) {
-      const createdMs = new Date(job.createdAt).getTime();
-      if (!isNaN(createdMs)) {
-        const liveElapsed = Math.floor((now - createdMs) / 1000);
-        return baseTracked + Math.max(0, liveElapsed);
-      }
-    }
-    return baseTracked;
+
+    return {
+      totalSec: baseTracked + sessionSec,
+      sessionSec
+    };
   };
 
-  const [liveSec, setLiveSec] = useState(calculateElapsed);
+  const [timeState, setTimeState] = useState(getTimeState);
 
   useEffect(() => {
     if (!isProgress) {
-      setLiveSec(Number(job.trackedTime) || 0);
+      setTimeState({ totalSec: Number(job.trackedTime) || 0, sessionSec: 0 });
       return;
     }
-    setLiveSec(calculateElapsed());
+    setTimeState(getTimeState());
     const timer = setInterval(() => {
-      setLiveSec(calculateElapsed());
+      setTimeState(getTimeState());
     }, 1000);
     return () => clearInterval(timer);
-  }, [job.id, job.status, job.trackedTime, job.startedAt, job.createdAt, isProgress, activeJobTracker?.jobId, activeJobTracker?.startTime]);
+  }, [job.id, job.status, job.trackedTime, job.startedAt, isProgress, activeJobTracker?.jobId, activeJobTracker?.startTime]);
 
   const sinceStr = formatStartTime(job);
+  const hasPreviousTracked = Number(job.trackedTime) > 0;
 
   return (
     <div className="flex flex-col items-center gap-1">
@@ -86,7 +83,7 @@ function LiveJobTimeCell({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
             </span>
             <Clock className="w-3 h-3 text-emerald-600" />
-            <span>{formatTime(liveSec)}</span>
+            <span>{formatTime(timeState.totalSec)}</span>
           </>
         ) : (
           <>
@@ -95,6 +92,11 @@ function LiveJobTimeCell({
           </>
         )}
       </div>
+      {isProgress && hasPreviousTracked && timeState.sessionSec > 0 && (
+        <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.2 rounded border border-emerald-200/60" title={`Current session: ${formatTime(timeState.sessionSec)} | Previous tracked: ${formatTime(Number(job.trackedTime))}`}>
+          Session: {formatTime(timeState.sessionSec)}
+        </span>
+      )}
       {isProgress && sinceStr && (
         <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/60 px-1.5 py-0.5 rounded border border-emerald-200/50">
           {sinceStr}
@@ -792,7 +794,7 @@ export function JobsPage() {
 
     if (isPrintJob(job)) {
       // Print jobs run concurrently on machines and do not block other jobs
-      await updateJob(jobId, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
+      await updateJob(jobId, { status: 'Progress', startedAt: new Date().toISOString() });
       return;
     }
 
@@ -810,7 +812,7 @@ export function JobsPage() {
       }
     }
     setActiveJobTracker({ jobId, startTime: Date.now() });
-    await updateJob(jobId, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
+    await updateJob(jobId, { status: 'Progress', startedAt: new Date().toISOString() });
   };
 
   const handleApproveJobByAdmin = async (jobId: string) => {
@@ -923,7 +925,7 @@ export function JobsPage() {
       if (activeJobTracker?.jobId !== id && !isPrintJob(job)) {
         handleStartTracker(id);
       }
-      await updateJob(id, { status: 'Progress', startedAt: job.startedAt || new Date().toISOString() });
+      await updateJob(id, { status: 'Progress', startedAt: new Date().toISOString() });
       return;
     }
 
