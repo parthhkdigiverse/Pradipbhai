@@ -7,6 +7,7 @@ import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 import { QuickAddClientModal } from './QuickAddClientModal';
 import { JobDetailsModal } from './JobDetailsModal';
+import { Pagination } from './Pagination';
 
 export function InvoicesPage() {
   const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, products, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
@@ -27,6 +28,12 @@ export function InvoicesPage() {
 
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo]);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -133,6 +140,11 @@ export function InvoicesPage() {
       return matchSearch && matchStatus && matchClient && matchType && matchDateFrom && matchDateTo;
     });
   }, [invoices, searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo, clients]);
+
+  const paginatedInvoices = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredInvoices.slice(start, start + itemsPerPage);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
 
   // Calculate totals based on filtered invoices
   const totalOutstanding = useMemo(() => {
@@ -469,9 +481,9 @@ export function InvoicesPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredInvoices.length > 0 ? (
-                filteredInvoices.map((invoice, index) => (
+                paginatedInvoices.map((invoice, index) => (
                   <tr key={invoice.id} className="hover:bg-white/60 transition-colors group">
-                    <td className="py-4 px-6 font-bold text-gray-400">{index + 1}</td>
+                    <td className="py-4 px-6 font-bold text-gray-400">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="py-4 px-6">
                       <button onClick={(e) => { e.stopPropagation(); setSelectedPreviewInvoice(invoice); }} className="font-bold text-primary text-sm hover:underline hover:text-primary/80 text-left">{invoice.invoiceNumber}</button>
                     </td>
@@ -559,6 +571,16 @@ export function InvoicesPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredInvoices.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="invoices"
+        />
       </div>
 
       {isModalOpen && (

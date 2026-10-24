@@ -9,6 +9,128 @@ import { QuickAddClientModal } from './QuickAddClientModal';
 import { QuickAddProductModal } from './QuickAddProductModal';
 import { JobDetailsModal } from './JobDetailsModal';
 import { SmartDatePicker } from './SmartDatePicker';
+import { Pagination } from './Pagination';
+
+interface LiveJobTimeCellProps {
+  job: any;
+  activeJobTracker: any;
+  formatTime: (seconds: number) => string;
+  formatStartTime: (job: any) => string;
+  info: any;
+  handleOpenDelayModal: (job: any) => void;
+}
+
+function LiveJobTimeCell({
+  job,
+  activeJobTracker,
+  formatTime,
+  formatStartTime,
+  info,
+  handleOpenDelayModal
+}: LiveJobTimeCellProps) {
+  const isProgress = job.status === 'Progress' || job.status === 'In Progress';
+
+  const calculateElapsed = () => {
+    const baseTracked = Number(job.trackedTime) || 0;
+    if (!isProgress) return baseTracked;
+
+    const now = Date.now();
+    if (activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
+      const activeElapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
+      return baseTracked + Math.max(0, activeElapsed);
+    }
+    if (job.startedAt) {
+      const startMs = new Date(job.startedAt).getTime();
+      if (!isNaN(startMs)) {
+        const liveElapsed = Math.floor((now - startMs) / 1000);
+        return baseTracked + Math.max(0, liveElapsed);
+      }
+    }
+    if (job.createdAt && job.createdAt.includes('T')) {
+      const createdMs = new Date(job.createdAt).getTime();
+      if (!isNaN(createdMs)) {
+        const liveElapsed = Math.floor((now - createdMs) / 1000);
+        return baseTracked + Math.max(0, liveElapsed);
+      }
+    }
+    return baseTracked;
+  };
+
+  const [liveSec, setLiveSec] = useState(calculateElapsed);
+
+  useEffect(() => {
+    if (!isProgress) {
+      setLiveSec(Number(job.trackedTime) || 0);
+      return;
+    }
+    setLiveSec(calculateElapsed());
+    const timer = setInterval(() => {
+      setLiveSec(calculateElapsed());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [job.id, job.status, job.trackedTime, job.startedAt, job.createdAt, isProgress, activeJobTracker?.jobId, activeJobTracker?.startTime]);
+
+  const sinceStr = formatStartTime(job);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
+        isProgress 
+          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
+          : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
+      }`}>
+        {isProgress ? (
+          <>
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+            </span>
+            <Clock className="w-3 h-3 text-emerald-600" />
+            <span>{formatTime(liveSec)}</span>
+          </>
+        ) : (
+          <>
+            <Clock className="w-3 h-3 text-gray-400" />
+            <span>{formatTime(job.trackedTime || 0)}</span>
+          </>
+        )}
+      </div>
+      {isProgress && sinceStr && (
+        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/60 px-1.5 py-0.5 rounded border border-emerald-200/50">
+          {sinceStr}
+        </span>
+      )}
+      {info.expectedText && (
+        <span className="text-[10px] text-gray-500 font-medium">
+          Est: {info.expectedText}
+        </span>
+      )}
+      {info.isExceeded && (
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[9px] font-bold">
+            ⚠️ Exceeded (+{info.diffText})
+          </span>
+          {job.delayReason ? (
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
+              className="text-[10px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-semibold text-left max-w-[160px] truncate block cursor-pointer transition-colors" 
+              title={`Delay Reason: ${job.delayReason}`}
+            >
+              💬 {job.delayReason}
+            </button>
+          ) : (
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
+              className="text-[10px] text-white bg-rose-500 hover:bg-rose-600 font-bold px-2 py-0.5 rounded shadow-sm animate-pulse block cursor-pointer transition-all"
+            >
+              ⚠️ Add Delay Reason
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function JobsPage() {
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
@@ -22,6 +144,8 @@ export function JobsPage() {
   const [filterBilling, setFilterBilling] = useState('All');
   const [filterType, setFilterType] = useState('All');
   const [showOnlyReadyToSendPrint, setShowOnlyReadyToSendPrint] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   // View-only job details modal state
   const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
@@ -36,6 +160,15 @@ export function JobsPage() {
   
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+
+  // Reset pagination to page 1 on any filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm, filterStatus, filterClient, filterStaff, filterProduct, 
+    filterBilling, filterType, showOnlyReadyToSendPrint, filterDateFrom, 
+    filterDateTo, activeFilterIntent
+  ]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -348,6 +481,10 @@ export function JobsPage() {
       return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDateFrom && matchDateTo && matchReadyPrint;
     });
   }, [jobs, isEmployee, currentStaffId, currentStaffName, currentUser, searchTerm, filterStatus, filterClient, filterStaff, filterProduct, filterBilling, filterType, filterDateFrom, filterDateTo, showOnlyReadyToSendPrint, desCompletedPrintPendingJobs]);
+
+  const paginatedJobs = useMemo(() => {
+    return filteredJobs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredJobs, currentPage, itemsPerPage]);
 
   const statusCounts = useMemo(() => {
     const baseJobs = jobs.filter(job => {
@@ -879,44 +1016,6 @@ export function JobsPage() {
     if (job) await updateJob(jobId, { vendorEmailSent: !job.vendorEmailSent });
   };
 
-  const [liveNow, setLiveNow] = useState(Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setLiveNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const getLiveElapsedTime = (job: any) => {
-    const isProgress = job.status === 'Progress' || job.status === 'In Progress';
-    const baseTracked = Number(job.trackedTime) || 0;
-    if (!isProgress) return baseTracked;
-
-    // Active tracker in current user session
-    if (activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
-      const activeElapsed = Math.floor((liveNow - activeJobTracker.startTime) / 1000);
-      return baseTracked + Math.max(0, activeElapsed);
-    }
-
-    // Job startedAt timestamp
-    if (job.startedAt) {
-      const startMs = new Date(job.startedAt).getTime();
-      if (!isNaN(startMs)) {
-        const liveElapsed = Math.floor((liveNow - startMs) / 1000);
-        return baseTracked + Math.max(0, liveElapsed);
-      }
-    }
-
-    // Fallback if startedAt is missing but createdAt has ISO timestamp
-    if (job.createdAt && job.createdAt.includes('T')) {
-      const createdMs = new Date(job.createdAt).getTime();
-      if (!isNaN(createdMs)) {
-        const liveElapsed = Math.floor((liveNow - createdMs) / 1000);
-        return baseTracked + Math.max(0, liveElapsed);
-      }
-    }
-
-    return baseTracked;
-  };
-
   const formatStartTime = (job: any) => {
     const timeVal = job.startedAt || (job.createdAt && job.createdAt.includes('T') ? job.createdAt : null);
     if (!timeVal) return '';
@@ -1347,9 +1446,9 @@ export function JobsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredJobs.length > 0 ? (
-                filteredJobs.map((job, index) => (
+                paginatedJobs.map((job, index) => (
                   <tr key={job.id} className="hover:bg-white/60 transition-colors group">
-                    <td className="py-4 px-6 font-bold text-gray-400">{index + 1}</td>
+                    <td className="py-4 px-6 font-bold text-gray-400">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="py-4 px-6">
                       <div className="flex flex-col">
                         <span className="font-semibold text-gray-800 text-[11px]">{job.createdBy}</span>
@@ -1621,70 +1720,14 @@ export function JobsPage() {
                       )}
                     </td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">
-                      {(() => {
-                        const info = getJobTimelineInfo(job);
-                        const isProgress = job.status === 'Progress' || job.status === 'In Progress';
-                        const liveSec = getLiveElapsedTime(job);
-                        const sinceStr = formatStartTime(job);
-                        return (
-                          <div className="flex flex-col items-center gap-1">
-                            <div className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
-                              isProgress 
-                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
-                                : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
-                            }`}>
-                              {isProgress ? (
-                                <>
-                                  <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                                  </span>
-                                  <Clock className="w-3 h-3 text-emerald-600" />
-                                  <span>{formatTime(liveSec)}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Clock className="w-3 h-3 text-gray-400" />
-                                  <span>{formatTime(job.trackedTime || 0)}</span>
-                                </>
-                              )}
-                            </div>
-                            {isProgress && sinceStr && (
-                              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/60 px-1.5 py-0.5 rounded border border-emerald-200/50">
-                                {sinceStr}
-                              </span>
-                            )}
-                            {info.expectedText && (
-                              <span className="text-[10px] text-gray-500 font-medium">
-                                Est: {info.expectedText}
-                              </span>
-                            )}
-                            {info.isExceeded && (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[9px] font-bold">
-                                  ⚠️ Exceeded (+{info.diffText})
-                                </span>
-                                {job.delayReason ? (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
-                                    className="text-[10px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-semibold text-left max-w-[160px] truncate block cursor-pointer transition-colors" 
-                                    title={`Delay Reason: ${job.delayReason}`}
-                                  >
-                                    💬 {job.delayReason}
-                                  </button>
-                                ) : (
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
-                                    className="text-[10px] text-white bg-rose-500 hover:bg-rose-600 font-bold px-2 py-0.5 rounded shadow-sm animate-pulse block cursor-pointer transition-all"
-                                  >
-                                    ⚠️ Add Delay Reason
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
+                      <LiveJobTimeCell
+                        job={job}
+                        activeJobTracker={activeJobTracker}
+                        formatTime={formatTime}
+                        formatStartTime={formatStartTime}
+                        info={getJobTimelineInfo(job)}
+                        handleOpenDelayModal={handleOpenDelayModal}
+                      />
                     </td>
                     {!isEmployee && (
                       <td className="py-4 px-6 text-center whitespace-nowrap">
@@ -1812,6 +1855,16 @@ export function JobsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredJobs.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="jobs"
+        />
       </div>
 
       {isModalOpen && (

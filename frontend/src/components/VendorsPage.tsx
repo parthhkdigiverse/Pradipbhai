@@ -1,13 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Search, Edit, X, Printer, Trash2, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
+import { Pagination } from './Pagination';
 
 export function VendorsPage() {
   const { vendors, addVendor, updateVendor, deleteVendor, currentUserRole, hasPermission } = useData();
   const canManageVendors = hasPermission(currentUserRole, 'Manage Vendors');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategory]);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -34,6 +41,11 @@ export function VendorsPage() {
       return matchSearch && matchCategory;
     });
   }, [vendors, searchTerm, filterCategory]);
+
+  const paginatedVendors = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredVendors.slice(start, start + itemsPerPage);
+  }, [filteredVendors, currentPage, itemsPerPage]);
 
   const handleOpenModal = (vendorId: string | null = null) => {
     setErrorMessage('');
@@ -183,10 +195,10 @@ export function VendorsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredVendors.length > 0 ? (
-                filteredVendors.map((vendor, index) => (
+                paginatedVendors.map((vendor, index) => (
                   <tr key={vendor.id} className="hover:bg-white/60 transition-colors group">
                     <td className="py-4 px-6 font-bold text-gray-400">
-                      {index + 1}
+                      {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
                     <td className="py-4 px-6">
                       <span className="font-bold text-gray-800 text-sm">{vendor.name}</span>
@@ -238,6 +250,16 @@ export function VendorsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredVendors.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="vendors"
+        />
       </div>
 
       {isModalOpen && (

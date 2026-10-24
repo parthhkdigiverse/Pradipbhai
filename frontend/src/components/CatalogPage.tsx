@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
-import { Search, Plus, Edit, Trash2, Box, ChevronLeft, ChevronRight, X, Clock, AlertCircle } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Search, Plus, Edit, Trash2, Box, X, Clock, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
+import { Pagination } from './Pagination';
 
 export function CatalogPage() {
   const { products, addProduct, updateProduct, deleteProduct, currentUserRole, hasPermission } = useData();
@@ -10,7 +11,11 @@ export function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -41,8 +46,10 @@ export function CatalogPage() {
     });
   }, [products, searchTerm, filterType]);
 
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const paginatedProducts = filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
 
   const handleOpenModal = (product?: any) => {
     setErrorMessage('');
@@ -269,41 +276,15 @@ export function CatalogPage() {
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="border-t border-gray-100 bg-white/40 px-6 py-4 flex items-center justify-between shrink-0">
-          <p className="text-sm text-gray-500 font-medium">
-            Page {currentPage} of {totalPages || 1} | {filteredProducts.length} total
-          </p>
-          <div className="flex items-center gap-1">
-            <button 
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            {Array.from({ length: totalPages }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setCurrentPage(i + 1)}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-bold transition-colors ${
-                  currentPage === i + 1 
-                    ? 'bg-primary text-white' 
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                {i + 1}
-              </button>
-            ))}
-            <button 
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredProducts.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="products"
+        />
       </div>
 
       {/* Modal */}

@@ -22,6 +22,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
+import { Pagination } from './Pagination';
 
 export function ClientsPage() {
   const { dateFormat } = useSettings();
@@ -38,6 +39,12 @@ export function ClientsPage() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo]);
   
   const resetFilters = () => {
     setSearchTerm('');
@@ -276,6 +283,10 @@ export function ClientsPage() {
     });
   }, [clients, searchTerm, filterStatus, filterDateFrom, filterDateTo]);
 
+  const paginatedClients = useMemo(() => {
+    return filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredClients, currentPage, itemsPerPage]);
+
   const stats = useMemo(() => {
     const activeClients = clients.filter(c => c.status === 'Active' || c.status === 'Onboarding');
     const totalRevenue = activeClients.reduce((sum, c) => {
@@ -455,7 +466,7 @@ export function ClientsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredClients.map(client => (
+                  paginatedClients.map(client => (
                     <Fragment key={client.id}>
                       <tr className="border-b border-white/20 hover:bg-white/40 transition-colors">
                         {editingRowId === client.id ? (
@@ -659,6 +670,16 @@ export function ClientsPage() {
             </table>
           </div>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredClients.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="clients"
+        />
       </div>
 
       {/* Add / Edit Client Modal */}

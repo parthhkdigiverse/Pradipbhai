@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Briefcase, IndianRupee, Edit, Trash2, X, Plus, TrendingUp } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
+import { Pagination } from './Pagination';
 
 export function ProjectsPage() {
   const { dateFormat } = useSettings();
@@ -23,6 +24,12 @@ export function ProjectsPage() {
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo]);
 
   const resetFilters = () => {
     setSearchTerm('');
@@ -101,6 +108,11 @@ export function ProjectsPage() {
       return true;
     });
   }, [allProjects, searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo]);
+
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProjects.slice(start, start + itemsPerPage);
+  }, [filteredProjects, currentPage, itemsPerPage]);
 
   const handleOpenProjectModal = (project: any) => {
     setProjectFormData({
@@ -297,12 +309,12 @@ export function ProjectsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredProjects.length > 0 ? (
-                filteredProjects.map((proj, idx) => {
+                paginatedProjects.map((proj, idx) => {
                   const budget = parseFloat(proj.budget || '0');
                   const paidPct = proj.totalBilled > 0 ? Math.min(100, Math.round((proj.totalPaid / proj.totalBilled) * 100)) : 0;
                   return (
                   <tr key={idx} className="hover:bg-white/60 transition-colors group">
-                    <td className="py-4 px-6 text-gray-400 font-medium">{idx + 1}</td>
+                    <td className="py-4 px-6 text-gray-400 font-medium">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                     <td className="py-4 px-6">
                       <span className="text-sm font-bold text-gray-800 block">{proj.name}</span>
                       <span className={`mt-1 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
@@ -412,6 +424,16 @@ export function ProjectsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredProjects.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="projects"
+        />
       </div>
 
       {/* Edit Project Modal */}
