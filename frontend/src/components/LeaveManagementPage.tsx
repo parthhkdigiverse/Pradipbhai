@@ -4,7 +4,7 @@ import {
   ChevronDown, User, AlertCircle, Sliders, RotateCcw, AlertTriangle, Lock
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
-import type { LeaveRequest } from '../context/DataContext';
+import type { LeaveRequest, LeaveBalance } from '../context/DataContext';
 
 type LeaveType = LeaveRequest['type'];
 type LeaveStatus = LeaveRequest['status'];
@@ -54,11 +54,14 @@ export function LeaveManagementPage() {
   const [activeTab, setActiveTab] = useState<'my' | 'all' | 'balances'>('my');
 
   // Use authenticated currentUser
-  const currentStaff = staff.find(s => s.id === currentUser?.id || (s.email && currentUser?.email && s.email.toLowerCase() === currentUser.email.toLowerCase())) || {
-    id: currentUser?.id || 'emp-001',
-    name: currentUser?.name || 'Staff Member',
-    email: currentUser?.email
-  };
+  const currentStaff = useMemo(() => {
+    const email = currentUser?.email?.toLowerCase();
+    return staff.find(s => s.id === currentUser?.id || (s.email && email && s.email.toLowerCase() === email)) || {
+      id: currentUser?.id || 'emp-001',
+      name: currentUser?.name || 'Staff Member',
+      email: currentUser?.email
+    };
+  }, [staff, currentUser]);
 
   // Apply modal
   const [showApply, setShowApply] = useState(false);
@@ -103,7 +106,9 @@ export function LeaveManagementPage() {
   const pendingCount = leaveRequests.filter(r => r.status === 'Pending').length;
 
   // My balance
-  const myBalance = leaveBalances.find(b => b.staffId === currentStaff?.id);
+  const myBalance = useMemo(() => {
+    return leaveBalances.find(b => b.staffId === currentStaff?.id);
+  }, [leaveBalances, currentStaff?.id]);
   const earnedPaidQuota = myBalance?.earned ?? 12;
   const sickPaidQuota = myBalance?.sick ?? 3;
 
@@ -292,7 +297,31 @@ export function LeaveManagementPage() {
     setRejectNote('');
   };
 
-  const balanceCards = [
+  const staffBalancesMap = useMemo(() => {
+    const map = new Map<string, LeaveBalance>();
+    (leaveBalances || []).forEach(b => {
+      if (b.staffId) map.set(b.staffId, b);
+    });
+    return map;
+  }, [leaveBalances]);
+
+  const staffLeaveUsageMap = useMemo(() => {
+    const map = new Map<string, { usedC: number; usedS: number; usedE: number }>();
+    (leaveRequests || []).forEach(r => {
+      if (r.status !== 'Approved') return;
+      const sId = r.staffId || (r as any).staff_id;
+      if (!sId) return;
+      const cur = map.get(sId) || { usedC: 0, usedS: 0, usedE: 0 };
+      const days = r.days !== undefined ? r.days : 1;
+      if (r.type === 'Casual') cur.usedC += days;
+      else if (r.type === 'Sick') cur.usedS += days;
+      else if (r.type === 'Earned') cur.usedE += days;
+      map.set(sId, cur);
+    });
+    return map;
+  }, [leaveRequests]);
+
+  const balanceCards = useMemo(() => [
     { 
       label: 'Earned (Paid)', 
       total: 1, 
@@ -325,7 +354,7 @@ export function LeaveManagementPage() {
       color: LEAVE_COLORS.Casual, 
       note: 'Payroll Deductible' 
     },
-  ];
+  ], [earnedPaidQuota, myThisMonthUsed, thisMonthExtraEarned, myUsed, thisMonthRemainingEarned, sickPaidQuota, extraSickDeductibleDays, remainingSickPaidDays]);
 
   return (
     <div className="w-full relative">
@@ -681,11 +710,11 @@ export function LeaveManagementPage() {
               </thead>
               <tbody className="divide-y divide-gray-100/80">
                 {staff.map(emp => {
-                  const bal = leaveBalances.find(b => b.staffId === emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
-                  const approved = leaveRequests.filter(r => r.staffId === emp.id && r.status === 'Approved');
-                  const usedC = approved.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
-                  const usedS = approved.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
-                  const usedE = approved.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+                  const bal = staffBalancesMap.get(emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
+                  const usage = staffLeaveUsageMap.get(emp.id) || { usedC: 0, usedS: 0, usedE: 0 };
+                  const usedC = usage.usedC;
+                  const usedS = usage.usedS;
+                  const usedE = usage.usedE;
 
                   const earnedQuota = bal.earned ?? 12;
                   const sickQuota = bal.sick ?? 3;

@@ -107,7 +107,7 @@ export function InactivityTimeoutGuard() {
       }
     };
 
-    const interval = setInterval(checkEndTimeRestrictions, 3000);
+    const interval = setInterval(checkEndTimeRestrictions, 30000);
     return () => clearInterval(interval);
   }, [isPunchedIn, isFieldDutyActive, isAdmin, performAutoPunchOut, handleLogout, fieldDuties, activeJobTracker]);
 

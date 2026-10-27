@@ -923,8 +923,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (currentUserRole === 'Admin') {
-      setIsPunchedIn(false);
-      setActiveJobTrackerState(null);
+      setIsPunchedIn(prev => prev ? false : prev);
+      setActiveJobTrackerState(prev => prev ? null : prev);
       return;
     }
     if (!attendance || attendance.length === 0) return;
@@ -935,14 +935,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (todayAtt && todayAtt.punches && todayAtt.punches.length > 0) {
       const activePunch = todayAtt.punches.find((p: any) => !p.out);
       if (activePunch) {
-        setIsPunchedIn(true);
-        let calculatedTime = Date.now();
+        setIsPunchedIn(prev => prev ? prev : true);
         if (activePunch.in) {
           const [h, m] = activePunch.in.split(':');
           const pDate = new Date();
           pDate.setHours(parseInt(h) || 0, parseInt(m) || 0, 0, 0);
-          calculatedTime = pDate.getTime();
-          setPunchInTime(calculatedTime);
+          const calculatedTime = pDate.getTime();
+          setPunchInTime(prev => prev === calculatedTime ? prev : calculatedTime);
         }
 
         // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId (only for non-managers)
@@ -953,22 +952,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const ms = new Date(targetJob.startedAt).getTime();
             if (!isNaN(ms)) jobStartTime = ms;
           }
-          if (!jobStartTime) {
-            jobStartTime = calculatedTime;
+          if (!jobStartTime && activePunch.in) {
+            const [h, m] = activePunch.in.split(':');
+            const pDate = new Date();
+            pDate.setHours(parseInt(h) || 0, parseInt(m) || 0, 0, 0);
+            jobStartTime = pDate.getTime();
           }
-          setActiveJobTracker({ jobId: activePunch.jobId, startTime: jobStartTime });
+          if (jobStartTime) {
+            setActiveJobTracker({ jobId: activePunch.jobId, startTime: jobStartTime });
+          }
         }
       } else {
         if (!activeJobTrackerState) {
-          setIsPunchedIn(false);
+          setIsPunchedIn(prev => prev ? false : prev);
         } else {
-          setIsPunchedIn(true);
+          setIsPunchedIn(prev => prev ? prev : true);
         }
       }
     } else if (activeJobTrackerState) {
-      setIsPunchedIn(true);
+      setIsPunchedIn(prev => prev ? prev : true);
     }
-  }, [attendance, currentUser, staff, jobs, activeJobTrackerState]);
+  }, [attendance, currentUser, staff, jobs, activeJobTrackerState, currentUserRole]);
 
   // Clients API
   const addClient = async (clientData: any) => {
@@ -1990,65 +1994,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setPunchInTime(null);
   };
 
+  const contextValue = useMemo(() => ({
+    leads, setLeads, addLead, updateLead, deleteLead,
+    clients, setClients, addClient, updateClient, deleteClient,
+    products, setProducts, addProduct, updateProduct, deleteProduct,
+    staff, setStaff, addStaff, updateStaff, deleteStaff,
+    attendance, setAttendance, addAttendance, updateAttendance,
+    payroll, setPayroll, addPayroll, updatePayroll,
+    vendors, setVendors, addVendor, updateVendor, deleteVendor,
+    jobs, setJobs, addJob, updateJob, deleteJob,
+    invoices, setInvoices, addInvoice, updateInvoice, deleteInvoice,
+    holidays, setHolidays, addHoliday, deleteHoliday,
+    deletedSundayDates, restoreAllSundays,
+    leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
+    leaveBalances, setLeaveBalances,
+    convertLeadToClient,
+    projects,
+    setProjects,
+    addProject,
+    updateProject,
+    deleteProject,
+    activeFilterIntent,
+    setActiveFilterIntent,
+    isPunchedIn,
+    setIsPunchedIn,
+    punchInTime,
+    setPunchInTime,
+    fieldDuties, setFieldDuties, addFieldDuty, updateFieldDuty, deleteFieldDuty,
+    activeJobTracker,
+    setActiveJobTracker,
+    workLogs,
+    setWorkLogs,
+    addWorkLog,
+    deleteWorkLog,
+    dailyRatings,
+    setDailyRatings,
+    updateDailyRating,
+    dailyProgressRecords,
+    setDailyProgressRecords,
+    addDailyProgress,
+    updateDailyProgress,
+    employeeEvaluations,
+    setEmployeeEvaluations,
+    addOrUpdateEvaluation,
+    crownWinner,
+    deleteEvaluation,
+    rolePermissions,
+    toggleRolePermission,
+    hasPermission,
+    hasTabPermission,
+    currentUserRole,
+    setCurrentUserRole,
+    currentUser,
+    isPunchInModalOpen,
+    setIsPunchInModalOpen,
+    openPunchInModal,
+    performAutoPunchOut,
+    refreshApiData
+  }), [
+    leads, clients, products, staff, attendance, payroll, vendors, jobs, invoices, holidays,
+    deletedSundayDates, leaveRequests, leaveBalances, projects, activeFilterIntent,
+    isPunchedIn, punchInTime, fieldDuties, activeJobTracker, workLogs, dailyRatings,
+    dailyProgressRecords, employeeEvaluations, rolePermissions, currentUserRole, currentUser,
+    isPunchInModalOpen
+  ]);
+
   return (
-    <DataContext.Provider value={{
-      leads, setLeads, addLead, updateLead, deleteLead,
-      clients, setClients, addClient, updateClient, deleteClient,
-      products, setProducts, addProduct, updateProduct, deleteProduct,
-      staff, setStaff, addStaff, updateStaff, deleteStaff,
-      attendance, setAttendance, addAttendance, updateAttendance,
-      payroll, setPayroll, addPayroll, updatePayroll,
-      vendors, setVendors, addVendor, updateVendor, deleteVendor,
-      jobs, setJobs, addJob, updateJob, deleteJob,
-      invoices, setInvoices, addInvoice, updateInvoice, deleteInvoice,
-      holidays, setHolidays, addHoliday, deleteHoliday,
-      deletedSundayDates, restoreAllSundays,
-      leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
-      leaveBalances, setLeaveBalances,
-      convertLeadToClient,
-      projects,
-      setProjects,
-      addProject,
-      updateProject,
-      deleteProject,
-      activeFilterIntent,
-      setActiveFilterIntent,
-      isPunchedIn,
-      setIsPunchedIn,
-      punchInTime,
-      setPunchInTime,
-      fieldDuties, setFieldDuties, addFieldDuty, updateFieldDuty, deleteFieldDuty,
-      activeJobTracker,
-      setActiveJobTracker,
-      workLogs,
-      setWorkLogs,
-      addWorkLog,
-      deleteWorkLog,
-      dailyRatings,
-      setDailyRatings,
-      updateDailyRating,
-      dailyProgressRecords,
-      setDailyProgressRecords,
-      addDailyProgress,
-      updateDailyProgress,
-      employeeEvaluations,
-      setEmployeeEvaluations,
-      addOrUpdateEvaluation,
-      crownWinner,
-      deleteEvaluation,
-      rolePermissions,
-      toggleRolePermission,
-      hasPermission,
-      hasTabPermission,
-      currentUserRole,
-      setCurrentUserRole,
-      currentUser,
-      isPunchInModalOpen,
-      setIsPunchInModalOpen,
-      openPunchInModal,
-      performAutoPunchOut,
-      refreshApiData
-    }}>
+    <DataContext.Provider value={contextValue}>
       {children}
     </DataContext.Provider>
   );

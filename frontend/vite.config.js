@@ -15,6 +15,17 @@ export default defineConfig({
     }
   },
   envDir: path.resolve(__dirname, '..'),
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
+  },
   server: {
     port: FRONTEND_PORT,
     host: true,
