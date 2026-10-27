@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   X, 
   Briefcase, 
@@ -25,10 +25,48 @@ interface JobDetailsModalProps {
 }
 
 export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
-  const { clients, staff, vendors, products, currentUserRole } = useData();
+  const { clients, staff, vendors, products, currentUserRole, activeJobTracker } = useData();
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const { dateFormat } = useSettings();
   const [copiedLocation, setCopiedLocation] = useState(false);
+
+  const isCurrentlyActive = Boolean(
+    job && activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime
+  );
+
+  const [sessionSec, setSessionSec] = useState(() => {
+    if (!isCurrentlyActive || !activeJobTracker?.startTime) return 0;
+    return Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000));
+  });
+
+  useEffect(() => {
+    if (!isCurrentlyActive || !activeJobTracker?.startTime) {
+      setSessionSec(0);
+      return;
+    }
+    setSessionSec(Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000)));
+    const interval = setInterval(() => {
+      setSessionSec(Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isCurrentlyActive, activeJobTracker?.startTime]);
+
+  const baseTracked = Number(job?.trackedTime) || 0;
+  const effectiveTrackedTime = baseTracked + (isCurrentlyActive ? sessionSec : 0);
+
+  const formatTrackedTime = (seconds: number) => {
+    if (!seconds || seconds <= 0) return '00:00:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const formatHoursDecimal = (seconds: number) => {
+    if (!seconds || seconds <= 0) return '0 Hours';
+    const hrs = (seconds / 3600).toFixed(2).replace(/\.00$/, '');
+    return `${hrs} ${Number(hrs) === 1 ? 'Hour' : 'Hours'}`;
+  };
 
   if (!job) return null;
 
@@ -287,10 +325,30 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
                   </span>
                 </div>
                 <div className="pt-2 border-t border-gray-200/60">
-                  <span className="text-[11px] text-gray-400 block">Tracked Working Time</span>
-                  <span className="text-xs font-semibold text-gray-700">
-                    {job.trackedTime !== undefined && job.trackedTime !== null ? `${job.trackedTime} Hours` : '—'}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-400 block">Tracked Working Time</span>
+                    {isCurrentlyActive && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-full border border-emerald-200/60">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-sm font-bold font-mono text-gray-800">
+                      {effectiveTrackedTime > 0 ? formatTrackedTime(effectiveTrackedTime) : '00:00:00'}
+                    </span>
+                    {effectiveTrackedTime > 0 && (
+                      <span className="text-xs text-gray-500 font-medium">
+                        ({formatHoursDecimal(effectiveTrackedTime)})
+                      </span>
+                    )}
+                  </div>
+                  {isCurrentlyActive && sessionSec > 0 && baseTracked > 0 && (
+                    <span className="text-[10px] text-emerald-600 block mt-0.5 font-medium">
+                      Session: {formatTrackedTime(sessionSec)} • Prior: {formatTrackedTime(baseTracked)}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
