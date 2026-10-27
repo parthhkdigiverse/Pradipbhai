@@ -135,7 +135,7 @@ function LiveJobTimeCell({
 }
 
 export function JobsPage() {
-  const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal } = useData();
+  const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal, addWorkLog, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount, dateFormat } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -792,17 +792,40 @@ export function JobsPage() {
     handleCloseModal();
   };
 
-  const ensurePunchedIn = async () => {
+  const logWorkSession = async (jobId: string, jobTitle: string, startTime: number, endTime: number) => {
+    const duration = Math.max(0, Math.floor((endTime - startTime) / 1000));
+    if (duration <= 0) return;
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+    const todayStr = new Date(endTime).toISOString().split('T')[0];
+    try {
+      await addWorkLog({
+        staff_id: loggedStaffId,
+        staff_name: loggedStaffName,
+        job_id: jobId,
+        job_title: jobTitle || 'Job',
+        date: todayStr,
+        start_time: startTime,
+        end_time: endTime,
+        duration,
+        hours: duration / 3600
+      });
+    } catch (err) {
+      console.error('Failed to save work log:', err);
+    }
+  };
+
+  const ensurePunchedIn = async (startingJobId?: string, startTime?: number) => {
     if (currentUserRole === 'Admin') return;
+    const now = startTime || Date.now();
+    const todayStr = new Date(now).toISOString().split('T')[0];
+    const checkInStr = new Date(now).toTimeString().slice(0, 5);
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+
     if (!isPunchedIn) {
-      const now = Date.now();
       setIsPunchedIn(true);
       setPunchInTime(now);
-
-      const todayStr = new Date(now).toISOString().split('T')[0];
-      const checkInStr = new Date(now).toTimeString().slice(0, 5);
-      const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
-      const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
       const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
@@ -818,7 +841,7 @@ export function JobsPage() {
         await updateAttendance(existingRecord.id, {
           status: existingRecord.status || 'Present',
           check_in: existingRecord.checkIn || existingRecord.check_in || checkInStr,
-          punches: [...closedPunches, { in: checkInStr, out: '' }],
+          punches: [...closedPunches, { in: checkInStr, out: '', jobId: startingJobId || null, jobStartedAt: startingJobId ? now : null }],
           is_late: existingRecord.isLate || existingRecord.is_late || false,
           late_minutes: existingRecord.lateMinutes || existingRecord.late_minutes || 0,
           penalty_amount: existingRecord.penaltyAmount || existingRecord.penalty_amount || 0,
@@ -845,12 +868,22 @@ export function JobsPage() {
           status: lateCalc.status || 'Present',
           check_in: checkInStr,
           check_out: '',
-          punches: [{ in: checkInStr, out: '' }],
+          punches: [{ in: checkInStr, out: '', jobId: startingJobId || null, jobStartedAt: startingJobId ? now : null }],
           is_late: lateCalc.isLate,
           late_minutes: lateCalc.lateMinutes,
           penalty_amount: lateCalc.penaltyAmount,
           warning_note: lateCalc.warningNote
         });
+      }
+    } else if (startingJobId) {
+      // Already punched in: sync active punch with current jobId so reload preserves it
+      const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+      if (existingRecord && existingRecord.punches) {
+        const updatedPunches = existingRecord.punches.map((p: any) => {
+          if (!p.out) return { ...p, jobId: startingJobId, jobStartedAt: now };
+          return p;
+        });
+        await updateAttendance(existingRecord.id, { punches: updatedPunches });
       }
     }
   };
@@ -864,28 +897,6 @@ export function JobsPage() {
     return false;
   };
 
-  const enforceSingleProgressJob = async (newProgressJobId: string) => {
-    const newJob = jobs.find((j: any) => j.id === newProgressJobId);
-    if (isPrintJob(newJob)) return;
-
-    const otherProgressJobs = jobs.filter((j: any) => 
-      j.id !== newProgressJobId && 
-      (j.status === 'Progress' || j.status === 'In Progress') && 
-      !isPrintJob(j) &&
-      (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === currentStaffId)
-    );
-
-    for (const prevJob of otherProgressJobs) {
-      if (activeJobTracker && activeJobTracker.jobId === prevJob.id) {
-        const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-        await updateJob(prevJob.id, { trackedTime: (prevJob.trackedTime || 0) + elapsed, status: 'Pending', startedAt: null });
-        setActiveJobTracker(null);
-      } else {
-        await updateJob(prevJob.id, { status: 'Pending', startedAt: null });
-      }
-    }
-  };
-
   const handleStartTracker = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
@@ -896,30 +907,55 @@ export function JobsPage() {
       return;
     }
 
-    ensurePunchedIn();
-    await enforceSingleProgressJob(jobId);
+    const now = Date.now();
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
 
-    if (isPrintJob(job)) {
-      // Print jobs run concurrently on machines and do not block other jobs
-      await updateJob(jobId, { status: 'Progress', startedAt: new Date().toISOString() });
-      return;
-    }
-
+    // 1. If switching directly from an existing running job or field duty, log the previous session
     if (activeJobTracker && activeJobTracker.jobId !== jobId) {
-      // Stop previous tracker (only if previous was not a print job)
-      const elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      const elapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
       const prev = jobs.find((j: any) => j.id === activeJobTracker.jobId);
       if (prev) {
-        const updatePayload: any = { trackedTime: (prev.trackedTime || 0) + elapsed };
-        if (!isPrintJob(prev)) {
-          updatePayload.status = 'Pending';
-          updatePayload.startedAt = null;
-        }
+        const updatePayload: any = { 
+          trackedTime: (prev.trackedTime || 0) + elapsed,
+          status: 'Pending',
+          startedAt: null
+        };
         await updateJob(activeJobTracker.jobId, updatePayload);
+        if (elapsed > 0) {
+          await logWorkSession(prev.id, prev.title || 'Job', activeJobTracker.startTime, now);
+        }
+      } else if (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-')) {
+        let prevTitle = 'Field Duty';
+        const duty = (fieldDuties || []).find((d: any) => d.id === activeJobTracker.jobId);
+        if (duty) prevTitle = duty.name;
+        if (elapsed > 0) {
+          await logWorkSession(activeJobTracker.jobId, prevTitle, activeJobTracker.startTime, now);
+        }
       }
     }
-    setActiveJobTracker({ jobId, startTime: Date.now() });
-    await updateJob(jobId, { status: 'Progress', startedAt: new Date().toISOString() });
+
+    // 2. Set new active tracker immediately to prevent activeJobTracker from becoming null and opening the modal
+    setActiveJobTracker({ jobId, startTime: now });
+    setIsPunchInModalOpen(false);
+
+    // 3. Ensure employee is clocked in with active punch recording this jobId
+    await ensurePunchedIn(jobId, now);
+
+    // 4. Update clicked job to Progress in DB
+    await updateJob(jobId, { status: 'Progress', startedAt: new Date(now).toISOString() });
+
+    // 5. If this is an in-office design job, pause any other in-office jobs assigned to this employee
+    if (!isPrintJob(job)) {
+      const otherProgressJobs = jobs.filter((j: any) => 
+        j.id !== jobId && 
+        (j.status === 'Progress' || j.status === 'In Progress') && 
+        !isPrintJob(j) &&
+        (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === loggedStaffId)
+      );
+      for (const prevJob of otherProgressJobs) {
+        await updateJob(prevJob.id, { status: 'Pending', startedAt: null });
+      }
+    }
   };
 
   const handleApproveJobByAdmin = async (jobId: string) => {
@@ -937,13 +973,20 @@ export function JobsPage() {
     }
 
     let extraElapsed = 0;
+    let sessionStart = Date.now();
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
-      extraElapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+      sessionStart = activeJobTracker.startTime;
+      extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
       setActiveJobTracker(null);
     } else if (job?.startedAt) {
-      extraElapsed = Math.floor((Date.now() - new Date(job.startedAt).getTime()) / 1000);
+      sessionStart = new Date(job.startedAt).getTime();
+      extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
     }
     const finalTracked = (job?.trackedTime || 0) + Math.max(0, extraElapsed);
+
+    if (extraElapsed > 0) {
+      await logWorkSession(job.id, job.title || 'Job', sessionStart, Date.now());
+    }
 
     await updateJob(jobId, { status: 'Completed', trackedTime: finalTracked, startedAt: null });
     if (currentUserRole !== 'Admin' && currentUserRole !== 'Manager') {
@@ -1028,23 +1071,26 @@ export function JobsPage() {
     }
 
     if (status === 'Progress' || status === 'In Progress') {
-      await enforceSingleProgressJob(id);
-      if (activeJobTracker?.jobId !== id && !isPrintJob(job)) {
-        handleStartTracker(id);
-      }
-      await updateJob(id, { status: 'Progress', startedAt: new Date().toISOString() });
+      await handleStartTracker(id);
       return;
     }
 
     if (status !== 'Progress' && status !== 'In Progress' && (job.status === 'Progress' || job.status === 'In Progress')) {
       let elapsed = 0;
+      let sessionStart = Date.now();
       if (activeJobTracker?.jobId === id) {
-        elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        sessionStart = activeJobTracker.startTime;
+        elapsed = Math.floor((Date.now() - sessionStart) / 1000);
         setActiveJobTracker(null);
       } else if (job.startedAt) {
-        elapsed = Math.floor((Date.now() - new Date(job.startedAt).getTime()) / 1000);
+        sessionStart = new Date(job.startedAt).getTime();
+        elapsed = Math.floor((Date.now() - sessionStart) / 1000);
       }
-      await updateJob(id, { trackedTime: (job.trackedTime || 0) + Math.max(0, elapsed), startedAt: null });
+      elapsed = Math.max(0, elapsed);
+      await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed, startedAt: null });
+      if (elapsed > 0) {
+        await logWorkSession(id, job.title || 'Job', sessionStart, Date.now());
+      }
     }
 
     if (status === 'Done' || status === 'Completed' || status === 'Under Review') {
@@ -1075,19 +1121,28 @@ export function JobsPage() {
     if (completionModalJobId) {
       const targetId = completionModalJobId;
       const targetJob = jobs.find(j => j.id === targetId);
+      const now = Date.now();
       let elapsed = 0;
+      let sessionStart = now;
       if (activeJobTracker && activeJobTracker.jobId === targetId) {
-        elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
+        sessionStart = activeJobTracker.startTime;
+        elapsed = Math.floor((now - sessionStart) / 1000);
         setActiveJobTracker(null);
       } else if (targetJob?.startedAt) {
-        elapsed = Math.floor((Date.now() - new Date(targetJob.startedAt).getTime()) / 1000);
+        sessionStart = new Date(targetJob.startedAt).getTime();
+        elapsed = Math.floor((now - sessionStart) / 1000);
+      }
+      elapsed = Math.max(0, elapsed);
+
+      if (elapsed > 0 && targetJob) {
+        await logWorkSession(targetId, targetJob.title || 'Job', sessionStart, now);
       }
 
       await updateJob(targetId, {
         status: 'Under Review',
         workLink: completionWorkLink.trim(),
         workLocation: completionWorkLocation.trim(),
-        trackedTime: (targetJob?.trackedTime || 0) + Math.max(0, elapsed),
+        trackedTime: (targetJob?.trackedTime || 0) + elapsed,
         startedAt: null
       });
 
@@ -1100,16 +1155,47 @@ export function JobsPage() {
 
   const handleStopTracker = async (jobId: string) => {
     const targetJob = jobs.find(j => j.id === jobId);
+    const now = Date.now();
     let elapsed = 0;
+    let sessionStart = now;
+
     if (activeJobTracker && activeJobTracker.jobId === jobId) {
-      elapsed = Math.floor((Date.now() - activeJobTracker.startTime) / 1000);
-      setActiveJobTracker(null);
+      sessionStart = activeJobTracker.startTime;
+      elapsed = Math.floor((now - sessionStart) / 1000);
     } else if (targetJob?.startedAt) {
-      elapsed = Math.floor((Date.now() - new Date(targetJob.startedAt).getTime()) / 1000);
+      sessionStart = new Date(targetJob.startedAt).getTime();
+      elapsed = Math.floor((now - sessionStart) / 1000);
     }
-    const newTracked = (targetJob?.trackedTime || 0) + Math.max(0, elapsed);
-    setActiveJobTracker(null);
+    elapsed = Math.max(0, elapsed);
+    const newTracked = (targetJob?.trackedTime || 0) + elapsed;
+
+    // 1. Add completed session to workLogs
+    if (elapsed > 0 && targetJob) {
+      await logWorkSession(targetJob.id, targetJob.title || 'Job', sessionStart, now);
+    }
+
+    // 2. Clear active punch jobId in attendance
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const todayStr = new Date(now).toISOString().split('T')[0];
+    const existingAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+    if (existingAtt && existingAtt.punches) {
+      const updatedPunches = existingAtt.punches.map((p: any) => {
+        if (!p.out) return { ...p, jobId: null, jobStartedAt: null };
+        return p;
+      });
+      await updateAttendance(existingAtt.id, { punches: updatedPunches });
+    }
+
+    // 3. Update job in DB
     await updateJob(jobId, { trackedTime: newTracked, status: 'Pending', startedAt: null });
+
+    // 4. Clear active tracker
+    setActiveJobTracker(null);
+
+    // 5. Open modal for employee so they select their next job or punch out
+    if (isEmployee) {
+      openPunchInModal();
+    }
 
     const updatedJob = targetJob ? { ...targetJob, trackedTime: newTracked, status: 'Pending', startedAt: null } : null;
     if (updatedJob) {

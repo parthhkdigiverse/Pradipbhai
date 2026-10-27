@@ -447,6 +447,9 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     if (isEmployee && isPunchedIn && !activeJobTracker) {
       setShowJobModal(true);
       setIsPunchInModalOpen(true);
+    } else if (activeJobTracker) {
+      setShowJobModal(false);
+      setIsPunchInModalOpen(false);
     }
   }, [isEmployee, isPunchedIn, activeJobTracker]);
 
@@ -574,6 +577,22 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           status: 'Pending',
           startedAt: null
         });
+        if (elapsed > 0) {
+          const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+          const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
+          const todayStr = localDateStr(now);
+          await addWorkLog({
+            staff_id: loggedStaffId,
+            staff_name: loggedStaffName,
+            job_id: prevJob.id,
+            job_title: prevJob.title || 'Job',
+            date: todayStr,
+            start_time: activeJobTracker.startTime,
+            end_time: now,
+            duration: elapsed,
+            hours: elapsed / 3600
+          });
+        }
       } else if (activeJobTracker.jobId.startsWith('activity-') || activeJobTracker.jobId.startsWith('fd-')) {
         let prevTitle = 'Field Duty';
         const duty = (fieldDuties || []).find(d => d.id === activeJobTracker.jobId);
