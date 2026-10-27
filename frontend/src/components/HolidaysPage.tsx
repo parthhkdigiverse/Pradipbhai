@@ -361,6 +361,8 @@ export function HolidaysPage() {
             : "Are you sure you want to delete this holiday record? This action cannot be undone."
         }
         confirmText={deleteTarget && isSundayHoliday(deleteTarget) ? "Make Working Day" : "Delete Holiday"}
+        variant={deleteTarget && isSundayHoliday(deleteTarget) ? "primary" : "danger"}
+        icon={deleteTarget && isSundayHoliday(deleteTarget) ? <Sun className="w-6 h-6 text-primary" /> : undefined}
         onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
         onCancel={() => setDeleteConfirm(null)}
       />
