@@ -187,6 +187,8 @@ interface DataContextType {
   setHolidays: React.Dispatch<React.SetStateAction<Holiday[]>>;
   addHoliday: (holidayData: any) => Promise<any>;
   deleteHoliday: (id: string) => Promise<void>;
+  deletedSundayDates: string[];
+  restoreAllSundays: (year?: number) => void;
 
   leaveRequests: LeaveRequest[];
   setLeaveRequests: React.Dispatch<React.SetStateAction<LeaveRequest[]>>;
@@ -483,6 +485,57 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveCache = (key: string, val: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch {}
+  };
+
+  const generateSundaysForYear = (year: number): Holiday[] => {
+    const sundays: Holiday[] = [];
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 11, 31);
+    const curr = new Date(start);
+
+    while (curr <= end) {
+      if (curr.getDay() === 0) {
+        const yyyy = curr.getFullYear();
+        const mm = String(curr.getMonth() + 1).padStart(2, '0');
+        const dd = String(curr.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+        sundays.push({
+          id: `sun-${dateStr}`,
+          name: 'Sunday (Weekly Off)',
+          date: dateStr,
+          type: 'Company',
+        });
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+    return sundays;
+  };
+
+  const mergeSundaysWithHolidays = (existing: Holiday[], deletedDates: string[] = []): Holiday[] => {
+    const existingDateMap = new Map((existing || []).map(h => [h.date, h]));
+    const deletedSet = new Set(deletedDates || []);
+    const currentYr = new Date().getFullYear();
+    const years = [currentYr - 1, currentYr, currentYr + 1, currentYr + 2];
+
+    const additions: Holiday[] = [];
+    years.forEach(yr => {
+      const suns = generateSundaysForYear(yr);
+      suns.forEach(s => {
+        if (!existingDateMap.has(s.date) && !deletedSet.has(s.date)) {
+          additions.push(s);
+          existingDateMap.set(s.date, s);
+        }
+      });
+    });
+
+    if (additions.length === 0) return existing || [];
+    return [...(existing || []), ...additions].sort((a, b) => a.date.localeCompare(b.date));
+  };
+
   const [leads, setLeads] = useState<any[]>(() => loadCachedData('cache_leads', []));
   const [clients, setClients] = useState<any[]>(() => loadCachedData('cache_clients', []));
   const [products, setProducts] = useState<any[]>(() => {
@@ -526,7 +579,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [vendors, setVendors] = useState<any[]>(() => loadCachedData('cache_vendors', []));
   const [jobs, setJobs] = useState<any[]>(() => loadCachedData('cache_jobs', []));
   const [invoices, setInvoices] = useState<any[]>(() => loadCachedData('cache_invoices', []));
-  const [holidays, setHolidays] = useState<Holiday[]>(() => loadCachedData('cache_holidays', []));
+  const [deletedSundayDates, setDeletedSundayDates] = useState<string[]>(() => loadCachedData('cache_deleted_sundays', []));
+  const [holidays, setHolidays] = useState<Holiday[]>(() => {
+    const cached = loadCachedData('cache_holidays', []);
+    const deleted = loadCachedData('cache_deleted_sundays', []);
+    return mergeSundaysWithHolidays(cached, deleted);
+  });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => loadCachedData('cache_leave_requests', []));
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
@@ -818,8 +876,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         saveCache('cache_attendance', normAtt);
       }
       if (holRes.status === 'fulfilled' && Array.isArray(holRes.value)) {
-        setHolidays(holRes.value);
-        saveCache('cache_holidays', holRes.value);
+        const deleted = loadCachedData('cache_deleted_sundays', []);
+        const merged = mergeSundaysWithHolidays(holRes.value, deleted);
+        setHolidays(merged);
+        saveCache('cache_holidays', merged);
       }
       if (prodRes.status === 'fulfilled' && Array.isArray(prodRes.value)) {
         const normProds = prodRes.value.map(normalizeProduct);
@@ -1517,19 +1577,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Holidays API
   const addHoliday = async (holidayData: any) => {
+    if (deletedSundayDates.includes(holidayData.date)) {
+      const updatedDeleted = deletedSundayDates.filter(d => d !== holidayData.date);
+      setDeletedSundayDates(updatedDeleted);
+      saveCache('cache_deleted_sundays', updatedDeleted);
+    }
     try {
       const data = await apiFetch(`${API_BASE_URL}/holidays`, { method: 'POST', body: JSON.stringify(holidayData) });
-      setHolidays(prev => [...prev, data]);
+      setHolidays(prev => [...prev.filter(h => h.id !== data.id && h.date !== data.date), data].sort((a, b) => a.date.localeCompare(b.date)));
       return data;
     } catch {
-      setHolidays(prev => [...prev, holidayData]);
-      return holidayData;
+      const newHol = { id: holidayData.id || `hol-${Date.now()}`, ...holidayData };
+      setHolidays(prev => [...prev.filter(h => h.id !== newHol.id && h.date !== newHol.date), newHol].sort((a, b) => a.date.localeCompare(b.date)));
+      return newHol;
     }
   };
 
   const deleteHoliday = async (id: string) => {
+    const target = holidays.find(h => h.id === id);
+    if (target) {
+      const dateObj = new Date(target.date + 'T00:00:00');
+      const isSunday = dateObj.getDay() === 0 || target.id.startsWith('sun-') || target.name.toLowerCase().includes('sunday');
+      if (isSunday) {
+        const updatedDeleted = Array.from(new Set([...deletedSundayDates, target.date]));
+        setDeletedSundayDates(updatedDeleted);
+        saveCache('cache_deleted_sundays', updatedDeleted);
+      }
+    }
     try { await apiFetch(`${API_BASE_URL}/holidays/${id}`, { method: 'DELETE' }); } catch {}
     setHolidays(prev => prev.filter(h => h.id !== id));
+  };
+
+  const restoreAllSundays = (year?: number) => {
+    const yrStr = year ? String(year) : '';
+    const updated = yrStr ? deletedSundayDates.filter(d => !d.startsWith(yrStr)) : [];
+    setDeletedSundayDates(updated);
+    saveCache('cache_deleted_sundays', updated);
+    setHolidays(prev => mergeSundaysWithHolidays(prev, updated));
   };
 
   // WorkLogs API
@@ -1918,6 +2002,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       jobs, setJobs, addJob, updateJob, deleteJob,
       invoices, setInvoices, addInvoice, updateInvoice, deleteInvoice,
       holidays, setHolidays, addHoliday, deleteHoliday,
+      deletedSundayDates, restoreAllSundays,
       leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
       leaveBalances, setLeaveBalances,
       convertLeadToClient,

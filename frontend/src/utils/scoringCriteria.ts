@@ -172,9 +172,19 @@ export function autoCalculateMonthlyScores(
   attendanceRecords: any[] = [],
   dailyProgressRecords: any[] = [],
   jobsList: any[] = [],
-  currentScores?: Record<string, number>
+  currentScores?: Record<string, number>,
+  holidaysList: any[] = []
 ): AutoScoreCalculationResult {
   const normStaffName = (staffName || '').trim().toLowerCase();
+
+  // Extract declared company holidays
+  const holidayDateSet = new Set(
+    (holidaysList || []).map((h: any) => (typeof h === 'string' ? h : h.date)).filter(Boolean)
+  );
+  const holidaysInMonth = (holidaysList || []).filter((h: any) => {
+    const d = typeof h === 'string' ? h : h.date;
+    return d && d.startsWith(monthKey);
+  }).length;
 
   // ----------------------------------------------------
   // 1. ATTENDANCE (20 Marks)
@@ -182,14 +192,16 @@ export function autoCalculateMonthlyScores(
   let totalWorkingMinutes = 0;
   let presentDaysCount = 0;
 
-  // Filter attendance for this staff in the month
+  // Filter attendance for this staff in the month, strictly excluding company holidays
   const staffMonthAtt = attendanceRecords.filter((rec: any) => {
     const sId = rec.staffId || rec.staff_id;
     const sName = (rec.staffName || rec.staff_name || '').trim().toLowerCase();
     const matchStaff = (sId && sId === staffId) || (normStaffName && sName === normStaffName);
     const dateStr = rec.date || '';
     const matchMonth = dateStr.startsWith(monthKey);
-    return matchStaff && matchMonth;
+    // Punches or attendance markings on holidays do NOT affect Employee of the Month
+    const isHoliday = holidayDateSet.has(dateStr);
+    return matchStaff && matchMonth && !isHoliday;
   });
 
   staffMonthAtt.forEach((rec: any) => {
@@ -228,19 +240,27 @@ export function autoCalculateMonthlyScores(
     presentDaysCount += 1;
   });
 
-  // If no attendance records found, provide a realistic baseline for active staff
-  if (staffMonthAtt.length === 0) {
-    // Default 22 working days baseline
-    presentDaysCount = 22;
-    totalWorkingMinutes = 22 * 480;
-  }
-
   // Rate: 20 / 540 = 0.037037...
   const ptsPerMin = 20 / 540;
+
+  // Number of calendar days and net working days in this month
+  const [yearStr, monthStr] = (monthKey || '2026-10').split('-');
+  const yNum = parseInt(yearStr, 10) || 2026;
+  const mNum = parseInt(monthStr, 10) || 10;
+  const daysInMonth = new Date(yNum, mNum, 0).getDate();
+  const netWorkingDaysInMonth = Math.max(1, daysInMonth - holidaysInMonth);
+  // Standard studio benchmark is 24 working days, or net working days if fewer
+  const benchmarkWorkingDays = Math.min(24, Math.max(16, netWorkingDaysInMonth));
+  const targetBenchmark = benchmarkWorkingDays * 480 * ptsPerMin;
+
+  // If no attendance records found, provide a realistic baseline for active staff
+  if (staffMonthAtt.length === 0) {
+    presentDaysCount = benchmarkWorkingDays;
+    totalWorkingMinutes = benchmarkWorkingDays * 480;
+  }
+
   // Accumulated points = totalWorkingMinutes * 0.037037
   const accumulatedPoints = totalWorkingMinutes * ptsPerMin;
-  // 24 standard working days benchmark = 24 * 480 * (20 / 540) = 426.666...
-  const targetBenchmark = 24 * 480 * ptsPerMin; // 426.6667
   const calculatedAttScore = Math.min(20, Math.max(0, Math.round((accumulatedPoints / targetBenchmark) * 20 * 10) / 10));
 
   const attendanceDetails = {
@@ -248,7 +268,7 @@ export function autoCalculateMonthlyScores(
     workingDays: presentDaysCount,
     totalWorkingMinutes: Math.round(totalWorkingMinutes),
     accumulatedPoints: Math.round(accumulatedPoints * 10) / 10,
-    summary: `${presentDaysCount} days (${Math.round(totalWorkingMinutes / 60)} hrs / ${totalWorkingMinutes} mins) • ${accumulatedPoints.toFixed(1)}/426.7 pts formula`
+    summary: `${presentDaysCount} days (${Math.round(totalWorkingMinutes / 60)} hrs / ${totalWorkingMinutes} mins) • ${accumulatedPoints.toFixed(1)}/${targetBenchmark.toFixed(1)} pts (${benchmarkWorkingDays}d benchmark • ${netWorkingDaysInMonth} working days, excl. ${holidaysInMonth} holidays & Sundays)`
   };
 
   // ----------------------------------------------------

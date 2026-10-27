@@ -4,13 +4,15 @@ import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
 
 export function AttendancePage() {
-  const { staff, attendance, updateAttendance, addAttendance, currentUserRole, currentUser } = useData();
+  const { staff, attendance, updateAttendance, addAttendance, currentUserRole, currentUser, holidays } = useData();
   const isAdminOrManager = currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [activeTab, setActiveTab] = useState<'daily' | 'employee' | 'history'>('daily');
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const holidayOnSelectedDate = useMemo(() => holidays?.find(h => h.date === selectedDate), [holidays, selectedDate]);
 
   // Filter staff list according to role
   // Filter staff list according to role
@@ -66,7 +68,7 @@ export function AttendancePage() {
       return {
         ...emp,
         attendanceId: record?.id || null,
-        status: record?.status || 'Unmarked',
+        status: record?.status || (holidayOnSelectedDate ? 'Holiday' : 'Unmarked'),
         checkIn: record?.checkIn || record?.check_in || '',
         checkOut: record?.checkOut || record?.check_out || '',
         punches: record?.punches || (record?.checkIn ? [{ in: record.checkIn, out: record.checkOut }] : []),
@@ -264,6 +266,7 @@ export function AttendancePage() {
       case 'Absent': return 'bg-rose-100 text-rose-700 border-rose-200';
       case 'Half Day': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'Leave': return 'bg-primary/10 text-primary border-primary';
+      case 'Holiday': return 'bg-violet-100 text-violet-700 border-violet-200';
       default: return 'bg-gray-100 text-gray-500 border-gray-200 border-dashed';
     }
   };
@@ -355,7 +358,8 @@ export function AttendancePage() {
               { value: 'Present', label: 'Present' },
               { value: 'Absent', label: 'Absent' },
               { value: 'Half Day', label: 'Half Day' },
-              { value: 'Leave', label: 'Leave' }
+              { value: 'Leave', label: 'Leave' },
+              { value: 'Holiday', label: 'Holiday' }
             ]}
           />
         </div>
@@ -428,6 +432,17 @@ export function AttendancePage() {
               </button>
             )}
           </div>
+
+          {holidayOnSelectedDate && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-violet-50/90 border border-violet-200 text-violet-800 rounded-2xl text-xs font-semibold backdrop-blur-md shadow-xs animate-in fade-in duration-300">
+              <span className="w-2.5 h-2.5 rounded-full bg-violet-600 shrink-0" />
+              <div className="flex-1">
+                <span className="font-bold text-violet-950">🌴 Company Holiday: {holidayOnSelectedDate.name}</span>
+                <span className="text-violet-600 ml-1.5 font-normal">({holidayOnSelectedDate.type} Holiday)</span>
+                <span className="text-violet-700/80 block sm:inline sm:ml-2">— Attendance & punches on holidays are optional and do not affect Payroll working days or Employee of the Month scoring.</span>
+              </div>
+            </div>
+          )}
 
           <div className="glass-panel border border-white/60 rounded-[2rem] shadow-sm overflow-hidden flex flex-col flex-1 bg-white/40 backdrop-blur-md">
             <div className="overflow-x-auto flex-1 p-1">
@@ -522,6 +537,7 @@ export function AttendancePage() {
                               <option value="Half Day">Half Day</option>
                               <option value="Leave">Leave</option>
                               <option value="Absent">Absent</option>
+                              <option value="Holiday">Holiday</option>
                             </select>
 
                             {(record.isLate || record.lateMinutes > 0) && (

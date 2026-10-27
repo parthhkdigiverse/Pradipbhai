@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { CalendarDays, Plus, Trash2, X, Flag, Building2, MapPin } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, X, Flag, Building2, MapPin, Sun, RotateCcw, Calendar } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import type { Holiday } from '../context/DataContext';
 import { ConfirmModal } from './ConfirmModal';
@@ -24,14 +24,28 @@ function TypeIcon({ type }: { type: Holiday['type'] }) {
 const emptyForm = () => ({ date: '', name: '', type: 'National' as Holiday['type'] });
 
 export function HolidaysPage() {
-  const { holidays, addHoliday, deleteHoliday, currentUserRole, hasPermission } = useData();
+  const { 
+    holidays, 
+    addHoliday, 
+    deleteHoliday, 
+    currentUserRole, 
+    hasPermission, 
+    deletedSundayDates, 
+    restoreAllSundays 
+  } = useData();
   const canManageHolidays = hasPermission(currentUserRole, 'Manage Holidays');
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [filterCategory, setFilterCategory] = useState<'all' | 'festivals' | 'sundays'>('all');
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const isSundayHoliday = (h: Holiday) => {
+    const dateObj = new Date(h.date + 'T00:00:00');
+    return dateObj.getDay() === 0 || h.id.startsWith('sun-') || h.name.toLowerCase().includes('sunday');
+  };
 
   const yearHolidays = useMemo(
     () => holidays
@@ -40,15 +54,31 @@ export function HolidaysPage() {
     [holidays, selectedYear]
   );
 
+  const sundaysCount = useMemo(() => yearHolidays.filter(isSundayHoliday).length, [yearHolidays]);
+  const festivalCount = useMemo(() => yearHolidays.filter(h => !isSundayHoliday(h)).length, [yearHolidays]);
+
+  const deletedThisYear = useMemo(() => {
+    return (deletedSundayDates || []).filter(d => d.startsWith(String(selectedYear)));
+  }, [deletedSundayDates, selectedYear]);
+
+  const filteredHolidays = useMemo(() => {
+    return yearHolidays.filter(h => {
+      const isSun = isSundayHoliday(h);
+      if (filterCategory === 'sundays') return isSun;
+      if (filterCategory === 'festivals') return !isSun;
+      return true;
+    });
+  }, [yearHolidays, filterCategory]);
+
   const grouped = useMemo(() => {
     const map: Record<number, Holiday[]> = {};
-    yearHolidays.forEach(h => {
+    filteredHolidays.forEach(h => {
       const month = parseInt(h.date.split('-')[1], 10);
       if (!map[month]) map[month] = [];
       map[month].push(h);
     });
     return map;
-  }, [yearHolidays]);
+  }, [filteredHolidays]);
 
   const handleAdd = async () => {
     if (!form.date || !form.name.trim()) return;
@@ -66,33 +96,45 @@ export function HolidaysPage() {
     setDeleteConfirm(null);
   };
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
+  const deleteTarget = useMemo(() => {
+    return holidays.find(h => h.id === deleteConfirm);
+  }, [holidays, deleteConfirm]);
 
-  const totalByType = useMemo(() => {
-    const counts: Record<string, number> = { National: 0, Regional: 0, Company: 0 };
-    yearHolidays.forEach(h => counts[h.type]++);
-    return counts;
-  }, [yearHolidays]);
+  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - 1 + i);
 
   return (
     <div className="w-full relative">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Company Holidays</h1>
-          <p className="text-sm text-gray-500">Manage paid holidays — they are excluded from payroll working days calculation.</p>
+          <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Company Holidays & Sundays</h1>
+          <p className="text-sm text-gray-500">
+            Sundays and declared company holidays are automatically counted as paid days off and excluded from required payroll working days.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap gap-3">
           <div className="flex items-center gap-2 bg-white/60 px-3 py-1.5 rounded-xl border border-white/60 shadow-sm">
             <CalendarDays className="w-4 h-4 text-gray-500" />
             <select
               value={selectedYear}
               onChange={e => setSelectedYear(parseInt(e.target.value))}
-              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700"
+              className="bg-transparent text-sm font-bold focus:outline-none text-gray-700 cursor-pointer"
             >
               {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
+
+          {canManageHolidays && deletedThisYear.length > 0 && (
+            <button
+              onClick={() => restoreAllSundays(selectedYear)}
+              className="px-3.5 py-2 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              title="Restore all deleted Sundays for this year"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Restore {deletedThisYear.length} Deleted Sunday{deletedThisYear.length > 1 ? 's' : ''}
+            </button>
+          )}
+
           {canManageHolidays && (
             <button
               onClick={() => { setForm(emptyForm()); setShowModal(true); }}
@@ -106,29 +148,78 @@ export function HolidaysPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {(['National', 'Regional', 'Company'] as const).map(type => {
-          const cfg = TYPE_CONFIG[type];
-          return (
-            <div key={type} className="glass-panel border border-white/60 rounded-2xl p-4 bg-white/40 backdrop-blur-md flex items-center gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cfg.bg}`}>
-                <span className={cfg.text}><TypeIcon type={type} /></span>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{type}</p>
-                <p className="text-2xl font-black text-gray-800">{totalByType[type]}</p>
-              </div>
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="glass-panel border border-white/60 rounded-2xl p-4 bg-white/40 backdrop-blur-md flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-50 text-blue-700">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Paid Off</p>
+            <p className="text-2xl font-black text-gray-800">{yearHolidays.length} <span className="text-xs font-normal text-gray-400">days</span></p>
+          </div>
+        </div>
+
+        <div className="glass-panel border border-white/60 rounded-2xl p-4 bg-white/40 backdrop-blur-md flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50 text-emerald-700">
+            <Sun className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sundays (Weekly Off)</p>
+            <p className="text-2xl font-black text-emerald-700">{sundaysCount} <span className="text-xs font-normal text-gray-400">active</span></p>
+          </div>
+        </div>
+
+        <div className="glass-panel border border-white/60 rounded-2xl p-4 bg-white/40 backdrop-blur-md flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-50 text-amber-700">
+            <Flag className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Festivals & Public</p>
+            <p className="text-2xl font-black text-gray-800">{festivalCount} <span className="text-xs font-normal text-gray-400">days</span></p>
+          </div>
+        </div>
+
+        <div className="glass-panel border border-white/60 rounded-2xl p-4 bg-white/40 backdrop-blur-md flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-violet-50 text-violet-700">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Deleted / Working</p>
+            <p className="text-2xl font-black text-violet-700">{deletedThisYear.length} <span className="text-xs font-normal text-gray-400">converted</span></p>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 mb-6 bg-white/50 p-1.5 rounded-2xl border border-white/60 w-fit backdrop-blur-sm">
+        <button
+          onClick={() => setFilterCategory('all')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterCategory === 'all' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-white/60'}`}
+        >
+          All Days ({yearHolidays.length})
+        </button>
+        <button
+          onClick={() => setFilterCategory('festivals')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterCategory === 'festivals' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-white/60'}`}
+        >
+          Festivals & Declared ({festivalCount})
+        </button>
+        <button
+          onClick={() => setFilterCategory('sundays')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${filterCategory === 'sundays' ? 'bg-primary text-white shadow-xs' : 'text-gray-600 hover:bg-white/60'}`}
+        >
+          Sundays Only ({sundaysCount})
+        </button>
       </div>
 
       {/* Holiday list */}
-      {yearHolidays.length === 0 ? (
+      {filteredHolidays.length === 0 ? (
         <div className="glass-panel border border-white/60 rounded-[2rem] bg-white/40 backdrop-blur-md p-16 flex flex-col items-center justify-center text-center">
           <CalendarDays className="w-14 h-14 text-gray-300 mb-4" />
-          <p className="text-gray-500 font-semibold">No holidays added for {selectedYear}.</p>
-          <p className="text-gray-400 text-sm mt-1">Click "Add Holiday" to get started.</p>
+          <p className="text-gray-500 font-semibold">No holidays found for {selectedYear} in this category.</p>
+          {canManageHolidays && (
+            <p className="text-gray-400 text-sm mt-1">Click "Add Holiday" or "Restore Deleted Sundays" to manage dates.</p>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -140,40 +231,45 @@ export function HolidaysPage() {
               </div>
               <div className="divide-y divide-gray-100/80">
                 {grouped[month].map(holiday => {
+                  const isSun = isSundayHoliday(holiday);
                   const cfg = TYPE_CONFIG[holiday.type];
                   const dateObj = new Date(holiday.date + 'T00:00:00');
                   const dayName = dateObj.toLocaleDateString('en-IN', { weekday: 'short' });
                   const dayNum = dateObj.getDate();
+
                   return (
-                    <div key={holiday.id} className="flex items-center px-6 py-4 hover:bg-white/40 transition-colors group">
-                      <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-primary/5 border border-primary/10 flex flex-col items-center justify-center mr-5">
-                        <span className="text-primary font-black text-xl leading-none">{dayNum}</span>
-                        <span className="text-primary/60 font-bold text-[10px] uppercase">{dayName}</span>
+                    <div key={holiday.id} className="flex items-center px-6 py-3.5 hover:bg-white/40 transition-colors group">
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center mr-4 border ${
+                        isSun 
+                          ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-700' 
+                          : 'bg-primary/5 border-primary/10 text-primary'
+                      }`}>
+                        <span className="font-black text-lg leading-none">{dayNum}</span>
+                        <span className="font-bold text-[10px] uppercase opacity-75">{dayName}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-800 text-sm truncate">{holiday.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-gray-800 text-sm truncate">{holiday.name}</p>
+                          {isSun && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              Sunday Off
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-gray-400 mt-0.5">{holiday.date}</p>
                       </div>
-                      <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${cfg.bg} ${cfg.text} mr-4`}>
-                        <TypeIcon type={holiday.type} />
-                        {cfg.label}
+                      <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${isSun ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : `${cfg.bg} ${cfg.text}`} mr-4`}>
+                        {isSun ? <Sun className="w-3 h-3 text-emerald-600" /> : <TypeIcon type={holiday.type} />}
+                        {isSun ? 'Weekly Off' : cfg.label}
                       </span>
                       {canManageHolidays && (
-                        deleteConfirm === holiday.id ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 font-medium">Remove?</span>
-                            <button onClick={() => handleDelete(holiday.id)} className="px-2.5 py-1 bg-rose-500 text-white rounded-lg text-xs font-bold hover:bg-rose-600 transition-colors">Yes</button>
-                            <button onClick={() => setDeleteConfirm(null)} className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">No</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(holiday.id)}
-                            className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                            title="Remove holiday"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )
+                        <button
+                          onClick={() => setDeleteConfirm(holiday.id)}
+                          className="w-8 h-8 rounded-lg bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                          title={isSun ? "Remove Sunday from holidays (converts into a normal working day)" : "Remove holiday"}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
                   );
@@ -202,7 +298,7 @@ export function HolidaysPage() {
                   type="date"
                   value={form.date}
                   onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                  className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                  className="w-full px-3 py-2 bg-white/60 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 cursor-pointer"
                 />
               </div>
               <div>
@@ -258,9 +354,13 @@ export function HolidaysPage() {
 
       <ConfirmModal
         isOpen={!!deleteConfirm}
-        title="Delete Holiday"
-        message="Are you sure you want to delete this holiday record? This action cannot be undone."
-        confirmText="Delete Holiday"
+        title={deleteTarget && isSundayHoliday(deleteTarget) ? "Remove Sunday From Holidays" : "Delete Holiday"}
+        message={
+          deleteTarget && isSundayHoliday(deleteTarget)
+            ? `Are you sure you want to remove Sunday (${deleteTarget.date}) from company holidays? This Sunday will become a standard working day for attendance and payroll.`
+            : "Are you sure you want to delete this holiday record? This action cannot be undone."
+        }
+        confirmText={deleteTarget && isSundayHoliday(deleteTarget) ? "Make Working Day" : "Delete Holiday"}
         onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
         onCancel={() => setDeleteConfirm(null)}
       />

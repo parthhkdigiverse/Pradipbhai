@@ -234,6 +234,7 @@ export function PayrollPage() {
     const fyStartDate = `${targetFYStart}-04-01`;
     const fyEndDate = `${targetFYStart + 1}-03-31`;
     const holidaysInMonth = holidays.filter(h => h.date.startsWith(targetMonth)).length;
+    const holidayDatesSet = new Set(holidays.map(h => h.date));
     const record = payroll.find(p => (p.staffId === emp.id || p.staff_id === emp.id) && p.month === targetMonth);
 
     const bal = leaveBalances?.find(b => (b.staffId === emp.id || (b as any).staff_id === emp.id)) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
@@ -258,12 +259,14 @@ export function PayrollPage() {
       const dates = getLeaveDates(r.fromDate, r.toDate);
       if (dates.length === 0) return;
       if (r.isHalfDay) {
-        if (dates[0] >= fyStartDate && dates[0] <= fyEndDate) {
+        // Exclude company holidays from consuming leave days
+        if (dates[0] >= fyStartDate && dates[0] <= fyEndDate && !holidayDatesSet.has(dates[0])) {
           allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5, leaveReq: r });
         }
       } else {
         dates.forEach(d => {
-          if (d >= fyStartDate && d <= fyEndDate) {
+          // Exclude company holidays from consuming leave days
+          if (d >= fyStartDate && d <= fyEndDate && !holidayDatesSet.has(d)) {
             allLeaveDays.push({ date: d, type: r.type, weight: 1.0, leaveReq: r });
           }
         });
@@ -329,6 +332,9 @@ export function PayrollPage() {
     const monthRecords = attendance.filter(a => (a.staffId || a.staff_id) === emp.id && a.date.startsWith(targetMonth));
     
     monthRecords.forEach(r => {
+      // Punches or attendance markings on holidays do NOT affect payroll
+      if (holidayDatesSet.has(r.date)) return;
+
       if (r.status === 'Present') daysPresent++;
       if (r.status === 'Absent') {
         if (!approvedLeaveDatesThisMonth.has(r.date)) {

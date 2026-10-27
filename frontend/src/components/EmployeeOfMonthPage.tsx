@@ -35,7 +35,8 @@ export function EmployeeOfMonthPage() {
     deleteEvaluation,
     attendance,
     dailyProgressRecords,
-    jobs
+    jobs,
+    holidays
   } = useData();
 
   const isAdmin = currentUserRole === 'Admin';
@@ -150,7 +151,8 @@ export function EmployeeOfMonthPage() {
       attendance,
       dailyProgressRecords,
       jobs,
-      criteriaScores
+      criteriaScores,
+      holidays
     );
     setCriteriaScores(result.scores);
     setAutoCalcDetails(result.details);
@@ -178,7 +180,9 @@ export function EmployeeOfMonthPage() {
       selectedMonth,
       attendance,
       dailyProgressRecords,
-      jobs
+      jobs,
+      undefined,
+      holidays
     );
     setCriteriaScores(result.scores);
     setAutoCalcDetails(result.details);
@@ -209,7 +213,8 @@ export function EmployeeOfMonthPage() {
       attendance,
       dailyProgressRecords,
       jobs,
-      scores
+      scores,
+      holidays
     );
     setAutoCalcDetails(result.details);
 
@@ -238,7 +243,9 @@ export function EmployeeOfMonthPage() {
           selectedMonth,
           attendance,
           dailyProgressRecords,
-          jobs
+          jobs,
+          undefined,
+          holidays
         );
         let total = 0;
         let maxTotal = 0;
