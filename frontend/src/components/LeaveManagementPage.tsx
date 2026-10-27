@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ClipboardList, Plus, X, CheckCircle, XCircle, Clock, Search,
-  ChevronDown, User, AlertCircle, Sliders, RotateCcw
+  ChevronDown, User, AlertCircle, Sliders, RotateCcw, AlertTriangle, Lock
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import type { LeaveRequest } from '../context/DataContext';
@@ -63,6 +63,13 @@ export function LeaveManagementPage() {
   // Apply modal
   const [showApply, setShowApply] = useState(false);
   const [form, setForm] = useState(emptyForm());
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+
+  // Close apply modal & clear warning
+  const closeApplyModal = () => {
+    setShowApply(false);
+    setQuotaWarning(null);
+  };
 
   // Reject note modal
   const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
@@ -129,8 +136,100 @@ export function LeaveManagementPage() {
   const remainingSickPaidDays = Math.max(0, sickPaidQuota - myUsed.Sick);
   const extraSickDeductibleDays = Math.max(0, myUsed.Sick - sickPaidQuota);
 
+  // Active requests (Approved + Pending) for quota validation during application
+  const myActiveRequests = useMemo(() => {
+    return myLeaves.filter(r => r.status === 'Approved' || r.status === 'Pending');
+  }, [myLeaves]);
+
+  // Selected month for date (from form.fromDate or current month)
+  const selectedMonthStr = useMemo(() => {
+    if (form.fromDate) return form.fromDate.slice(0, 7);
+    return currentMonthStr;
+  }, [form.fromDate, currentMonthStr]);
+
+  const selectedMonthFormatted = useMemo(() => {
+    try {
+      const [yr, mo] = selectedMonthStr.split('-');
+      const d = new Date(parseInt(yr), parseInt(mo) - 1, 1);
+      return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    } catch {
+      return selectedMonthStr;
+    }
+  }, [selectedMonthStr]);
+
+  // Sick Leave Quota Consumption
+  const totalSickUsed = useMemo(() => {
+    return myActiveRequests
+      .filter(r => r.type === 'Sick')
+      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+  }, [myActiveRequests]);
+
+  const remainingSickPaid = Math.max(0, sickPaidQuota - totalSickUsed);
+  const isSickConsumed = remainingSickPaid <= 0;
+
+  // Earned Leave Quota Consumption
+  const selectedMonthEarnedUsed = useMemo(() => {
+    return myActiveRequests
+      .filter(r =>
+        r.type === 'Earned' &&
+        ((r.fromDate && r.fromDate.startsWith(selectedMonthStr)) || (r.toDate && r.toDate.startsWith(selectedMonthStr)))
+      )
+      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+  }, [myActiveRequests, selectedMonthStr]);
+
+  const totalEarnedUsed = useMemo(() => {
+    return myActiveRequests
+      .filter(r => r.type === 'Earned')
+      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+  }, [myActiveRequests]);
+
+  const remainingMonthEarned = Math.max(0, 1 - selectedMonthEarnedUsed);
+  const remainingAnnualEarned = Math.max(0, earnedPaidQuota - totalEarnedUsed);
+  const isEarnedConsumed = remainingMonthEarned <= 0 || remainingAnnualEarned <= 0;
+
+  // Check if currently selected category in form.type is consumed
+  const isCurrentCategoryConsumed = (form.type === 'Sick' && isSickConsumed) || (form.type === 'Earned' && isEarnedConsumed);
+
+  const activeWarning = useMemo(() => {
+    if (quotaWarning) return quotaWarning;
+    if (form.type === 'Sick' && isSickConsumed) {
+      return `Paid Sick Leave quota is exhausted! You have consumed all ${sickPaidQuota} paid Sick Leaves for this year (${totalSickUsed}/${sickPaidQuota} used). You cannot apply for Sick Leave. Please switch to Casual Leave (payroll-deductible).`;
+    }
+    if (form.type === 'Earned' && isEarnedConsumed) {
+      return remainingAnnualEarned <= 0
+        ? `Annual Paid Earned Leave quota is exhausted! You have consumed all ${earnedPaidQuota} paid Earned Leaves for this year (${totalEarnedUsed}/${earnedPaidQuota} used). Please switch to Casual Leave.`
+        : `Paid Earned Leave quota is consumed for ${selectedMonthFormatted}! You have already used your 1 paid Earned Leave for this month (${selectedMonthEarnedUsed}/1 used). Earned leaves cannot be carry-forwarded (1 paid day/month). Please switch to Casual Leave.`;
+    }
+    return null;
+  }, [quotaWarning, form.type, isSickConsumed, isEarnedConsumed, sickPaidQuota, totalSickUsed, remainingAnnualEarned, earnedPaidQuota, totalEarnedUsed, selectedMonthFormatted, selectedMonthEarnedUsed]);
+
+  const handleSelectType = (t: LeaveType) => {
+    if (t === 'Sick' && isSickConsumed) {
+      setQuotaWarning(
+        `Paid Sick Leave quota is exhausted! You have consumed all ${sickPaidQuota} paid Sick Leaves for this year (${totalSickUsed}/${sickPaidQuota} used). You cannot select Sick Leave. Please apply under Casual Leave (payroll-deductible).`
+      );
+      return;
+    }
+
+    if (t === 'Earned' && isEarnedConsumed) {
+      const msg = remainingAnnualEarned <= 0
+        ? `Annual Paid Earned Leave quota is exhausted! You have consumed all ${earnedPaidQuota} paid Earned Leaves for this year (${totalEarnedUsed}/${earnedPaidQuota} used). You cannot select Earned Leave. Please apply under Casual Leave.`
+        : `Paid Earned Leave quota is consumed for ${selectedMonthFormatted}! You have already used your 1 paid Earned Leave for this month (${selectedMonthEarnedUsed}/1 used). Earned leaves cannot be carry-forwarded (1 paid day per month). You cannot select Earned Leave. Please apply under Casual Leave.`;
+      setQuotaWarning(msg);
+      return;
+    }
+
+    // If not consumed, select category and clear warning
+    setQuotaWarning(null);
+    setForm(f => ({ ...f, type: t }));
+  };
+
   const handleApply = async () => {
     if (!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || !currentStaff) return;
+    if (isCurrentCategoryConsumed) {
+      setQuotaWarning(`Cannot submit: Paid quota for ${form.type} Leave is consumed. Please switch to Casual Leave.`);
+      return;
+    }
     const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
     const targetToDate = form.isHalfDay ? form.fromDate : form.toDate;
     await addLeaveRequest({
@@ -147,6 +246,7 @@ export function LeaveManagementPage() {
       appliedOn: new Date().toISOString().slice(0, 10),
     });
     setForm(emptyForm());
+    setQuotaWarning(null);
     setShowApply(false);
   };
 
@@ -244,7 +344,7 @@ export function LeaveManagementPage() {
           )}
           {activeTab === 'my' && canApply && (
             <button
-              onClick={() => { setForm(emptyForm()); setShowApply(true); }}
+              onClick={() => { setForm(emptyForm()); setQuotaWarning(null); setShowApply(true); }}
               className="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -682,33 +782,118 @@ export function LeaveManagementPage() {
       {/* ══════════ APPLY MODAL ══════════ */}
       {showApply && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowApply(false)} />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={closeApplyModal} />
           <div className="relative bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl w-full max-w-md max-h-[90dvh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200/50 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-800">Apply for Leave</h2>
-              <button onClick={() => setShowApply(false)} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Apply for Leave</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Select category and dates to submit your leave request</p>
+              </div>
+              <button onClick={closeApplyModal} className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/50 rounded-lg transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
               {/* Leave Type */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Leave Type</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Leave Category</label>
+                  <span className="text-[11px] text-gray-400 font-medium">Click to select</span>
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   {(['Casual', 'Sick', 'Earned'] as LeaveType[]).map(t => {
                     const lc = LEAVE_COLORS[t];
                     const isSelected = form.type === t;
+                    const isConsumed = (t === 'Sick' && isSickConsumed) || (t === 'Earned' && isEarnedConsumed);
+
                     return (
                       <button
                         key={t}
-                        onClick={() => setForm(f => ({ ...f, type: t }))}
-                        className={`py-2.5 rounded-xl border-2 text-xs font-bold transition-all cursor-pointer ${isSelected ? `${lc.bg} ${lc.text} ${lc.border} shadow-sm` : 'border-gray-100 text-gray-500 hover:border-gray-200 hover:bg-gray-50'}`}
+                        type="button"
+                        onClick={() => handleSelectType(t)}
+                        className={`relative p-2.5 rounded-2xl border-2 text-center transition-all flex flex-col items-center justify-between gap-1.5 cursor-pointer ${
+                          isConsumed 
+                            ? 'border-dashed border-rose-300/80 bg-rose-50/40 hover:bg-rose-50 hover:border-rose-400 text-gray-500' 
+                            : isSelected 
+                              ? `${lc.bg} ${lc.text} ${lc.border} shadow-sm ring-2 ring-primary/20` 
+                              : 'border-gray-200/70 bg-white/60 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                        title={isConsumed ? `Paid ${t} leaves consumed. Click to view warning.` : undefined}
                       >
-                        {t}
+                        <div className="flex items-center gap-1.5">
+                          {isConsumed && <Lock className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />}
+                          <span className={`text-xs font-bold ${isConsumed ? 'text-gray-700' : isSelected ? lc.text : 'text-gray-800'}`}>
+                            {t}
+                          </span>
+                        </div>
+
+                        {/* Quota Indicator */}
+                        {t === 'Casual' && (
+                          <span className="text-[10px] font-semibold text-blue-600 bg-blue-100/70 px-2 py-0.5 rounded-full">
+                            Deductible
+                          </span>
+                        )}
+                        {t === 'Sick' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isSickConsumed 
+                              ? 'text-rose-700 bg-rose-100/90' 
+                              : 'text-emerald-700 bg-emerald-100/80'
+                          }`}>
+                            {isSickConsumed ? '0 Left · Consumed' : `${remainingSickPaid} Paid Left`}
+                          </span>
+                        )}
+                        {t === 'Earned' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isEarnedConsumed 
+                              ? 'text-rose-700 bg-rose-100/90' 
+                              : 'text-emerald-700 bg-emerald-100/80'
+                          }`}>
+                            {isEarnedConsumed ? '0 Left · Consumed' : `${remainingMonthEarned} Paid Left`}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Quota Consumed Warning Alert Banner */}
+                {activeWarning && (
+                  <div className="mt-3 p-3.5 bg-rose-50/95 border border-rose-200 rounded-2xl flex items-start gap-3 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="w-7 h-7 rounded-xl bg-rose-100 flex items-center justify-center flex-shrink-0 mt-0.5 text-rose-600">
+                      <AlertTriangle className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-rose-900">
+                          Paid Quota Consumed
+                        </h4>
+                        {quotaWarning && (
+                          <button
+                            type="button"
+                            onClick={() => setQuotaWarning(null)}
+                            className="text-rose-400 hover:text-rose-700 p-0.5 rounded-md hover:bg-rose-100 transition-colors cursor-pointer"
+                            title="Dismiss warning"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-rose-700 leading-relaxed mt-1">
+                        {activeWarning}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm(f => ({ ...f, type: 'Casual' }));
+                          setQuotaWarning(null);
+                        }}
+                        className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-800 border border-rose-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                      >
+                        Switch to Casual Leave (Payroll-Deductible) →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Leave Duration Mode: Full Day vs Half Day */}
@@ -780,13 +965,41 @@ export function LeaveManagementPage() {
                 )}
               </div>
 
-              {/* Days preview */}
+              {/* Days preview & Quota Notice */}
               {form.fromDate && (form.isHalfDay || form.toDate) && (
-                <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-500">Total Duration</span>
-                  <span className="text-sm font-black text-primary">
-                    {form.isHalfDay ? `0.5 Day (${form.halfDaySession})` : `${calcDays(form.fromDate, form.toDate)} Day${calcDays(form.fromDate, form.toDate) > 1 ? 's' : ''}`}
-                  </span>
+                <div className="space-y-2">
+                  <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">Total Duration</span>
+                    <span className="text-sm font-black text-primary">
+                      {form.isHalfDay ? `0.5 Day (${form.halfDaySession})` : `${calcDays(form.fromDate, form.toDate)} Day${calcDays(form.fromDate, form.toDate) > 1 ? 's' : ''}`}
+                    </span>
+                  </div>
+
+                  {/* Informative notice if requested days exceed remaining paid balance */}
+                  {!isCurrentCategoryConsumed && (() => {
+                    const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
+                    if (form.type === 'Earned' && days > remainingMonthEarned && remainingMonthEarned > 0) {
+                      return (
+                        <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-medium">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span>
+                            <strong>Notice:</strong> You have {remainingMonthEarned} paid Earned Leave left for {selectedMonthFormatted}. The remaining {days - remainingMonthEarned} day(s) will be payroll-deductible.
+                          </span>
+                        </div>
+                      );
+                    }
+                    if (form.type === 'Sick' && days > remainingSickPaid && remainingSickPaid > 0) {
+                      return (
+                        <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-medium">
+                          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span>
+                            <strong>Notice:</strong> You have {remainingSickPaid} paid Sick Leave(s) left. The remaining {days - remainingSickPaid} day(s) will be payroll-deductible.
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               )}
 
@@ -803,16 +1016,29 @@ export function LeaveManagementPage() {
               </div>
             </div>
             <div className="p-4 sm:p-6 border-t border-gray-200/50 bg-gray-50/50 flex justify-end gap-3 flex-shrink-0">
-              <button onClick={() => setShowApply(false)} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-all">
+              <button onClick={closeApplyModal} className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-200 rounded-xl transition-all cursor-pointer">
                 Cancel
               </button>
               <button
                 onClick={handleApply}
-                disabled={!form.fromDate || !form.toDate || !form.reason.trim()}
-                className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                disabled={!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || isCurrentCategoryConsumed}
+                className={`px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 ${
+                  isCurrentCategoryConsumed 
+                    ? 'bg-rose-600/80 text-white cursor-not-allowed opacity-75 shadow-rose-500/20' 
+                    : 'bg-primary hover:bg-primary/90 text-white shadow-primary/20 hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                }`}
               >
-                <Plus className="w-4 h-4" />
-                Submit Application
+                {isCurrentCategoryConsumed ? (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Paid Quota Consumed
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Submit Application
+                  </>
+                )}
               </button>
             </div>
           </div>
