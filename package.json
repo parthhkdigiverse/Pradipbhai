@@ -2,6 +2,7 @@
   "name": "alpha-creative-crm",
   "version": "1.0.0",
   "description": "Alpha Creative CRM / ERP Native Desktop Application",
+  "author": "Alpha Creative",
   "main": "electron/main.cjs",
   "private": true,
   "scripts": {
