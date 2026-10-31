@@ -67,6 +67,16 @@ async def update_job(job_id: str, job_in: JobUpdate, db: AsyncSession = Depends(
     await invalidate_cache("cache:jobs")
     return job
 
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_job(job_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Job).where(Job.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await db.delete(job)
+    await db.commit()
+    await invalidate_cache("cache:jobs")
+
 import os
 import sys
 import subprocess

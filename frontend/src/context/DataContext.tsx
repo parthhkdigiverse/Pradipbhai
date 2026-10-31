@@ -1096,8 +1096,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteJob = async (id: string) => {
-    try { await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'DELETE' }); } catch {}
+    try {
+      await apiFetch(`${API_BASE_URL}/jobs/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Failed to delete job on server:', e);
+    }
     setJobs(prev => prev.filter(j => j.id !== id));
+    if (activeJobTracker && activeJobTracker.jobId === id) {
+      setActiveJobTracker(null);
+      localStorage.removeItem('activeJobTracker');
+    }
   };
 
   const normalizeInvoice = (inv: any) => ({
