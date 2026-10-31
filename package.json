@@ -1,0 +1,61 @@
+{
+  "name": "alpha-creative-crm",
+  "version": "1.0.0",
+  "description": "Alpha Creative CRM / ERP Native Desktop Application",
+  "main": "electron/main.cjs",
+  "private": true,
+  "scripts": {
+    "electron:dev": "electron .",
+    "electron:start": "electron .",
+    "build:win": "electron-builder --win nsis portable",
+    "build:mac": "electron-builder --mac",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.alphacreative.crm",
+    "productName": "Alpha Creative CRM",
+    "copyright": "Copyright © 2026 Alpha Creative",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Alpha Creative CRM"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "icon": "electron/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

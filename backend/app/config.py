@@ -1,10 +1,14 @@
+import sys
 from pathlib import Path
 from typing import Optional
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Path to single root .env file (/Volumes/Other/PradipBhai/.env)
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+if getattr(sys, "frozen", False):
+    ROOT_DIR = Path(sys.executable).resolve().parent
+else:
+    ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+
 ROOT_ENV_FILE = ROOT_DIR / ".env"
 
 class Settings(BaseSettings):

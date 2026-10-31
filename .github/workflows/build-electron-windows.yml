@@ -1,0 +1,41 @@
+name: Build Electron Windows Desktop App (.exe)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+
+jobs:
+  build-electron-windows:
+    name: Package Windows Electron App (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Windows Installer & Portable Executable
+        run: npx electron-builder --win nsis portable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows Executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlphaCreativeCRM-Windows-Setup
+          path: |
+            dist-electron/*.exe
+            dist-electron/*.blockmap
+          retention-days: 30

@@ -84,3 +84,49 @@ async def health_check():
         "database": settings.DB_NAME,
         "host": settings.DB_HOST
     }
+
+# -------------------------------------------------------------
+# Production Frontend SPA Static Serving (for Electron / Monolith)
+# -------------------------------------------------------------
+import sys
+from pathlib import Path
+from fastapi import HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+def get_frontend_dist() -> Path | None:
+    candidates = []
+    if getattr(sys, "frozen", False):
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "frontend" / "dist")
+        candidates.append(Path(sys.executable).resolve().parent / "dist")
+        candidates.append(Path(sys.executable).resolve().parent / "frontend" / "dist")
+        candidates.append(Path(sys.executable).resolve().parent.parent / "frontend" / "dist")
+    else:
+        candidates.append(Path(__file__).resolve().parent.parent.parent / "frontend" / "dist")
+
+    for candidate in candidates:
+        if candidate.exists() and (candidate / "index.html").exists():
+            return candidate
+    return None
+
+frontend_dist = get_frontend_dist()
+
+if frontend_dist:
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend_assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa_frontend(full_path: str):
+        if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        
+        target_file = frontend_dist / full_path
+        if full_path and target_file.is_file():
+            return FileResponse(target_file)
+        
+        index_file = frontend_dist / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Index not found")
