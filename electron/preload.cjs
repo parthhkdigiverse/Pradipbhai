@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('system-idle-update', (_event, idleSec) => callback(idleSec));
   },
   inactivityWarningShown: () => ipcRenderer.send('inactivity-warning-shown'),
-  inactivityWarningCleared: () => ipcRenderer.send('inactivity-warning-cleared')
+  inactivityWarningCleared: () => ipcRenderer.send('inactivity-warning-cleared'),
+  closeApp: () => ipcRenderer.send('close-app'),
+  flashFrame: () => ipcRenderer.send('flash-frame')
 });

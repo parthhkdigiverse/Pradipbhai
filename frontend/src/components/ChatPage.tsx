@@ -176,13 +176,25 @@ export function ChatPage() {
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
-          setMessages(prev => ({ ...prev, [contactId]: data }));
+          setMessages(prev => {
+            const existing = prev[contactId] || [];
+            const remoteIds = new Set(data.map((m: any) => m.id));
+            const inFlight = existing.filter(m => typeof m.id === 'number' && !remoteIds.has(m.id));
+            return { ...prev, [contactId]: [...data, ...inFlight] };
+          });
         }
       }
     } catch (e) {
       console.warn("Could not fetch remote chat messages:", e);
     }
   };
+
+  // Request desktop notification permission on chat load
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -211,6 +223,26 @@ export function ChatPage() {
             });
             // Auto-scroll on incoming message
             setTimeout(() => scrollToBottom(), 100);
+
+            // Desktop notification & taskbar alert for incoming messages
+            if (message && message.sender === 'them') {
+              const senderStaff = staff.find((s: any) => String(s.id) === String(contactId));
+              const senderName = senderStaff?.name || activeContact?.name || 'Team Member';
+              const preview = message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Sent a message');
+
+              try {
+                (window as any).electronAPI?.flashFrame?.();
+              } catch {}
+
+              if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                  new Notification(`💬 ${senderName}`, {
+                    body: preview,
+                    icon: '/favicon.ico'
+                  });
+                } catch {}
+              }
+            }
           } else if (type === 'update_message') {
             setMessages(prev => ({
               ...prev,
@@ -246,12 +278,19 @@ export function ChatPage() {
         }, 1000);
       }
     };
-  }, [currentUserId]);
+  }, [currentUserId, staff, activeContact]);
 
   useEffect(() => {
     if (!activeContactId) return;
     // Initial fetch to load history when clicking a contact
     fetchRemoteMessages(activeContactId);
+
+    // Periodic polling fallback every 4 seconds to guarantee sync even if WebSocket hiccups
+    const pollInterval = setInterval(() => {
+      fetchRemoteMessages(activeContactId);
+    }, 4000);
+
+    return () => clearInterval(pollInterval);
   }, [activeContactId]);
 
   // Handle Send or Update Message

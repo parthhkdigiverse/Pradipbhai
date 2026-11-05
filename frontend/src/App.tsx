@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
 import { DashboardLayout } from './components/DashboardLayout';
@@ -62,6 +62,23 @@ function AppContent() {
     const targetPath = pageKey === 'dashboard' ? '/' : `/${pageKey}`;
     navigate(targetPath);
   };
+
+  // Web browser fallback: prompt confirmation dialog before closing / refreshing browser tab if user is logged in
+  useEffect(() => {
+    // In Electron desktop app, native close confirmation dialog is handled by Electron main process
+    if ((window as any).electronAPI) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (isAuth) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   if (!isAuthenticated) {
     return <LoginPage onLogin={handleLogin} />;

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, powerMonitor, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, powerMonitor, session, dialog, nativeImage } = require('electron');
 const path = require('path');
 const https = require('https');
 const http = require('http');
@@ -9,6 +9,7 @@ const CLOUD_HEALTH_URL = 'https://alpha.hkdigiverse.com/api/health';
 
 let mainWindow = null;
 let healthCheckInterval = null;
+let isAppQuitting = false;
 
 // Ensure only one instance of the app runs at a time
 const gotTheLock = app.requestSingleInstanceLock();
@@ -85,6 +86,54 @@ function createWindow() {
   // 4. Start system-wide idle activity broadcaster
   startSystemIdleBroadcaster();
 
+  // 5. Intercept window close to prompt confirmation pop-up
+  mainWindow.on('close', async (event) => {
+    if (isAppQuitting) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+
+    let dialogIcon = undefined;
+    if (fs.existsSync(iconPath)) {
+      try {
+        dialogIcon = nativeImage.createFromPath(iconPath);
+      } catch {}
+    }
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['Cancel', 'Yes, Close Application'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Exit Alpha Creative CRM',
+      message: 'Are you sure you want to close the software?',
+      detail: 'Please make sure any active shifts or jobs in progress are saved before exiting.',
+      icon: dialogIcon,
+      noLink: true
+    });
+
+    if (response === 1) {
+      isAppQuitting = true;
+      stopSystemIdleBroadcaster();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.destroy();
+      }
+      app.quit();
+    }
+  });
+
+  mainWindow.on('focus', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.flashFrame(false);
+    }
+  });
+
   mainWindow.on('closed', () => {
     stopSystemIdleBroadcaster();
     mainWindow = null;
@@ -141,6 +190,18 @@ ipcMain.on('retry-backend-connection', () => {
 
 ipcMain.on('open-external', (_event, url) => {
   shell.openExternal(url);
+});
+
+ipcMain.on('close-app', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.close();
+  }
+});
+
+ipcMain.on('flash-frame', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.flashFrame(true);
+  }
 });
 
 ipcMain.handle('get-system-idle-time', () => {
@@ -206,6 +267,15 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', (event) => {
+  if (!isAppQuitting) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      event.preventDefault();
+      mainWindow.close();
+    }
+  }
 });
 
 app.on('will-quit', () => {
