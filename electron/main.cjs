@@ -81,6 +81,14 @@ function createWindow() {
 
   // 3. Navigate to Cloud CRM when ready
   connectToCloud();
+
+  // 4. Start system-wide idle activity broadcaster
+  startSystemIdleBroadcaster();
+
+  mainWindow.on('closed', () => {
+    stopSystemIdleBroadcaster();
+    mainWindow = null;
+  });
 }
 
 function connectToCloud() {
@@ -136,8 +144,54 @@ ipcMain.on('open-external', (_event, url) => {
 });
 
 ipcMain.handle('get-system-idle-time', () => {
-  return powerMonitor.getSystemIdleTime();
+  try {
+    return powerMonitor.getSystemIdleTime();
+  } catch (err) {
+    console.warn('[Electron] Failed to get system idle time:', err);
+    return 0;
+  }
 });
+
+// Inactivity warning notification handlers
+ipcMain.on('inactivity-warning-shown', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.flashFrame(true);
+  }
+});
+
+ipcMain.on('inactivity-warning-cleared', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.flashFrame(false);
+  }
+});
+
+// Periodic system idle broadcaster to renderer (runs at Node.js level, immune to renderer throttling)
+let systemIdleInterval = null;
+
+function startSystemIdleBroadcaster() {
+  if (systemIdleInterval) clearInterval(systemIdleInterval);
+  systemIdleInterval = setInterval(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      try {
+        const idleSec = powerMonitor.getSystemIdleTime();
+        mainWindow.webContents.send('system-idle-update', idleSec);
+      } catch (err) {
+        // powerMonitor may fail before fully ready or on unsupported desktop environments
+      }
+    }
+  }, 1000);
+}
+
+function stopSystemIdleBroadcaster() {
+  if (systemIdleInterval) {
+    clearInterval(systemIdleInterval);
+    systemIdleInterval = null;
+  }
+}
 
 // App Lifecycle
 app.whenReady().then(() => {
@@ -152,6 +206,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('will-quit', () => {
+  stopSystemIdleBroadcaster();
 });
 
 app.on('window-all-closed', () => {

@@ -14,6 +14,7 @@ export function InactivityTimeoutGuard() {
   const lastActiveRef = useRef<number>(Date.now());
   const warningActiveRef = useRef<boolean>(false);
   const isAutoLoggingOutRef = useRef<boolean>(false);
+  const latestSystemIdleSecRef = useRef<number | null>(null);
 
   const role = (currentUserRole || localStorage.getItem('userRole') || '').trim().toLowerCase();
   const isAdmin = role === 'admin';
@@ -21,6 +22,9 @@ export function InactivityTimeoutGuard() {
   const isFieldDutyActive = isPunchedIn && (activeJobTracker?.jobId?.startsWith('activity-') || activeJobTracker?.jobId?.startsWith('fd-'));
 
   const handleLogout = useCallback(() => {
+    try {
+      (window as any).electronAPI?.inactivityWarningCleared?.();
+    } catch {}
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
     localStorage.removeItem('userName');
@@ -31,10 +35,14 @@ export function InactivityTimeoutGuard() {
 
   const resetActivity = useCallback(() => {
     lastActiveRef.current = Date.now();
+    latestSystemIdleSecRef.current = 0;
     if (warningActiveRef.current) {
       warningActiveRef.current = false;
       setShowWarning(false);
       setSecondsRemaining(WARNING_COUNTDOWN_SECONDS);
+      try {
+        (window as any).electronAPI?.inactivityWarningCleared?.();
+      } catch {}
     }
   }, []);
 
@@ -67,6 +75,31 @@ export function InactivityTimeoutGuard() {
       events.forEach(evt => window.removeEventListener(evt, onUserActivity));
     };
   }, [inactivityTimeoutEnabled, isAdmin]);
+
+  // Listen to system-wide idle updates pushed from Electron main process
+  // This detects keyboard typing & mouse clicks across the ENTIRE OS even when the CRM app is minimized!
+  useEffect(() => {
+    const electronAPI = (window as any).electronAPI;
+    if (!electronAPI || typeof electronAPI.onSystemIdle !== 'function') return;
+
+    electronAPI.onSystemIdle((idleSec: number) => {
+      if (typeof idleSec === 'number' && !isNaN(idleSec) && idleSec >= 0) {
+        latestSystemIdleSecRef.current = idleSec;
+        // If user was active recently on the OS (keyboard or mouse input within 2 seconds)
+        if (idleSec < 2) {
+          lastActiveRef.current = Date.now();
+          if (warningActiveRef.current) {
+            warningActiveRef.current = false;
+            setShowWarning(false);
+            setSecondsRemaining(WARNING_COUNTDOWN_SECONDS);
+            try {
+              electronAPI.inactivityWarningCleared?.();
+            } catch {}
+          }
+        }
+      }
+    });
+  }, []);
 
   // Allowed End Time check loop (Only for Courier / Field Duty activities)
   useEffect(() => {
@@ -101,7 +134,9 @@ export function InactivityTimeoutGuard() {
       if (currentMins >= endMins && !isAdmin) {
         isAutoLoggingOutRef.current = true;
         if (isPunchedIn) {
-          await performAutoPunchOut();
+          try {
+            await performAutoPunchOut();
+          } catch {}
         }
         handleLogout();
       }
@@ -119,18 +154,54 @@ export function InactivityTimeoutGuard() {
       return;
     }
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       const isAuth = localStorage.getItem('isAuthenticated') === 'true';
       const currentRole = (localStorage.getItem('userRole') || currentUserRole || '').trim().toLowerCase();
       if (!isAuth || isFieldDutyActive || currentRole === 'admin') return;
 
-      const elapsed = Date.now() - lastActiveRef.current;
+      const electronAPI = (window as any).electronAPI;
+      let idleSec = latestSystemIdleSecRef.current;
+
+      // Also pull directly via getSystemIdleTime if in Electron for real-time accuracy
+      if (electronAPI && typeof electronAPI.getSystemIdleTime === 'function') {
+        try {
+          const queriedIdle = await electronAPI.getSystemIdleTime();
+          if (typeof queriedIdle === 'number' && !isNaN(queriedIdle) && queriedIdle >= 0) {
+            idleSec = queriedIdle;
+            latestSystemIdleSecRef.current = queriedIdle;
+          }
+        } catch {}
+      }
+
+      // If user had system keyboard or mouse activity within last 2 seconds
+      if (typeof idleSec === 'number' && idleSec < 2) {
+        lastActiveRef.current = Date.now();
+        if (warningActiveRef.current) {
+          warningActiveRef.current = false;
+          setShowWarning(false);
+          setSecondsRemaining(WARNING_COUNTDOWN_SECONDS);
+          try {
+            electronAPI?.inactivityWarningCleared?.();
+          } catch {}
+        }
+      }
+
+      // Calculate elapsed idle time:
+      // In Electron: idleSec is the EXACT seconds since the user's last keyboard/mouse action on the OS.
+      // In Web browser: fallback to Date.now() - lastActiveRef.current (DOM events).
+      const elapsedMs = (typeof idleSec === 'number' && idleSec >= 0)
+        ? (idleSec * 1000)
+        : (Date.now() - lastActiveRef.current);
+
       const timeoutMs = inactivityTimeoutMinutes * 60 * 1000;
 
-      if (elapsed >= timeoutMs && !warningActiveRef.current) {
+      if (elapsedMs >= timeoutMs && !warningActiveRef.current) {
         warningActiveRef.current = true;
         setShowWarning(true);
         setSecondsRemaining(WARNING_COUNTDOWN_SECONDS);
+        try {
+          electronAPI?.inactivityWarningShown?.();
+        } catch {}
       }
     }, 1000);
 
@@ -145,7 +216,17 @@ export function InactivityTimeoutGuard() {
       setSecondsRemaining(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleLogout();
+          const executeLogout = async () => {
+            if (isPunchedIn) {
+              try {
+                await performAutoPunchOut();
+              } catch (e) {
+                console.error('Failed auto punch out on inactivity timeout:', e);
+              }
+            }
+            handleLogout();
+          };
+          executeLogout();
           return 0;
         }
         return prev - 1;
@@ -153,7 +234,7 @@ export function InactivityTimeoutGuard() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showWarning, isAdmin, handleLogout]);
+  }, [showWarning, isAdmin, handleLogout, isPunchedIn, performAutoPunchOut]);
 
   if (!showWarning || isAdmin) return null;
 
