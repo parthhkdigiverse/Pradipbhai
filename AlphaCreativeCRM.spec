@@ -90,5 +90,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon=str(ROOT_DIR / 'electron' / 'icon.ico') if (ROOT_DIR / 'electron' / 'icon.ico').exists() else None,
 )
