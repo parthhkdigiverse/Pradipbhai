@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Briefcase, 
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
-import { formatDate } from '../utils/dateFormatter';
+import { formatDate, parseJobStartTimeMs } from '../utils/dateFormatter';
 
 interface JobDetailsModalProps {
   job: any | null;
@@ -30,26 +30,36 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
   const { dateFormat } = useSettings();
   const [copiedLocation, setCopiedLocation] = useState(false);
 
-  const isCurrentlyActive = Boolean(
-    job && activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime
-  );
+  const isProgress = Boolean(job && (job.status === 'Progress' || job.status === 'In Progress'));
+  const activeStartTime = useMemo(() => {
+    if (job && activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
+      return activeJobTracker.startTime;
+    }
+    if (isProgress && job?.startedAt) {
+      const ms = parseJobStartTimeMs(job.startedAt);
+      if (ms) return ms;
+    }
+    return null;
+  }, [job?.id, job?.status, job?.startedAt, isProgress, activeJobTracker?.jobId, activeJobTracker?.startTime]);
+
+  const isCurrentlyActive = Boolean(activeStartTime);
 
   const [sessionSec, setSessionSec] = useState(() => {
-    if (!isCurrentlyActive || !activeJobTracker?.startTime) return 0;
-    return Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000));
+    if (!activeStartTime) return 0;
+    return Math.max(0, Math.floor((Date.now() - activeStartTime) / 1000));
   });
 
   useEffect(() => {
-    if (!isCurrentlyActive || !activeJobTracker?.startTime) {
+    if (!activeStartTime) {
       setSessionSec(0);
       return;
     }
-    setSessionSec(Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000)));
+    setSessionSec(Math.max(0, Math.floor((Date.now() - activeStartTime) / 1000)));
     const interval = setInterval(() => {
-      setSessionSec(Math.max(0, Math.floor((Date.now() - activeJobTracker.startTime) / 1000)));
+      setSessionSec(Math.max(0, Math.floor((Date.now() - activeStartTime) / 1000)));
     }, 1000);
     return () => clearInterval(interval);
-  }, [isCurrentlyActive, activeJobTracker?.startTime]);
+  }, [activeStartTime]);
 
   const baseTracked = Number(job?.trackedTime) || 0;
   const effectiveTrackedTime = baseTracked + (isCurrentlyActive ? sessionSec : 0);

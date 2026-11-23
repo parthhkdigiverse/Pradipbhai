@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
-import { formatDate } from '../utils/dateFormatter';
+import { formatDate, parseJobStartTimeMs } from '../utils/dateFormatter';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
@@ -16,7 +16,6 @@ interface LiveJobTimeCellProps {
   activeJobTracker: any;
   formatTime: (seconds: number) => string;
   formatStartTime: (job: any) => string;
-  info: any;
   handleOpenDelayModal: (job: any) => void;
 }
 
@@ -25,7 +24,6 @@ function LiveJobTimeCell({
   activeJobTracker,
   formatTime,
   formatStartTime,
-  info,
   handleOpenDelayModal
 }: LiveJobTimeCellProps) {
   const isProgress = job.status === 'Progress' || job.status === 'In Progress';
@@ -40,8 +38,8 @@ function LiveJobTimeCell({
     if (activeJobTracker && activeJobTracker.jobId === job.id && activeJobTracker.startTime) {
       sessionSec = Math.max(0, Math.floor((now - activeJobTracker.startTime) / 1000));
     } else if (job.startedAt) {
-      const startMs = new Date(job.startedAt).getTime();
-      if (!isNaN(startMs)) {
+      const startMs = parseJobStartTimeMs(job.startedAt);
+      if (startMs) {
         sessionSec = Math.max(0, Math.floor((now - startMs) / 1000));
       }
     }
@@ -69,13 +67,35 @@ function LiveJobTimeCell({
   const sinceStr = formatStartTime(job);
   const hasPreviousTracked = Number(job.trackedTime) > 0;
 
+  // Dynamically compute estimated timeline & delay against live totalSec so that
+  // when an in-progress job passes its estimated deadline, the alert displays in real time
+  const timelineInfo = useMemo(() => {
+    if (!job.estimatedTime) return { isExceeded: false, expectedText: '', diffText: '' };
+    const val = parseFloat(job.estimatedTime) || 0;
+    const unit = job.estimatedTimeUnit || 'Hours';
+    const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : unit === 'Minutes' ? val * 60 : val * 3600;
+    const currentTracked = isProgress ? timeState.totalSec : (Number(job.trackedTime) || 0);
+    const isExceeded = expectedSeconds > 0 && currentTracked > expectedSeconds;
+    const diffSecs = Math.max(0, currentTracked - expectedSeconds);
+    const diffText = diffSecs >= 3600 ? `${(diffSecs / 3600).toFixed(1)} hrs` : `${Math.ceil(diffSecs / 60)} mins`;
+    return {
+      isExceeded,
+      expectedText: `${val} ${unit}`,
+      diffText,
+      expectedSeconds
+    };
+  }, [job.estimatedTime, job.estimatedTimeUnit, isProgress, timeState.totalSec, job.trackedTime]);
+
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
-        isProgress 
-          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
-          : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
-      }`}>
+      <div 
+        className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
+          isProgress 
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
+            : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
+        }`}
+        title={isProgress && hasPreviousTracked ? `Total Time on Job: ${formatTime(timeState.totalSec)} (Prior Work: ${formatTime(Number(job.trackedTime))} + Current Session: ${formatTime(timeState.sessionSec)})` : undefined}
+      >
         {isProgress ? (
           <>
             <span className="relative flex h-2 w-2">
@@ -83,7 +103,7 @@ function LiveJobTimeCell({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
             </span>
             <Clock className="w-3 h-3 text-emerald-600" />
-            <span>{formatTime(timeState.totalSec)}</span>
+            <span>{hasPreviousTracked ? `Total: ${formatTime(timeState.totalSec)}` : formatTime(timeState.totalSec)}</span>
           </>
         ) : (
           <>
@@ -93,8 +113,8 @@ function LiveJobTimeCell({
         )}
       </div>
       {isProgress && hasPreviousTracked && timeState.sessionSec > 0 && (
-        <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.2 rounded border border-emerald-200/60" title={`Current session: ${formatTime(timeState.sessionSec)} | Previous tracked: ${formatTime(Number(job.trackedTime))}`}>
-          Session: {formatTime(timeState.sessionSec)}
+        <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.2 rounded border border-emerald-200/60" title={`Current session: ${formatTime(timeState.sessionSec)} | Prior work: ${formatTime(Number(job.trackedTime))}`}>
+          This Session: {formatTime(timeState.sessionSec)}
         </span>
       )}
       {isProgress && sinceStr && (
@@ -102,15 +122,15 @@ function LiveJobTimeCell({
           {sinceStr}
         </span>
       )}
-      {info.expectedText && (
+      {timelineInfo.expectedText && (
         <span className="text-[10px] text-gray-500 font-medium">
-          Est: {info.expectedText}
+          Est: {timelineInfo.expectedText}
         </span>
       )}
-      {info.isExceeded && (
+      {timelineInfo.isExceeded && (
         <div className="flex flex-col items-center gap-0.5">
           <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[9px] font-bold">
-            ⚠️ Exceeded (+{info.diffText})
+            ⚠️ Exceeded (+{timelineInfo.diffText})
           </span>
           {job.delayReason ? (
             <button 
@@ -133,6 +153,28 @@ function LiveJobTimeCell({
     </div>
   );
 }
+
+// Role hierarchy helpers: Admin (Level 3) > Manager (Level 2) > Staff / Employee (Level 1)
+export const getHierarchyLevel = (roleStr?: string): number => {
+  const r = (roleStr || '').toLowerCase().trim();
+  if (r.includes('admin')) return 3;
+  if (r.includes('manager') || r.includes('lead')) return 2;
+  return 1;
+};
+
+export const getRoleBadge = (roleStr?: string): string => {
+  const level = getHierarchyLevel(roleStr);
+  if (level === 3) return '👑';
+  if (level === 2) return '💼';
+  return '👥';
+};
+
+export const getRoleCategory = (roleStr?: string): string => {
+  const level = getHierarchyLevel(roleStr);
+  if (level === 3) return 'Admin';
+  if (level === 2) return 'Manager';
+  return 'Staff';
+};
 
 export function JobsPage() {
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal, addWorkLog, setIsPunchInModalOpen, fieldDuties } = useData();
@@ -218,9 +260,42 @@ export function JobsPage() {
   const [inlineCell, setInlineCell] = useState<{ jobId: string; field: string } | null>(null);
   const [inlineValue, setInlineValue] = useState<string>('');
 
+  const getAssignableStaff = (currentAssignedId?: string) => {
+    const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
+    const myLevel = getHierarchyLevel(effectiveRole);
+
+    return staff
+      .filter(s => {
+        // Retain existing assignee so it does not get cleared or hidden
+        if (currentAssignedId && s.id === currentAssignedId) return true;
+        const targetLevel = getHierarchyLevel(s.role);
+        // Hierarchy rule: An assigner can assign to their rank and lower
+        return myLevel >= targetLevel;
+      })
+      .sort((a, b) => {
+        const diff = getHierarchyLevel(b.role) - getHierarchyLevel(a.role);
+        if (diff !== 0) return diff;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+  };
+
   const handleSaveInlineEdit = async (jobId: string, field: string, val: any) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
+
+    if (field === 'teamId' && val) {
+      const targetStaff = staff.find(s => s.id === val);
+      if (targetStaff) {
+        const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
+        const myLevel = getHierarchyLevel(effectiveRole);
+        const targetLevel = getHierarchyLevel(targetStaff.role);
+        if (myLevel < targetLevel && job.teamId !== val) {
+          alert(`Hierarchy restriction: As a ${effectiveRole}, you cannot assign jobs upward to a ${targetStaff.role || 'higher rank'}.`);
+          setInlineCell(null);
+          return;
+        }
+      }
+    }
 
     if (field === 'dueDate' && val) {
       const year = parseInt(val.split('-')[0], 10);
@@ -300,7 +375,8 @@ export function JobsPage() {
     workLocation: '',
     estimatedTime: '',
     estimatedTimeUnit: 'Hours',
-    delayReason: ''
+    delayReason: '',
+    createdBy: ''
   });
 
   const [overrideReason, setOverrideReason] = useState('');
@@ -651,7 +727,8 @@ export function JobsPage() {
           workLocation: job.workLocation || '',
           estimatedTime: job.estimatedTime !== undefined && job.estimatedTime !== null ? String(job.estimatedTime) : '',
           estimatedTimeUnit: job.estimatedTimeUnit || 'Hours',
-          delayReason: job.delayReason || ''
+          delayReason: job.delayReason || '',
+          createdBy: job.createdBy || ''
         });
         setEditingJobId(jobId);
         setNewJobType((job.type as 'Designing' | 'Printing' | 'Des+Print') || 'Designing');
@@ -676,7 +753,8 @@ export function JobsPage() {
         workLocation: '',
         estimatedTime: '',
         estimatedTimeUnit: 'Hours',
-        delayReason: ''
+        delayReason: '',
+        createdBy: currentUser?.name || localStorage.getItem('userName') || ''
       });
       setEditingJobId(null);
       setOverrideReason('');
@@ -702,6 +780,20 @@ export function JobsPage() {
       if (formData.dueDate < todayStr) {
         alert('Deadline cannot be a past date. Please select today or a future date.');
         return;
+      }
+    }
+
+    if (formData.teamId) {
+      const targetStaff = staff.find(s => s.id === formData.teamId);
+      if (targetStaff) {
+        const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
+        const myLevel = getHierarchyLevel(effectiveRole);
+        const targetLevel = getHierarchyLevel(targetStaff.role);
+        const existingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
+        if (myLevel < targetLevel && (!existingJob || existingJob.teamId !== formData.teamId)) {
+          alert(`Hierarchy restriction: As a ${effectiveRole}, you cannot assign jobs upward to a ${targetStaff.role || 'higher rank'}.`);
+          return;
+        }
       }
     }
 
@@ -745,19 +837,24 @@ export function JobsPage() {
         updatedStartedAt = null;
       }
 
+      const creatorName = formData.createdBy?.trim() || currentUser?.name || localStorage.getItem('userName') || (currentUserRole === 'Admin' ? 'Admin' : 'Staff');
+
       updateJob(editingJobId, {
         ...jobData,
+        createdBy: formData.createdBy?.trim() || existingJob?.createdBy || creatorName,
         startedAt: updatedStartedAt,
         trackedTime: finalTracked
       });
     } else {
+      const creatorName = formData.createdBy?.trim() || currentUser?.name || localStorage.getItem('userName') || (currentUserRole === 'Admin' ? 'Admin' : 'Staff');
+
       if (newJobType === 'Des+Print') {
         const designJobId = `job-${Date.now()}-d`;
         // Create Designing Job
         const designJob = {
           ...jobData,
           id: designJobId,
-          createdBy: 'Admin',
+          createdBy: creatorName,
           createdAt: new Date().toISOString().split('T')[0],
           type: 'Des+Print',
           title: `[DESIGN] ${jobData.title}`
@@ -766,7 +863,7 @@ export function JobsPage() {
         const printJob = {
           ...jobData,
           id: `job-${Date.now()}-p`,
-          createdBy: 'System (Auto)',
+          createdBy: creatorName,
           createdAt: new Date().toISOString().split('T')[0],
           type: 'Des+Print',
           title: `[PRINT] ${jobData.title}`,
@@ -781,7 +878,7 @@ export function JobsPage() {
         const newJob = {
           ...jobData,
           id: `job-${Date.now()}`,
-          createdBy: 'Admin',
+          createdBy: creatorName,
           status: newJobType === 'Printing' ? 'In Progress' : (jobData.status || 'Pending'),
           startedAt: isProgress ? new Date().toISOString() : null,
           createdAt: new Date().toISOString().split('T')[0]
@@ -953,7 +1050,22 @@ export function JobsPage() {
         (currentUserRole === 'Admin' || currentUserRole === 'Manager' || j.assignedTo === currentStaffName || j.assigned_to === currentStaffName || j.teamId === loggedStaffId)
       );
       for (const prevJob of otherProgressJobs) {
-        await updateJob(prevJob.id, { status: 'Pending', startedAt: null });
+        let prevElapsed = 0;
+        if (prevJob.startedAt) {
+          const sMs = parseJobStartTimeMs(prevJob.startedAt);
+          if (sMs) {
+            prevElapsed = Math.max(0, Math.floor((now - sMs) / 1000));
+          }
+        }
+        const updatedTracked = (prevJob.trackedTime || 0) + prevElapsed;
+        await updateJob(prevJob.id, { 
+          status: 'Pending', 
+          startedAt: null,
+          trackedTime: updatedTracked
+        });
+        if (prevElapsed > 0) {
+          await logWorkSession(prevJob.id, prevJob.title || 'Job', parseJobStartTimeMs(prevJob.startedAt) || now, now);
+        }
       }
     }
   };
@@ -979,7 +1091,7 @@ export function JobsPage() {
       extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
       setActiveJobTracker(null);
     } else if (job?.startedAt) {
-      sessionStart = new Date(job.startedAt).getTime();
+      sessionStart = parseJobStartTimeMs(job.startedAt) || Date.now();
       extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
     }
     const finalTracked = (job?.trackedTime || 0) + Math.max(0, extraElapsed);
@@ -1083,7 +1195,7 @@ export function JobsPage() {
         elapsed = Math.floor((Date.now() - sessionStart) / 1000);
         setActiveJobTracker(null);
       } else if (job.startedAt) {
-        sessionStart = new Date(job.startedAt).getTime();
+        sessionStart = parseJobStartTimeMs(job.startedAt) || Date.now();
         elapsed = Math.floor((Date.now() - sessionStart) / 1000);
       }
       elapsed = Math.max(0, elapsed);
@@ -1129,7 +1241,7 @@ export function JobsPage() {
         elapsed = Math.floor((now - sessionStart) / 1000);
         setActiveJobTracker(null);
       } else if (targetJob?.startedAt) {
-        sessionStart = new Date(targetJob.startedAt).getTime();
+        sessionStart = parseJobStartTimeMs(targetJob.startedAt) || Date.now();
         elapsed = Math.floor((now - sessionStart) / 1000);
       }
       elapsed = Math.max(0, elapsed);
@@ -1163,7 +1275,7 @@ export function JobsPage() {
       sessionStart = activeJobTracker.startTime;
       elapsed = Math.floor((now - sessionStart) / 1000);
     } else if (targetJob?.startedAt) {
-      sessionStart = new Date(targetJob.startedAt).getTime();
+      sessionStart = parseJobStartTimeMs(targetJob.startedAt) || Date.now();
       elapsed = Math.floor((now - sessionStart) / 1000);
     }
     elapsed = Math.max(0, elapsed);
@@ -1214,18 +1326,19 @@ export function JobsPage() {
   const formatStartTime = (job: any) => {
     const timeVal = job.startedAt || (job.createdAt && job.createdAt.includes('T') ? job.createdAt : null);
     if (!timeVal) return '';
-    const d = new Date(timeVal);
-    if (isNaN(d.getTime())) return '';
+    const ms = parseJobStartTimeMs(timeVal);
+    if (!ms) return '';
+    const d = new Date(ms);
     const isToday = new Date().toDateString() === d.toDateString();
     const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
     return isToday ? `Since ${timeStr}` : `Since ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
   };
 
   const formatTime = (seconds: number) => {
-    if (!seconds) return '00:00:00';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
+    const total = Math.max(0, Math.floor(seconds || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
@@ -1542,14 +1655,28 @@ export function JobsPage() {
             />
           </div>
           <div>
-            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff</label>
+            <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Staff (Hierarchy)</label>
             <SearchableSelect
               value={filterStaff}
               onChange={setFilterStaff}
               options={[
                 { value: 'All', label: 'All Staffs' },
                 { value: 'Unassigned', label: 'Unassigned Tasks' },
-                ...staff.map(s => ({ value: s.id, label: s.name }))
+                ...[...staff]
+                  .sort((a, b) => {
+                    const diff = getHierarchyLevel(b.role) - getHierarchyLevel(a.role);
+                    if (diff !== 0) return diff;
+                    return (a.name || '').localeCompare(b.name || '');
+                  })
+                  .map(s => {
+                    const badge = getRoleBadge(s.role);
+                    const roleName = s.role || 'Staff';
+                    return {
+                      value: s.id,
+                      label: `${badge} [${roleName}] ${s.name}`,
+                      displayLabel: `${s.name} (${badge} ${roleName})`
+                    };
+                  })
               ]}
             />
           </div>
@@ -1727,7 +1854,45 @@ export function JobsPage() {
                     <td className="py-4 px-6 font-bold text-gray-400">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="py-4 px-6">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-gray-800 text-[11px]">{job.createdBy}</span>
+                        {inlineCell?.jobId === job.id && inlineCell?.field === 'createdBy' ? (
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              list={`creators-list-${job.id}`}
+                              autoFocus
+                              value={inlineValue}
+                              onChange={e => setInlineValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveInlineEdit(job.id, 'createdBy', inlineValue);
+                                if (e.key === 'Escape') setInlineCell(null);
+                              }}
+                              onBlur={() => handleSaveInlineEdit(job.id, 'createdBy', inlineValue)}
+                              className="px-2 py-0.5 bg-white border border-primary rounded text-[11px] text-gray-800 focus:outline-none w-28 shadow-sm font-semibold"
+                            />
+                            <datalist id={`creators-list-${job.id}`}>
+                              <option value="Admin" />
+                              {staff.map(s => (
+                                <option key={s.id} value={s.name} />
+                              ))}
+                            </datalist>
+                          </div>
+                        ) : (
+                          <span
+                            onDoubleClick={(e) => {
+                              if (!hasPermission(currentUserRole, 'Edit Job')) return;
+                              e.stopPropagation();
+                              setInlineCell({ jobId: job.id, field: 'createdBy' });
+                              setInlineValue(job.createdBy || '');
+                            }}
+                            className={`font-semibold text-gray-800 text-[11px] flex items-center gap-1 group/created ${hasPermission(currentUserRole, 'Edit Job') ? 'cursor-pointer hover:text-primary hover:underline' : ''}`}
+                            title={hasPermission(currentUserRole, 'Edit Job') ? "Double-click to edit creator" : undefined}
+                          >
+                            {job.createdBy || 'Admin'}
+                            {hasPermission(currentUserRole, 'Edit Job') && (
+                              <Edit className="w-2.5 h-2.5 text-gray-400 opacity-0 group-hover/created:opacity-100 transition-opacity shrink-0" />
+                            )}
+                          </span>
+                        )}
                         <span className="text-[10px] text-gray-500">{job.createdAt}</span>
                       </div>
                     </td>
@@ -1921,11 +2086,38 @@ export function JobsPage() {
                           className="px-2 py-1 bg-white border border-primary rounded text-xs text-gray-800 focus:outline-none shadow-sm font-medium"
                         >
                           <option value="">Unassigned</option>
-                          {staff
-                            .filter(s => (s.role !== 'Admin' && s.role !== 'Manager') || s.id === job.teamId)
-                            .map(s => (
-                              <option key={s.id} value={s.id}>{s.name} ({s.role || 'Staff'})</option>
-                            ))}
+                          {(() => {
+                            const assignable = getAssignableStaff(job.teamId);
+                            const admins = assignable.filter(s => getHierarchyLevel(s.role) === 3);
+                            const managers = assignable.filter(s => getHierarchyLevel(s.role) === 2);
+                            const staffMembers = assignable.filter(s => getHierarchyLevel(s.role) === 1);
+
+                            return (
+                              <>
+                                {admins.length > 0 && (
+                                  <optgroup label="👑 Admins">
+                                    {admins.map(s => (
+                                      <option key={s.id} value={s.id}>{s.name} (Admin)</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {managers.length > 0 && (
+                                  <optgroup label="💼 Managers">
+                                    {managers.map(s => (
+                                      <option key={s.id} value={s.id}>{s.name} (Manager)</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                                {staffMembers.length > 0 && (
+                                  <optgroup label="👥 Staff / Employees">
+                                    {staffMembers.map(s => (
+                                      <option key={s.id} value={s.id}>{s.name} ({s.role || 'Staff'})</option>
+                                    ))}
+                                  </optgroup>
+                                )}
+                              </>
+                            );
+                          })()}
                         </select>
                       ) : (
                         <div className="inline-flex items-center gap-1">
@@ -1941,9 +2133,21 @@ export function JobsPage() {
                                 ? 'text-gray-700 bg-gray-100/80 hover:bg-gray-200'
                                 : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/60'
                             }`}
-                            title="Click to assign or change staff"
+                            title={(() => {
+                              const assigned = staff.find(s => s.id === job.teamId);
+                              return `Click to assign or change staff${assigned ? ` (${assigned.role || 'Staff'})` : ''}`;
+                            })()}
                           >
-                            {getStaffName(job.teamId) || 'Unassigned'}
+                            {(() => {
+                              const assigned = staff.find(s => s.id === job.teamId);
+                              if (!assigned) return 'Unassigned';
+                              return (
+                                <>
+                                  <span className="text-[10px] opacity-75">{getRoleBadge(assigned.role)}</span>
+                                  <span>{assigned.name}</span>
+                                </>
+                              );
+                            })()}
                             {hasPermission(currentUserRole, 'Edit Job') && (
                               <Edit className="w-2.5 h-2.5 text-gray-400 group-hover/staff:text-gray-700 transition-colors shrink-0" />
                             )}
@@ -2001,7 +2205,6 @@ export function JobsPage() {
                         activeJobTracker={activeJobTracker}
                         formatTime={formatTime}
                         formatStartTime={formatStartTime}
-                        info={getJobTimelineInfo(job)}
                         handleOpenDelayModal={handleOpenDelayModal}
                       />
                     </td>
@@ -2309,7 +2512,7 @@ export function JobsPage() {
                 <div className="col-span-1">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">
-                      Assign Team {newJobType === 'Printing' && <span className="text-[10px] text-gray-400 font-medium normal-case">(Unassigned by default)</span>}
+                      Assign Team / Staff (Hierarchy) {newJobType === 'Printing' && <span className="text-[10px] text-gray-400 font-medium normal-case">(Unassigned by default)</span>}
                     </label>
                     {formData.teamId && (
                       <button
@@ -2327,9 +2530,15 @@ export function JobsPage() {
                     onChange={val => setFormData({...formData, teamId: val})}
                     options={[
                       { value: '', label: 'Unassigned (None)' },
-                      ...staff
-                        .filter(s => (s.role !== 'Admin' && s.role !== 'Manager') || s.id === formData.teamId)
-                        .map(s => ({ value: s.id, label: `${s.name} (${s.role || 'Staff'})` }))
+                      ...getAssignableStaff(formData.teamId).map(s => {
+                        const badge = getRoleBadge(s.role);
+                        const roleName = s.role || 'Staff';
+                        return {
+                          value: s.id,
+                          label: `${badge} [${roleName}] ${s.name}`,
+                          displayLabel: `${s.name} (${badge} ${roleName})`
+                        };
+                      })
                     ]}
                     placeholder="Unassigned (None)"
                   />
@@ -2437,8 +2646,8 @@ export function JobsPage() {
 
 
 
-              {/* Printer & Deadline */}
-              <div className="grid grid-cols-1 sm:grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Printer, Created By & Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {newJobType !== 'Designing' && (
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Printer / Vendor</label>
@@ -2453,7 +2662,24 @@ export function JobsPage() {
                     />
                   </div>
                 )}
-                <div className={newJobType === 'Designing' ? 'col-span-2' : ''}>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Created By</label>
+                  <input
+                    type="text"
+                    list="creators-modal-list"
+                    value={formData.createdBy}
+                    onChange={e => setFormData({ ...formData, createdBy: e.target.value })}
+                    placeholder={currentUser?.name || 'Creator Name'}
+                    className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800"
+                  />
+                  <datalist id="creators-modal-list">
+                    <option value={currentUser?.name || 'Admin'} />
+                    {staff.map(s => (
+                      <option key={s.id} value={s.name} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className={newJobType !== 'Designing' ? 'col-span-1 sm:col-span-2' : ''}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Deadline</label>
                     <span className="text-[10px] text-gray-400 font-medium">Type e.g. <span className="text-primary font-bold">15/10</span> (Year auto-fills)</span>

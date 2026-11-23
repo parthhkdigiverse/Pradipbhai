@@ -559,7 +559,7 @@ export function SettingsPage() {
                     <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${inactivityTimeoutEnabled ? 'transform translate-x-6' : ''}`}></div>
                   </div>
                   <span className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-primary" /> Timeout Warning
+                    <ShieldAlert className="w-4 h-4 text-primary" /> Inactivity Auto Punch-Out
                   </span>
                 </label>
 
@@ -579,8 +579,8 @@ export function SettingsPage() {
               </div>
 
               <p className="mt-4 text-[11px] text-gray-500 bg-primary/10 p-3 rounded-lg border border-primary/20 leading-relaxed">
-                If no <strong>mouse click, cursor movement, or keyboard input</strong> is detected for <strong>{inactivityTimeoutMinutes} minutes</strong>, an interactive timeout warning modal will pop up with a 60-second countdown before auto-logout.
-                <span className="block mt-1 font-semibold text-primary">Note: Admins are exempt from session timeout for uninterrupted workflow.</span>
+                If no <strong>mouse click, cursor movement, or keyboard input</strong> is detected for <strong>{inactivityTimeoutMinutes} minutes</strong> while punched in, a warning countdown will appear before automatically punching out the user (your login session remains active).
+                <span className="block mt-1 font-semibold text-primary">Note: Admins are exempt from timeout for uninterrupted workflow.</span>
               </p>
             </div>
           </div>

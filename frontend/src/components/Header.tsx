@@ -1,8 +1,8 @@
-import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import { Menu, Bell, Clock, X, User, LogOut, ArrowRightLeft, AlertTriangle, Briefcase, Calendar, Sparkles, ArrowRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { localDateStr } from '../utils/dateUtils';
 
@@ -20,6 +20,35 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
   const [lateWarningAlert, setLateWarningAlert] = useState<{ note: string; lateMins: number; penalty: number; action: string } | null>(null);
+
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (notificationRef.current && !notificationRef.current.contains(target)) {
+        setShowNotifications(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(target)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const userEmail = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
   const displayUserName = currentUser?.name || 'System Admin';
@@ -194,6 +223,104 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
     const allIds = computedNotifications.map(n => n.id);
     setReadNotificationIds(allIds);
     localStorage.setItem(`read_notifs_${userStaffId || 'guest'}`, JSON.stringify(allIds));
+  };
+
+  interface ToastNotificationItem {
+    id: string;
+    title: string;
+    message: string;
+    time: string;
+    type: 'job' | 'late' | 'leave' | 'progress';
+  }
+
+  const [activeToasts, setActiveToasts] = useState<ToastNotificationItem[]>([]);
+  const shownToastIdsRef = useRef<Set<string>>(new Set<string>());
+  const isInitialMountRef = useRef<boolean>(true);
+
+  // Request browser desktop notification permissions if supported
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Monitor for new unread notifications and pop them up
+  useEffect(() => {
+    if (computedNotifications.length === 0) return;
+
+    // Filter unread notifications that haven't been shown as a toast popup yet
+    const unreadUnshown = computedNotifications.filter(
+      n => n.unread && !shownToastIdsRef.current.has(n.id)
+    );
+
+    if (unreadUnshown.length === 0) return;
+
+    // On initial mount, show at most the latest 1 unread notification to avoid spamming
+    const itemsToToast = isInitialMountRef.current 
+      ? unreadUnshown.slice(0, 1) 
+      : unreadUnshown.slice(0, 2);
+
+    // Register all unread items as processed so they don't pop up again
+    unreadUnshown.forEach(n => shownToastIdsRef.current.add(n.id));
+    isInitialMountRef.current = false;
+
+    if (itemsToToast.length > 0) {
+      // Trigger native desktop notification + window flash in Electron / Browser
+      itemsToToast.forEach(item => {
+        try {
+          (window as any).electronAPI?.showNotification?.({
+            title: item.title,
+            body: item.message
+          });
+          (window as any).electronAPI?.flashFrame?.();
+        } catch {}
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+            new Notification(item.title, {
+              body: item.message,
+              icon: '/favicon.ico'
+            });
+          } catch {}
+        }
+      });
+
+      // Add to visible in-app toast popups stack
+      setActiveToasts(prev => {
+        const existingIds = new Set(prev.map(t => t.id));
+        const newOnes = itemsToToast.filter(t => !existingIds.has(t.id));
+        return [...prev, ...newOnes].slice(-3);
+      });
+    }
+  }, [computedNotifications]);
+
+  // Auto-dismiss each toast after 6 seconds
+  useEffect(() => {
+    if (activeToasts.length === 0) return;
+    const timer = setTimeout(() => {
+      setActiveToasts(prev => prev.slice(1));
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [activeToasts]);
+
+  const dismissToast = (id: string) => {
+    setActiveToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const handleToastClick = (toast: ToastNotificationItem) => {
+    if (toast.type === 'job' && setCurrentPage) setCurrentPage('jobs');
+    if (toast.type === 'late' && setCurrentPage) setCurrentPage('attendance');
+    if (toast.type === 'leave' && setCurrentPage) setCurrentPage('leaves');
+    if (toast.type === 'progress' && setCurrentPage) setCurrentPage('daily-progress');
+
+    // Mark notification as read
+    setReadNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, toast.id]));
+      localStorage.setItem(`read_notifs_${userStaffId || 'guest'}`, JSON.stringify(updated));
+      return updated;
+    });
+
+    dismissToast(toast.id);
   };
 
   useEffect(() => {
@@ -719,10 +846,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
             {isPunchedInOrActive ? 'Punch Out' : 'Punch In'}
           </button>
         )}
-        <div className="relative">
+        <div className="relative" ref={notificationRef}>
           <button 
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="text-gray-600 hover:text-gray-900 transition-colors relative p-1"
+            onClick={() => {
+              setShowNotifications(prev => !prev);
+              setShowProfileMenu(false);
+            }}
+            className="text-gray-600 hover:text-gray-900 transition-colors relative p-1 cursor-pointer"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
@@ -792,10 +922,13 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
           )}
         </div>
 
-        <div className="relative">
+        <div className="relative" ref={profileRef}>
           <button 
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/60 shadow-sm hover:border-primary/60 transition-colors"
+            onClick={() => {
+              setShowProfileMenu(prev => !prev);
+              setShowNotifications(false);
+            }}
+            className="w-8 h-8 rounded-full overflow-hidden border-2 border-white/60 shadow-sm hover:border-primary/60 transition-colors cursor-pointer"
           >
             <img src={headerAvatarUrl} alt="User profile" className="w-full h-full object-cover" />
           </button>
@@ -989,6 +1122,92 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
               Acknowledge & Continue
             </button>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* In-App Floating Notification Toast Popups */}
+      {activeToasts.length > 0 && createPortal(
+        <div className="fixed top-16 right-5 z-[99999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none p-2 sm:p-0">
+          {activeToasts.map((toast) => {
+            const isJob = toast.type === 'job';
+            const isLate = toast.type === 'late';
+            const isLeave = toast.type === 'leave';
+
+            const typeLabel = isLate 
+              ? '⚠️ ATTENDANCE' 
+              : isJob 
+              ? (toast.title.includes('Review') ? '🔍 REVIEW' : '💼 JOB TASK') 
+              : isLeave 
+              ? '📋 LEAVE' 
+              : '📊 REPORT';
+
+            const accentColor = isLate 
+              ? 'border-rose-300 bg-rose-50 text-rose-700' 
+              : isJob 
+              ? 'border-indigo-300 bg-indigo-50 text-indigo-700' 
+              : isLeave 
+              ? 'border-emerald-300 bg-emerald-50 text-emerald-700' 
+              : 'border-violet-300 bg-violet-50 text-violet-700';
+
+            return (
+              <div
+                key={toast.id}
+                onClick={() => handleToastClick(toast)}
+                className="pointer-events-auto bg-white/95 backdrop-blur-xl border border-gray-200/90 rounded-2xl shadow-2xl p-3.5 hover:shadow-primary/10 transition-all duration-300 transform animate-in slide-in-from-top-3 fade-in cursor-pointer group hover:scale-[1.01]"
+                style={{ boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}
+              >
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${accentColor}`}>
+                      {typeLabel}
+                    </span>
+                    <span className="text-[10px] text-gray-400 font-semibold">{toast.time}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismissToast(toast.id);
+                    }}
+                    className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-1 rounded-full transition-colors cursor-pointer"
+                    title="Dismiss notification"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                    isLate ? 'bg-rose-100 text-rose-600' :
+                    isJob ? 'bg-indigo-100 text-indigo-600' :
+                    isLeave ? 'bg-emerald-100 text-emerald-600' :
+                    'bg-violet-100 text-violet-600'
+                  }`}>
+                    {isLate ? <AlertTriangle className="w-4 h-4" /> :
+                     isJob ? <Briefcase className="w-4 h-4" /> :
+                     isLeave ? <Calendar className="w-4 h-4" /> :
+                     <Sparkles className="w-4 h-4" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-900 group-hover:text-primary transition-colors line-clamp-1">
+                      {toast.title}
+                    </p>
+                    <p className="text-[11px] text-gray-600 line-clamp-2 mt-0.5 leading-snug">
+                      {toast.message}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 pt-2 border-t border-gray-100/80 flex items-center justify-between text-[11px]">
+                  <span className="text-gray-400 font-medium text-[10px]">Click to view details</span>
+                  <span className="font-bold text-primary flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                    Open <ArrowRight className="w-3 h-3" />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>,
         document.body
       )}

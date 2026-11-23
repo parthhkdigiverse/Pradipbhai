@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, powerMonitor, session, dialog, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, powerMonitor, session, dialog, nativeImage, Notification } = require('electron');
 const path = require('path');
 const https = require('https');
 const http = require('http');
@@ -227,6 +227,29 @@ ipcMain.on('inactivity-warning-shown', () => {
 ipcMain.on('inactivity-warning-cleared', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.flashFrame(false);
+  }
+});
+
+// Native desktop notification handler
+ipcMain.on('show-desktop-notification', (_event, data) => {
+  try {
+    if (Notification && Notification.isSupported()) {
+      const notif = new Notification({
+        title: (data && data.title) || 'Alpha Creative ERP',
+        body: (data && data.body) || (data && data.message) || '',
+        silent: false
+      });
+      notif.on('click', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+      notif.show();
+    }
+  } catch (err) {
+    console.warn('[Electron] Desktop notification error:', err);
   }
 });
 

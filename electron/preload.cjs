@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   inactivityWarningShown: () => ipcRenderer.send('inactivity-warning-shown'),
   inactivityWarningCleared: () => ipcRenderer.send('inactivity-warning-cleared'),
   closeApp: () => ipcRenderer.send('close-app'),
-  flashFrame: () => ipcRenderer.send('flash-frame')
+  flashFrame: () => ipcRenderer.send('flash-frame'),
+  showNotification: (data) => ipcRenderer.send('show-desktop-notification', data)
 });

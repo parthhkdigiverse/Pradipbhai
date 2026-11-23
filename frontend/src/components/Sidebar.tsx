@@ -18,7 +18,7 @@ import {
 import { useData } from '../context/DataContext';
 
 export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollapsed }: { currentPage: string, setCurrentPage: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
-  const { currentUserRole, hasTabPermission } = useData();
+  const { currentUserRole, hasTabPermission, unreadChatCount } = useData();
 
   const [isHovered, setIsHovered] = useState(false);
   const effectiveIsCollapsed = isCollapsed && !isHovered;
@@ -367,9 +367,23 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
 
           {/* Independent Items */}
           {hasTabPermission(currentUserRole, 'chat') && (
-            <button onClick={() => setCurrentPage('chat')} title={effectiveIsCollapsed ? 'Chat' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
-              <MessageSquare className="w-5 h-5 flex-shrink-0" />
+            <button 
+              onClick={() => setCurrentPage('chat')} 
+              title={effectiveIsCollapsed ? (unreadChatCount > 0 ? `Chat (${unreadChatCount} new)` : 'Chat') : undefined} 
+              className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 relative ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}
+            >
+              <div className="relative">
+                <MessageSquare className="w-5 h-5 flex-shrink-0" />
+                {unreadChatCount > 0 && effectiveIsCollapsed && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white animate-pulse"></span>
+                )}
+              </div>
               <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Chat</span>
+              {unreadChatCount > 0 && !effectiveIsCollapsed && (
+                <span className="ml-auto px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold shadow-xs animate-pulse">
+                  {unreadChatCount > 9 ? '9+' : unreadChatCount}
+                </span>
+              )}
             </button>
           )}
 

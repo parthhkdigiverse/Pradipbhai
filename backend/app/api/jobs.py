@@ -35,8 +35,8 @@ async def create_job(job_in: JobCreate, db: AsyncSession = Depends(get_db)):
         job_data["status"] = "In Progress"
     
     if job_data.get("status") in ["Progress", "In Progress"] and not job_data.get("startedAt"):
-        from datetime import datetime
-        job_data["startedAt"] = datetime.now().isoformat()
+        from datetime import datetime, timezone
+        job_data["startedAt"] = datetime.now(timezone.utc).isoformat()
 
     job = Job(**job_data)
     db.add(job)
@@ -54,8 +54,8 @@ async def update_job(job_id: str, job_in: JobUpdate, db: AsyncSession = Depends(
     
     updates = job_in.model_dump(exclude_unset=True)
     if updates.get("status") in ["Progress", "In Progress"] and not getattr(job, "startedAt", None) and not updates.get("startedAt"):
-        from datetime import datetime
-        updates["startedAt"] = datetime.now().isoformat()
+        from datetime import datetime, timezone
+        updates["startedAt"] = datetime.now(timezone.utc).isoformat()
     elif "status" in updates and updates.get("status") not in ["Progress", "In Progress"] and "startedAt" not in updates:
         updates["startedAt"] = None
 

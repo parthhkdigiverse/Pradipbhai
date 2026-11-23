@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db
+from app.sync_state import get_sync_version, bump_sync_version
 
 # Import API Routers
 from app.api.clients import router as clients_router
@@ -51,6 +52,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# In-Memory Sync Version Middleware
+# Automatically increments revision in RAM whenever any user creates/updates/deletes data
+@app.middleware("http")
+async def sync_version_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        if 200 <= response.status_code < 300:
+            path = request.url.path
+            if path.startswith("/api") and not path.startswith("/api/chat") and not path.startswith("/api/sync"):
+                parts = [p for p in path.split("/") if p]
+                module = parts[1] if len(parts) > 1 else None
+                bump_sync_version(module)
+    return response
+
 from app.api.deps import get_current_user
 
 # Include Routers under /api
@@ -84,6 +99,14 @@ async def health_check():
         "database": settings.DB_NAME,
         "host": settings.DB_HOST
     }
+
+@app.get("/api/sync/version")
+async def get_sync_status():
+    """
+    Ultra-lightweight endpoint for client apps to check if data changed.
+    Reads strictly from RAM (0 SQL queries, 0 DB connection overhead).
+    """
+    return get_sync_version()
 
 # -------------------------------------------------------------
 # Production Frontend SPA Static Serving (for Electron / Monolith)

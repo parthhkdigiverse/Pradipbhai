@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import { 
   Search, MessageSquare, Paperclip, Smile, Send, Check, CheckCheck, 
@@ -34,77 +34,48 @@ interface Message {
 
 
 
-const INITIAL_MESSAGES: Record<number, Message[]> = {
-  1: [
-    { 
-      id: 101, 
-      text: "Hey! Did you get a chance to look at the new project mockups?", 
-      sender: "them", 
-      time: "10:15 AM",
-      status: "read",
-      reactions: { "👍": ["me"] }
-    },
-    { 
-      id: 102, 
-      text: "Yes, I just reviewed them. They look fantastic! Here is the revised preview image.", 
-      sender: "me", 
-      time: "10:20 AM",
-      status: "read",
-      attachment: {
-        name: "dashboard_preview.png",
-        url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80",
-        type: "image",
-        size: "1.2 MB"
-      }
-    },
-    { 
-      id: 103, 
-      text: "Can we review the latest designs?", 
-      sender: "them", 
-      time: "10:30 AM",
-      status: "read",
-      replyTo: { id: 102, text: "Yes, I just reviewed them. They look fantastic!", senderName: "Me" }
-    }
-  ],
-  2: [
-    { id: 201, text: "Hello, regarding the Q3 proposal assets...", sender: "them", time: "Yesterday, 2:00 PM", status: "read" },
-    { id: 202, text: "I've uploaded the assets to the drive.", sender: "them", time: "09:15 AM", status: "read" }
-  ],
-  3: [
-    { id: 301, text: "Can you verify the payment receipt?", sender: "them", time: "Yesterday, 4:00 PM", status: "read" },
-    { id: 302, text: "Got it, thanks!", sender: "me", time: "Yesterday, 4:05 PM", status: "read" }
-  ],
-  4: [
-    { id: 401, text: "When can we expect the final invoice?", sender: "them", time: "2 days ago", status: "delivered" }
-  ]
-};
-
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉", "👏", "✅"];
 
 export function ChatPage() {
-  const { staff, currentUser } = useData();
+  const { staff, currentUser, currentUserRole } = useData();
   const currentUserId = currentUser?.id || localStorage.getItem('userId') || '';
   const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || '').toLowerCase().trim();
+  const isCurrentAdmin = (currentUserRole || currentUser?.role || localStorage.getItem('userRole')) === 'Admin' ||
+    currentUserId === 'super-admin' || currentUserId === 'emp-admin' || currentUserEmail.includes('admin');
 
-  const MOCK_CONTACTS = [
-    ...staff
-      .filter(s => s.id !== currentUserId && s.email?.toLowerCase().trim() !== currentUserEmail)
-      .map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email || '',
-        role: s.role || 'Staff',
-        type: 'team',
-        status: 'online',
-        lastMessage: 'No messages yet',
-        time: '',
-        unread: 0,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
-      }))
-  ];
+  const [contactSummaries, setContactSummaries] = useState<Record<string, { lastMessage: string; time: string; sender?: string }>>({});
+
+  const MOCK_CONTACTS = useMemo(() => {
+    return staff
+      .filter(s => {
+        if (s.id === currentUserId) return false;
+        if (s.email?.toLowerCase().trim() === currentUserEmail) return false;
+        // If current user is Admin, exclude the Admin placeholder row so they don't see themselves
+        if (isCurrentAdmin && (s.id === 'emp-admin' || s.role === 'Admin' || s.email?.toLowerCase().includes('admin@'))) {
+          return false;
+        }
+        return true;
+      })
+      .map((s: any) => {
+        const summary = contactSummaries[s.id] || (s.id === 'emp-admin' ? contactSummaries['super-admin'] : null);
+        return {
+          id: s.id,
+          name: s.name,
+          email: s.email || '',
+          role: s.role || 'Staff',
+          type: 'team',
+          status: 'online',
+          lastMessage: summary?.lastMessage || 'No messages yet',
+          time: summary?.time || '',
+          unread: 0,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
+        };
+      });
+  }, [staff, currentUserId, currentUserEmail, isCurrentAdmin, contactSummaries]);
+
   const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
-  const [messages, setMessages] = useState<Record<string | number, Message[]>>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<Record<string | number, Message[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [showSearchInChat, setShowSearchInChat] = useState(false);
@@ -189,6 +160,22 @@ export function ChatPage() {
     }
   };
 
+  const fetchRecentSummaries = async () => {
+    try {
+      const res = await fetch('/api/chat/summary/recent', { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setContactSummaries(data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchRecentSummaries();
+    const interval = setInterval(fetchRecentSummaries, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Request desktop notification permission on chat load
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -212,22 +199,40 @@ export function ChatPage() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          const { type, contactId, message, messageId } = data;
+          const { type, contactId, altContactIds, message, messageId } = data;
           
           if (type === 'new_message') {
+            const altList = altContactIds || [];
+            // Match to the contact ID in our local contacts list
+            const matched = MOCK_CONTACTS.find(c => 
+              c.id === contactId || 
+              altList.includes(c.id) ||
+              (c.id === 'emp-admin' && (contactId === 'super-admin' || altList.includes('super-admin'))) ||
+              (c.id === 'super-admin' && (contactId === 'emp-admin' || altList.includes('emp-admin')))
+            );
+            const targetKey = matched ? matched.id : contactId;
+
             setMessages(prev => {
-              const currentList = prev[contactId] || [];
-              // Prevent duplicates
+              const currentList = prev[targetKey] || [];
               if (currentList.some(m => m.id === message.id)) return prev;
-              return { ...prev, [contactId]: [...currentList, message] };
+              return { ...prev, [targetKey]: [...currentList, message] };
             });
+
+            // Update contact summary immediately
+            setContactSummaries(prev => ({
+              ...prev,
+              [targetKey]: {
+                lastMessage: message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Message'),
+                time: message.time || ''
+              }
+            }));
+
             // Auto-scroll on incoming message
             setTimeout(() => scrollToBottom(), 100);
 
             // Desktop notification & taskbar alert for incoming messages
             if (message && message.sender === 'them') {
-              const senderStaff = staff.find((s: any) => String(s.id) === String(contactId));
-              const senderName = senderStaff?.name || activeContact?.name || 'Team Member';
+              const senderName = matched?.name || 'Team Member';
               const preview = message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Sent a message');
 
               try {

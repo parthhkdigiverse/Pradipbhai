@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 import { localDateStr } from '../utils/dateUtils';
+import { parseJobStartTimeMs } from '../utils/dateFormatter';
 
 const API_BASE_URL = '/api';
 
@@ -247,6 +248,9 @@ interface DataContextType {
   toggleRolePermission: (role: string, action: string) => void;
   hasPermission: (role: string, action: string) => boolean;
   hasTabPermission: (role: string, tabKey: string) => boolean;
+
+  unreadChatCount: number;
+  setUnreadChatCount: React.Dispatch<React.SetStateAction<number>>;
 
   currentUserRole: string;
   setCurrentUserRole: React.Dispatch<React.SetStateAction<string>>;
@@ -607,6 +611,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
   const activeJobTracker = activeJobTrackerState;
   const [workLogs, setWorkLogs] = useState<any[]>(() => loadCachedData('cache_worklogs', []));
+  const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE_URL}/chat/summary/recent`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const total = Object.values(data).reduce((acc: number, c: any) => acc + (c.unread || 0), 0);
+          setUnreadChatCount(total);
+        }
+      } catch {}
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 8000);
+    return () => clearInterval(interval);
+  }, []);
 
   const { autoConvertLeads } = useSettings();
 
@@ -777,7 +803,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
   };
 
+  const isSyncingRef = useRef<boolean>(false);
+  const currentSyncVersionRef = useRef<number>(0);
+  const isCheckingVersionRef = useRef<boolean>(false);
+
   const refreshApiData = async () => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
     try {
       const headers = getAuthHeaders();
       const token = localStorage.getItem('authToken');
@@ -794,7 +826,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes, syncVerRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -812,6 +844,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/field-duties`),
         fetchWithAuth(`${API_BASE_URL}/projects`),
         fetchWithAuth(`${API_BASE_URL}/employee-of-month`),
+        fetch(`${API_BASE_URL}/sync/version`).then(r => r.ok ? r.json() : null),
       ]);
 
       const saveCache = (key: string, val: any) => {
@@ -912,13 +945,67 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setEmployeeEvaluations(eomRes.value);
         saveCache('cache_employee_evaluations', eomRes.value);
       }
+      if (syncVerRes.status === 'fulfilled' && syncVerRes.value?.version) {
+        currentSyncVersionRef.current = Number(syncVerRes.value.version) || 0;
+      }
     } catch (err) {
       console.warn("FastAPI Backend connecting...", err);
+    } finally {
+      isSyncingRef.current = false;
+    }
+  };
+
+  const checkSyncVersion = async () => {
+    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+    if (!isAuth || isCheckingVersionRef.current || isSyncingRef.current) return;
+    isCheckingVersionRef.current = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/sync/version`);
+      if (res.ok) {
+        const data = await res.json();
+        const serverVer = Number(data?.version) || 0;
+        // Only trigger heavy table fetching if server version in RAM is greater than local version
+        if (serverVer > currentSyncVersionRef.current) {
+          currentSyncVersionRef.current = serverVer;
+          await refreshApiData();
+        }
+      }
+    } catch {
+      // Backend temporarily unreachable, skip silently
+    } finally {
+      isCheckingVersionRef.current = false;
     }
   };
 
   useEffect(() => {
+    // 1. Initial fetch on mount
     refreshApiData();
+
+    // 2. High-speed in-memory RAM revision check (every 4 seconds)
+    // Cost: 0 SQL database queries while idle! Only queries MySQL if someone actually edited data!
+    const syncInterval = setInterval(() => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (isAuth && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
+        checkSyncVersion();
+      }
+    }, 4000);
+
+    // 3. Instant revision check on window focus or tab visibility change
+    const onWindowFocus = () => {
+      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+      if (isAuth) {
+        checkSyncVersion();
+      }
+    };
+
+    window.addEventListener('focus', onWindowFocus);
+    document.addEventListener('visibilitychange', onWindowFocus);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', onWindowFocus);
+      document.removeEventListener('visibilitychange', onWindowFocus);
+    };
   }, []);
 
   useEffect(() => {
@@ -949,8 +1036,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const targetJob = jobs.find(j => j.id === activePunch.jobId);
           let jobStartTime = activePunch.jobStartedAt;
           if (!jobStartTime && targetJob?.startedAt) {
-            const ms = new Date(targetJob.startedAt).getTime();
-            if (!isNaN(ms)) jobStartTime = ms;
+            const ms = parseJobStartTimeMs(targetJob.startedAt);
+            if (ms) jobStartTime = ms;
           }
           if (!jobStartTime && activePunch.in) {
             const [h, m] = activePunch.in.split(':');
@@ -2058,13 +2145,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setIsPunchInModalOpen,
     openPunchInModal,
     performAutoPunchOut,
-    refreshApiData
+    refreshApiData,
+    unreadChatCount,
+    setUnreadChatCount
   }), [
     leads, clients, products, staff, attendance, payroll, vendors, jobs, invoices, holidays,
     deletedSundayDates, leaveRequests, leaveBalances, projects, activeFilterIntent,
     isPunchedIn, punchInTime, fieldDuties, activeJobTracker, workLogs, dailyRatings,
     dailyProgressRecords, employeeEvaluations, rolePermissions, currentUserRole, currentUser,
-    isPunchInModalOpen
+    isPunchInModalOpen, unreadChatCount
   ]);
 
   return (

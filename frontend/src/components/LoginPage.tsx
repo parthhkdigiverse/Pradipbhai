@@ -11,7 +11,12 @@ interface LoginPageProps {
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const { staff } = useData();
-  const [email, setEmail] = useState('');
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    return localStorage.getItem('rememberMe') === 'true';
+  });
+  const [email, setEmail] = useState<string>(() => {
+    return localStorage.getItem('rememberedEmail') || '';
+  });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -23,6 +28,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(true);
 
     const cleanEmail = email.trim().toLowerCase();
+
+    // Persist or clear remembered email based on user choice
+    if (rememberMe) {
+      localStorage.setItem('rememberMe', 'true');
+      localStorage.setItem('rememberedEmail', cleanEmail);
+    } else {
+      localStorage.removeItem('rememberMe');
+      localStorage.removeItem('rememberedEmail');
+    }
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -138,6 +152,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center justify-between pt-0.5">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none group">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary/30 transition-all cursor-pointer accent-primary"
+                />
+                <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">
+                  Remember me
+                </span>
+              </label>
             </div>
 
             <button
