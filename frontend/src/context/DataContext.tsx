@@ -1024,7 +1024,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
                 if ('Notification' in window && Notification.permission === 'granted') {
                   try {
-                    const senderStaff = staffRef.current.find((s: any) => String(s.id) === String(data.contactId));
+                    const cid = String(data.contactId || '').trim().toLowerCase();
+                    const senderStaff = staffRef.current.find((s: any) => 
+                      String(s.id).trim().toLowerCase() === cid || 
+                      (s.email && s.email.trim().toLowerCase() === cid)
+                    );
                     const senderName = senderStaff?.name || 'Team Member';
                     const preview = data.message.text || (data.message.attachment ? '📎 Attachment' : 'Sent a message');
                     new Notification(`💬 ${senderName}`, {

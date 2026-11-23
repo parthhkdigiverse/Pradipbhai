@@ -3,6 +3,7 @@ import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, C
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate, parseJobStartTimeMs } from '../utils/dateFormatter';
+import { localDateStr } from '../utils/dateUtils';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
@@ -494,6 +495,30 @@ export function JobsPage() {
     };
   };
 
+  const calculateDeadlineFromTimeline = (timeVal: string | number | undefined | null, timeUnit: string = 'Hours'): string => {
+    if (timeVal === '' || timeVal === null || timeVal === undefined) return '';
+    const num = parseFloat(String(timeVal));
+    if (isNaN(num) || num <= 0) return '';
+
+    const d = new Date();
+    const unit = (timeUnit || 'Hours').toLowerCase();
+
+    if (unit.startsWith('day')) {
+      d.setDate(d.getDate() + Math.round(num));
+    } else if (unit.startsWith('hour')) {
+      if (num <= 8) {
+        // Within standard 8-hour workday -> Due today
+      } else {
+        const addDays = Math.max(1, Math.ceil(num / 8) - 1);
+        d.setDate(d.getDate() + addDays);
+      }
+    } else if (unit.startsWith('min')) {
+      // Due today
+    }
+
+    return localDateStr(d);
+  };
+
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const currentStaffId = currentUser?.id || staff.find(s => s.email?.toLowerCase() === (currentUser?.email || '').toLowerCase())?.id;
   const currentStaffName = currentUser?.name || staff.find(s => s.id === currentStaffId)?.name || '';
@@ -709,6 +734,7 @@ export function JobsPage() {
     if (jobId) {
       const job = jobs.find(x => x.id === jobId);
       if (job) {
+        const existingDue = job.dueDate || calculateDeadlineFromTimeline(job.estimatedTime, job.estimatedTimeUnit || 'Hours') || '';
         setFormData({
           title: job.title,
           clientId: job.clientId || '',
@@ -716,7 +742,7 @@ export function JobsPage() {
           productId: job.productId || '',
           printerId: job.printerId || '',
           teamId: job.teamId || '',
-          dueDate: job.dueDate || '',
+          dueDate: existingDue,
           totalAmount: !isEmployee && job.totalAmount !== undefined && job.totalAmount !== null ? job.totalAmount.toString() : '',
           paidAmount: !isEmployee && job.paidAmount !== undefined && job.paidAmount !== null ? job.paidAmount.toString() : '',
           status: job.status,
@@ -2571,13 +2597,15 @@ export function JobsPage() {
                       const autoTimeUnit = (selectedProd && selectedProd.estimatedTimeUnit)
                         ? selectedProd.estimatedTimeUnit
                         : formData.estimatedTimeUnit;
+                      const autoDue = calculateDeadlineFromTimeline(autoTime, autoTimeUnit);
 
                       setFormData(prev => ({
                         ...prev,
                         productId: val,
                         totalAmount: autoPrice,
                         estimatedTime: autoTime,
-                        estimatedTimeUnit: autoTimeUnit
+                        estimatedTimeUnit: autoTimeUnit,
+                        ...(autoDue ? { dueDate: autoDue } : {})
                       }));
                     }}
                     options={[
@@ -2618,12 +2646,28 @@ export function JobsPage() {
                       min="1" 
                       placeholder="e.g. 4" 
                       value={formData.estimatedTime} 
-                      onChange={e => setFormData({...formData, estimatedTime: e.target.value})} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        const autoDue = calculateDeadlineFromTimeline(val, formData.estimatedTimeUnit);
+                        setFormData(prev => ({
+                          ...prev,
+                          estimatedTime: val,
+                          ...(autoDue ? { dueDate: autoDue } : {})
+                        }));
+                      }} 
                       className="w-1/2 px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
                     />
                     <select 
                       value={formData.estimatedTimeUnit} 
-                      onChange={e => setFormData({...formData, estimatedTimeUnit: e.target.value})} 
+                      onChange={e => {
+                        const unit = e.target.value;
+                        const autoDue = calculateDeadlineFromTimeline(formData.estimatedTime, unit);
+                        setFormData(prev => ({
+                          ...prev,
+                          estimatedTimeUnit: unit,
+                          ...(autoDue ? { dueDate: autoDue } : {})
+                        }));
+                      }} 
                       className="w-1/2 px-2 py-2 bg-white/50 border border-white/60 rounded-xl text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
                       <option value="Minutes">Minutes</option>
@@ -2943,13 +2987,15 @@ export function JobsPage() {
           const autoPrice = (!isEmployee && newProd && newProd.price !== undefined && newProd.price !== null && newProd.price !== '') ? String(newProd.price) : (isEmployee ? '' : formData.totalAmount);
           const autoTime = (newProd && (newProd.estimated_time || newProd.estimatedTime)) ? String(newProd.estimated_time || newProd.estimatedTime) : formData.estimatedTime;
           const autoTimeUnit = (newProd && (newProd.estimated_time_unit || newProd.estimatedTimeUnit)) ? (newProd.estimated_time_unit || newProd.estimatedTimeUnit) : formData.estimatedTimeUnit;
+          const autoDue = calculateDeadlineFromTimeline(autoTime, autoTimeUnit);
           
           setFormData(prev => ({
             ...prev,
             productId: newProd.id,
             totalAmount: autoPrice,
             estimatedTime: autoTime,
-            estimatedTimeUnit: autoTimeUnit
+            estimatedTimeUnit: autoTimeUnit,
+            ...(autoDue ? { dueDate: autoDue } : {})
           }));
           setIsQuickProductModalOpen(false);
         }}

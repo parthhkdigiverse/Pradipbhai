@@ -37,23 +37,26 @@ interface Message {
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉", "👏", "✅"];
 
 export function ChatPage() {
-  const { staff, currentUser, currentUserRole, fetchUnreadSummaries: refreshGlobalUnread } = useData();
+  const { staff, currentUser, fetchUnreadSummaries: refreshGlobalUnread } = useData();
   const currentUserId = currentUser?.id || localStorage.getItem('userId') || '';
   const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || '').toLowerCase().trim();
-  const isCurrentAdmin = (currentUserRole || currentUser?.role || localStorage.getItem('userRole')) === 'Admin' ||
-    currentUserId === 'super-admin' || currentUserId === 'emp-admin' || currentUserEmail.includes('admin');
+  const isRootAdmin = currentUserId === 'super-admin' || currentUserId === 'emp-admin' || 
+    currentUserEmail === 'admin@alphacreative.com' || currentUserEmail === 'admin@alpha.com';
 
   const [contactSummaries, setContactSummaries] = useState<Record<string, { lastMessage: string; time: string; sender?: string }>>({});
 
   const MOCK_CONTACTS = useMemo(() => {
     return staff
       .filter(s => {
+        // Exclude current user from their own contact list
         if (s.id === currentUserId) return false;
-        if (s.email?.toLowerCase().trim() === currentUserEmail) return false;
-        // If current user is Admin, exclude the Admin placeholder row so they don't see themselves
-        if (isCurrentAdmin && (s.id === 'emp-admin' || s.role === 'Admin' || s.email?.toLowerCase().includes('admin@'))) {
+        if (currentUserEmail && s.email?.toLowerCase().trim() === currentUserEmail) return false;
+
+        // If currently logged in as the root super-admin account, hide the duplicate root placeholder
+        if (isRootAdmin && (s.id === 'emp-admin' || s.id === 'super-admin' || s.email?.toLowerCase().trim() === 'admin@alphacreative.com' || s.email?.toLowerCase().trim() === 'admin@alpha.com')) {
           return false;
         }
+
         return true;
       })
       .map((s: any) => {
@@ -71,7 +74,7 @@ export function ChatPage() {
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
         };
       });
-  }, [staff, currentUserId, currentUserEmail, isCurrentAdmin, contactSummaries]);
+  }, [staff, currentUserId, currentUserEmail, isRootAdmin, contactSummaries]);
 
   const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -196,14 +199,18 @@ export function ChatPage() {
         const { type, contactId, altContactIds, message, messageId } = data;
 
         if (type === 'new_message') {
-          const altList = altContactIds || [];
+          const altList = (altContactIds || []).map(String);
+          const contactIdStr = String(contactId || '').trim();
           // Match to the contact ID in our local contacts list
-          const matched = MOCK_CONTACTS.find(c => 
-            c.id === contactId || 
-            altList.includes(c.id) ||
-            (c.id === 'emp-admin' && (contactId === 'super-admin' || altList.includes('super-admin'))) ||
-            (c.id === 'super-admin' && (contactId === 'emp-admin' || altList.includes('emp-admin')))
-          );
+          const matched = MOCK_CONTACTS.find(c => {
+            const cId = String(c.id).trim();
+            const cEmail = (c.email || '').trim().toLowerCase();
+            return cId === contactIdStr || 
+              altList.includes(cId) ||
+              (cEmail && (cEmail === contactIdStr.toLowerCase() || altList.includes(cEmail))) ||
+              (cId === 'emp-admin' && (contactIdStr === 'super-admin' || altList.includes('super-admin'))) ||
+              (cId === 'super-admin' && (contactIdStr === 'emp-admin' || altList.includes('emp-admin')));
+          });
           const targetKey = matched ? matched.id : contactId;
 
           setMessages(prev => {
@@ -222,7 +229,7 @@ export function ChatPage() {
           }));
 
           // Auto-scroll on incoming message if currently looking at this active conversation
-          if (activeContactId === targetKey) {
+          if (activeContactId && String(activeContactId) === String(targetKey)) {
             setTimeout(() => scrollToBottom(), 100);
             if (refreshGlobalUnread) refreshGlobalUnread();
           }

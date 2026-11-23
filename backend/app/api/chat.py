@@ -18,15 +18,12 @@ def expand_identifiers(user_or_contact_id: str, email: Optional[str] = None, rol
     s_id = str(user_or_contact_id).strip()
     if s_id:
         ids.add(s_id)
-    if email:
-        clean_email = str(email).strip().lower()
-        if clean_email:
-            ids.add(clean_email)
-    if (
-        s_id in ADMIN_IDENTIFIERS
-        or (role and str(role).lower() == "admin")
-        or (email and "admin@" in str(email).lower())
-    ):
+    clean_email = str(email).strip().lower() if email else ""
+    if clean_email:
+        ids.add(clean_email)
+    # Only bridge the root legacy admin IDs (super-admin, emp-admin, admin@alphacreative.com)
+    # Distinct admin staff members (like Parth, Pradip, etc.) remain their own independent accounts
+    if s_id in ADMIN_IDENTIFIERS or (clean_email and clean_email in ADMIN_IDENTIFIERS):
         ids.update(ADMIN_IDENTIFIERS)
     return ids
 
