@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
+import { useData, isDesigningJob, isPrintingJob, unifyDesPrintJobs } from '../context/DataContext';
 import { 
   Briefcase, 
   Clock, 
@@ -117,28 +117,31 @@ export function AdminDashboard({ setCurrentPage }: { setCurrentPage: (page: stri
     return { unassignedTasks, noUpdateToday, overdue, clientFollowUpPending };
   }, [jobs, workLogs, leads]);
 
+  // Unify Des+Print paired jobs so revenue calculations do not double count
+  const unifiedJobs = useMemo(() => unifyDesPrintJobs(jobs), [jobs]);
+
   // Financial Overview
   const totalRevenue = useMemo(() => {
-    return jobs.reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
-  }, [jobs]);
+    return unifiedJobs.reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
+  }, [unifiedJobs]);
 
   const pendingPayments = useMemo(() => {
-    return jobs.reduce((sum, j) => {
+    return unifiedJobs.reduce((sum, j) => {
       const total = Number(j.totalAmount) || 0;
       const paid = Number(j.paidAmount) || 0;
       return sum + Math.max(0, total - paid);
     }, 0);
-  }, [jobs]);
+  }, [unifiedJobs]);
 
   const thisMonthRevenue = useMemo(() => {
     const now = new Date();
-    return jobs.filter(j => {
+    return unifiedJobs.filter(j => {
       if (!j.createdAt) return false;
       const d = new Date(j.createdAt);
       if (isNaN(d.getTime())) return false;
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
-  }, [jobs]);
+  }, [unifiedJobs]);
 
   // Overall Job Summary
   const overallSummary = useMemo(() => {

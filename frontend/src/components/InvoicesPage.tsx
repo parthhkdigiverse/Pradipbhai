@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, FileText, Trash2, Calendar, FileCheck, CheckCircle, Edit2, Eye, Sparkles, Clock } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { useData, unifyDesPrintJobs } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -14,6 +14,9 @@ export function InvoicesPage() {
   const { confirm } = useConfirm();
   const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, products, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
   const { dateFormat } = useSettings();
+
+  // Unify Des+Print paired jobs so each customer order has a single invoice tracking entry
+  const unifiedJobs = useMemo(() => unifyDesPrintJobs(jobs), [jobs]);
   const canCreateEditInvoices = hasPermission(currentUserRole, 'Create/Edit Invoices');
   const canDeleteInvoices = hasPermission(currentUserRole, 'Delete Invoices');
   const [searchTerm, setSearchTerm] = useState('');
@@ -142,20 +145,25 @@ export function InvoicesPage() {
       isInvoiceMade: true
     }));
 
-    // 2. Add jobs that don't have a formal invoice yet
-    (jobs || []).forEach(job => {
-      const alreadyInvoiced = list.some(inv => 
-        inv.jobIds && Array.isArray(inv.jobIds) && inv.jobIds.includes(job.id)
-      );
+    // 2. Add jobs that don't have a formal invoice yet (using unified jobs so Des+Print is 1 invoice)
+    (unifiedJobs || []).forEach(job => {
+      const alreadyInvoiced = list.some(inv => {
+        if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+        if (job.pairedJobIds) {
+          return job.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+        }
+        return inv.jobIds.includes(job.id);
+      });
 
       if (!alreadyInvoiced) {
         const subtotal = job.totalAmount || 0;
+        const jobIdsList = job.pairedJobIds || [job.id];
         list.push({
           id: `preview-${job.id}`,
           jobId: job.id,
           invoiceNumber: `DRAFT-${String(job.id).slice(-6).toUpperCase()}`,
           clientId: job.clientId,
-          jobIds: [job.id],
+          jobIds: jobIdsList,
           items: [
             {
               id: job.id,
@@ -184,7 +192,7 @@ export function InvoicesPage() {
     });
 
     return list;
-  }, [invoices, jobs]);
+  }, [invoices, unifiedJobs]);
 
   const filteredInvoices = useMemo(() => {
     return allInvoiceItems.filter(inv => {
@@ -255,8 +263,14 @@ export function InvoicesPage() {
 
   // One-click batch generate formal invoices for all uninvoiced jobs
   const handleMakeAllInvoices = async () => {
-    const uninvoicedJobs = (jobs || []).filter(job => 
-      !(invoices || []).some(inv => inv.jobIds && inv.jobIds.includes(job.id))
+    const uninvoicedJobs = (unifiedJobs || []).filter(job => 
+      !(invoices || []).some(inv => {
+        if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+        if (job.pairedJobIds) {
+          return job.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+        }
+        return inv.jobIds.includes(job.id);
+      })
     );
     if (uninvoicedJobs.length === 0) {
       alert("All jobs already have formal invoices!");
@@ -278,7 +292,7 @@ export function InvoicesPage() {
       const payload = {
         invoiceNumber: invNum,
         clientId: job.clientId,
-        jobIds: [job.id],
+        jobIds: job.pairedJobIds || [job.id],
         items: [
           {
             id: job.id,

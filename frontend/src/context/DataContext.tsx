@@ -111,6 +111,114 @@ export const isPrintingJob = (job: any): boolean => {
   return false;
 };
 
+export const getCleanJobTitle = (title: string): string => {
+  if (!title) return '';
+  return title.replace(/^\[(DESIGN|PRINT)\]\s*/i, '').trim();
+};
+
+export const unifyDesPrintJobs = (jobsList: any[]): any[] => {
+  if (!jobsList || !Array.isArray(jobsList)) return [];
+
+  const processedPrintPairIds = new Set<string>();
+  const unified: any[] = [];
+
+  for (let i = 0; i < jobsList.length; i++) {
+    const job = jobsList[i];
+    if (!job) continue;
+
+    // If this job was already paired with a previous job, skip it
+    if (processedPrintPairIds.has(String(job.id))) {
+      continue;
+    }
+
+    const titleUpper = (job.title || '').toUpperCase().trim();
+    const jobIdStr = String(job.id || '');
+    const isDes = titleUpper.startsWith('[DESIGN]') || jobIdStr.endsWith('-d');
+    const isPrn = titleUpper.startsWith('[PRINT]') || jobIdStr.endsWith('-p');
+
+    if ((job.type === 'Des+Print' || isDes || isPrn) && (isDes || isPrn)) {
+      const baseTitle = getCleanJobTitle(job.title).toLowerCase();
+
+      // Find the counterpart job in the list
+      const counterpart = jobsList.find(other => {
+        if (!other || other.id === job.id) return false;
+        if (processedPrintPairIds.has(String(other.id))) return false;
+
+        const otherIdStr = String(other.id || '');
+        const otherTitleUpper = (other.title || '').toUpperCase().trim();
+
+        // 1. Direct ID matching: -d <-> -p
+        if (jobIdStr.endsWith('-d') && otherIdStr === jobIdStr.slice(0, -2) + '-p') return true;
+        if (jobIdStr.endsWith('-p') && otherIdStr === jobIdStr.slice(0, -2) + '-d') return true;
+
+        // 2. Direct delayReason reference
+        if (job.delayReason && String(job.delayReason) === otherIdStr) return true;
+        if (other.delayReason && String(other.delayReason) === jobIdStr) return true;
+
+        // 3. Title matching: one has [DESIGN], one has [PRINT], same client and same base title
+        const otherIsOpposite = (isDes && (otherTitleUpper.startsWith('[PRINT]') || otherIdStr.endsWith('-p'))) ||
+                                (isPrn && (otherTitleUpper.startsWith('[DESIGN]') || otherIdStr.endsWith('-d')));
+
+        if (otherIsOpposite && other.clientId === job.clientId) {
+          const otherBaseTitle = getCleanJobTitle(other.title).toLowerCase();
+          if (baseTitle && otherBaseTitle && baseTitle === otherBaseTitle) return true;
+        }
+
+        return false;
+      });
+
+      if (counterpart) {
+        processedPrintPairIds.add(String(job.id));
+        processedPrintPairIds.add(String(counterpart.id));
+
+        const designJob = isDes ? job : counterpart;
+        const printJob = isPrn ? job : counterpart;
+
+        // Status resolution for unified job:
+        let unifiedStatus = printJob.status || designJob.status || 'Pending';
+        if (printJob.status === 'Completed' || printJob.status === 'Done') {
+          unifiedStatus = 'Completed';
+        } else if (printJob.status === 'Progress' || printJob.status === 'In Progress') {
+          unifiedStatus = printJob.status;
+        } else if (designJob.status === 'Completed' || designJob.status === 'Done') {
+          unifiedStatus = printJob.status === 'Awaiting Design' ? 'Ready for Print' : (printJob.status || 'In Progress');
+        } else {
+          unifiedStatus = designJob.status || 'Pending';
+        }
+
+        const displayTitle = getCleanJobTitle(job.title) || job.title;
+        const combinedJobIds = [designJob.id, printJob.id];
+        const combinedTracked = (Number(designJob.trackedTime) || 0) + (Number(printJob.trackedTime) || 0);
+
+        unified.push({
+          ...printJob,
+          id: printJob.id,
+          title: displayTitle,
+          type: 'Des+Print',
+          status: unifiedStatus,
+          trackedTime: combinedTracked,
+          // Amount is taken ONCE to avoid double counting revenue!
+          totalAmount: Number(printJob.totalAmount) || Number(designJob.totalAmount) || 0,
+          paidAmount: Math.max(Number(printJob.paidAmount) || 0, Number(designJob.paidAmount) || 0),
+          paymentStatus: (printJob.paymentStatus === 'Paid' || designJob.paymentStatus === 'Paid') ? 'Paid' : (printJob.paymentStatus || designJob.paymentStatus || 'Unpaid'),
+          isUnifiedDesPrint: true,
+          pairedJobIds: combinedJobIds,
+          designJobId: designJob.id,
+          printJobId: printJob.id,
+          designJob,
+          printJob
+        });
+        continue;
+      }
+    }
+
+    // Normal job (or standalone Des+Print without a pair)
+    unified.push(job);
+  }
+
+  return unified;
+};
+
 export interface EmployeeEvaluationRecord {
   id: string;
   employee_id: string;

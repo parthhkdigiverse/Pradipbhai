@@ -19,7 +19,7 @@ import {
   Building
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
-import { useData } from '../context/DataContext';
+import { useData, unifyDesPrintJobs } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
@@ -297,7 +297,8 @@ export function ClientsPage() {
 
   const getClientRevenueStats = (client: any) => {
     if (!client) return { totalRevenue: 0, paidRevenue: 0, pendingRevenue: 0, jobsCount: 0, hasJobs: false };
-    const cJobs = (jobs || []).filter(j => j && (j.clientId === client.id || j.client_id === client.id));
+    const unifiedJobs = unifyDesPrintJobs(jobs);
+    const cJobs = unifiedJobs.filter(j => j && (j.clientId === client.id || j.client_id === client.id));
     const jobsTotal = cJobs.reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
     const jobsPaid = cJobs.reduce((sum, j) => sum + (Number(j.paidAmount) || 0), 0);
     const projBudget = (client.projects || []).reduce((pSum: number, p: any) => pSum + (parseFloat(p.budget || '0') || 0), 0);

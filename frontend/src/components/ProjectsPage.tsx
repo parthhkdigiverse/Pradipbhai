@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Briefcase, IndianRupee, Edit, Trash2, X, Plus, TrendingUp } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
-import { useData } from '../context/DataContext';
+import { useData, unifyDesPrintJobs } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
@@ -60,14 +60,15 @@ export function ProjectsPage() {
     clients.forEach(client => {
       if (client.projects && client.projects.length > 0) {
         client.projects.forEach((proj: any, idx: number) => {
-          // Aggregate financials from all linked jobs
+          // Aggregate financials from all linked jobs (unify Des+Print pairs to avoid doubling revenue)
           const linkedJobs = jobs.filter(
             (j: any) => j.clientId === client.id && (j.projectId === proj.name || j.projectId === proj.id || j.projectId === proj.title)
           );
-          const totalBilled = linkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
-          const totalPaid   = linkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
-          const jobCount    = linkedJobs.length;
-          const doneCount   = linkedJobs.filter((j: any) => j.status === 'Done').length;
+          const unifiedLinkedJobs = unifyDesPrintJobs(linkedJobs);
+          const totalBilled = unifiedLinkedJobs.reduce((sum: number, j: any) => sum + (j.totalAmount || 0), 0);
+          const totalPaid   = unifiedLinkedJobs.reduce((sum: number, j: any) => sum + (j.paidAmount  || 0), 0);
+          const jobCount    = unifiedLinkedJobs.length;
+          const doneCount   = unifiedLinkedJobs.filter((j: any) => j.status === 'Done' || j.status === 'Completed').length;
           projects.push({
             ...proj,
             clientId: client.id,

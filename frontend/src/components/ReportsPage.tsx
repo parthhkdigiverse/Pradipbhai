@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown, Calendar, CalendarRange, Plus, FileCheck } from 'lucide-react';
-import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
+import { useData, isDesigningJob, isPrintingJob, unifyDesPrintJobs } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
@@ -11,6 +11,9 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
   const { dateFormat } = useSettings();
   const canExport = hasPermission(currentUserRole, 'Export Reports');
   const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any | null>(null);
+
+  // Unify Des+Print paired jobs so reports show a single clean entry and avoid double counting revenue
+  const unifiedJobs = useMemo(() => unifyDesPrintJobs(jobs), [jobs]);
   
   // Date calculation helpers
   const currentMonthStr = useMemo(() => {
@@ -42,7 +45,7 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
 
   // Directly create formal invoice without showing preview
   const handleMakeInvoice = async (jobId: string) => {
-    const targetJob = jobs.find((j: any) => j.id === jobId);
+    const targetJob = unifiedJobs.find((j: any) => j.id === jobId) || jobs.find((j: any) => j.id === jobId);
     if (!targetJob) return;
 
     const subtotal = targetJob.totalAmount || 0;
@@ -52,7 +55,7 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
     const invoicePayload = {
       invoiceNumber: invoiceNum,
       clientId: targetJob.clientId,
-      jobIds: [targetJob.id],
+      jobIds: targetJob.pairedJobIds || [targetJob.id],
       items: [
         {
           id: targetJob.id,
@@ -78,7 +81,14 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
   };
 
   const handleJobClick = (jobId: string) => {
-    const matchedInvoice = invoices.find((inv: any) => inv.jobIds && inv.jobIds.includes(jobId));
+    const targetJob = unifiedJobs.find((j: any) => j.id === jobId);
+    const matchedInvoice = invoices.find((inv: any) => {
+      if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+      if (targetJob?.pairedJobIds) {
+        return targetJob.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+      }
+      return inv.jobIds.includes(jobId);
+    });
     if (matchedInvoice) {
       setSelectedPreviewInvoice(matchedInvoice);
     } else {
@@ -181,7 +191,7 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
   };
 
   const filteredJobs = useMemo(() => {
-    return jobs.filter(job => {
+    return unifiedJobs.filter(job => {
       const matchSearch = job.title.toLowerCase().includes(jobSearch.toLowerCase());
       const matchStatus = jobFilterStatus === 'All' || job.status === jobFilterStatus;
       const matchClient = jobFilterClient === 'All' || job.clientId === jobFilterClient;
@@ -192,7 +202,13 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
       // Invoice created tracking match
       let matchInvoice = true;
       if (jobFilterInvoice !== 'All') {
-        const hasJobInvoice = (invoices || []).some((inv: any) => inv.jobIds && inv.jobIds.includes(job.id));
+        const hasJobInvoice = (invoices || []).some((inv: any) => {
+          if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+          if (job.pairedJobIds) {
+            return job.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+          }
+          return inv.jobIds.includes(job.id);
+        });
         if (jobFilterInvoice === 'Invoiced') matchInvoice = hasJobInvoice;
         else if (jobFilterInvoice === 'Not Invoiced') matchInvoice = !hasJobInvoice;
       }
@@ -227,16 +243,22 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
 
       return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchInvoice && matchType && matchDate;
     });
-  }, [jobs, jobSearch, jobFilterStatus, jobFilterClient, jobFilterStaff, jobFilterProduct, jobFilterBilling, jobFilterInvoice, jobFilterType, jobDateFilterType, jobFilterMonth, jobStartDate, jobEndDate, jobDateFieldBasis, currentMonthStr, lastMonthStr, invoices]);
+  }, [unifiedJobs, jobSearch, jobFilterStatus, jobFilterClient, jobFilterStaff, jobFilterProduct, jobFilterBilling, jobFilterInvoice, jobFilterType, jobDateFilterType, jobFilterMonth, jobStartDate, jobEndDate, jobDateFieldBasis, currentMonthStr, lastMonthStr, invoices]);
 
   // Overall Job Tracking Statistics for header cards
   const jobStats = useMemo(() => {
-    const total = jobs.length;
-    const invoicedCount = jobs.filter(j => (invoices || []).some((inv: any) => inv.jobIds && inv.jobIds.includes(j.id))).length;
+    const total = unifiedJobs.length;
+    const invoicedCount = unifiedJobs.filter(j => (invoices || []).some((inv: any) => {
+      if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+      if (j.pairedJobIds) {
+        return j.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+      }
+      return inv.jobIds.includes(j.id);
+    })).length;
     const uninvoicedCount = total - invoicedCount;
-    const totalAmount = jobs.reduce((sum, j) => sum + (j.totalAmount || 0), 0);
+    const totalAmount = unifiedJobs.reduce((sum, j) => sum + (j.totalAmount || 0), 0);
     return { total, invoicedCount, uninvoicedCount, totalAmount };
-  }, [jobs, invoices]);
+  }, [unifiedJobs, invoices]);
 
   const totalFilteredJobAmount = useMemo(() => {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
@@ -878,7 +900,13 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
                       if (filteredJobs.length === 0) return;
                       const headers = ["#", "Job Title", "Job Type", "Party", "Printer Name", "Status", "Due Date", "Created Date", "Paid Amount", "Total Amount", "Invoice #", "Invoice Status", "Billing Status"];
                       const rows = filteredJobs.map((j, idx) => {
-                        const matchedInv = (invoices || []).find((inv: any) => inv.jobIds && inv.jobIds.includes(j.id));
+                        const matchedInv = (invoices || []).find((inv: any) => {
+                          if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+                          if (j.pairedJobIds) {
+                            return j.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+                          }
+                          return inv.jobIds.includes(j.id);
+                        });
                         return [
                           idx + 1,
                           `"${(j.title || '').replace(/"/g, '""')}"`,
@@ -937,7 +965,13 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
                 <tbody className="divide-y divide-gray-100">
                   {filteredJobs.length > 0 ? (
                     filteredJobs.map((job, index) => {
-                      const matchedInvoice = (invoices || []).find((inv: any) => inv.jobIds && inv.jobIds.includes(job.id));
+                      const matchedInvoice = (invoices || []).find((inv: any) => {
+                        if (!inv.jobIds || !Array.isArray(inv.jobIds)) return false;
+                        if (job.pairedJobIds) {
+                          return job.pairedJobIds.some((pId: string) => inv.jobIds.includes(pId));
+                        }
+                        return inv.jobIds.includes(job.id);
+                      });
                       return (
                         <tr key={job.id} className="hover:bg-white/60 transition-colors">
                           <td className="py-3 px-4 font-bold text-gray-400">{index + 1}</td>
