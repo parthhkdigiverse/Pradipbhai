@@ -29,6 +29,7 @@ import { InactivityTimeoutGuard } from './components/InactivityTimeoutGuard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider, useData } from './context/DataContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -123,7 +124,9 @@ function App() {
     <ThemeProvider>
       <SettingsProvider>
         <DataProvider>
-          <AppContent />
+          <ConfirmProvider>
+            <AppContent />
+          </ConfirmProvider>
         </DataProvider>
       </SettingsProvider>
     </ThemeProvider>

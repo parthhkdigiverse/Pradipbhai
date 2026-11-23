@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Plus, Search, Edit, X, UserCheck, IndianRupee, Mail, Phone, Calendar, Eye, EyeOff, Trash2, Shield, Sparkles, RotateCcw, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { SearchableSelect } from './SearchableSelect';
 
 const ROLES = ['Admin', 'Manager', 'Employee'];
@@ -29,6 +30,7 @@ const SYSTEM_PERMISSIONS_MODULES = [
 ];
 
 export function StaffPage() {
+  const { confirm } = useConfirm();
   const { staff, addStaff, updateStaff, deleteStaff, currentUserRole, hasPermission } = useData();
   const canCreateEditStaff = hasPermission(currentUserRole, 'Create/Edit Staff');
   const canDeleteStaff = hasPermission(currentUserRole, 'Delete Staff');
@@ -361,12 +363,18 @@ export function StaffPage() {
                           )}
                           {canDeleteStaff && (
                             <button 
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to delete ${emp.name}?`)) {
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  title: 'Delete Staff Member',
+                                  message: `Are you sure you want to delete ${emp.name}? This action cannot be undone.`,
+                                  variant: 'danger',
+                                  confirmText: 'Delete Staff'
+                                });
+                                if (ok) {
                                   deleteStaff(emp.id);
                                 }
                               }}
-                              className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 hover:text-rose-700 transition-colors opacity-0 group-hover:opacity-100"
+                              className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 hover:text-rose-700 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                               title="Delete Staff"
                             >
                               <Trash2 className="w-4 h-4" />

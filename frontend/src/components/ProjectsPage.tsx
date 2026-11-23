@@ -2,12 +2,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Briefcase, IndianRupee, Edit, Trash2, X, Plus, TrendingUp } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { QuickAddClientModal } from './QuickAddClientModal';
 import { Pagination } from './Pagination';
 
 export function ProjectsPage() {
+  const { confirm } = useConfirm();
   const { dateFormat } = useSettings();
   const { clients, jobs, products, addProject, updateProject, deleteProject, currentUserRole, hasPermission } = useData();
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
@@ -168,9 +170,15 @@ export function ProjectsPage() {
 
   const handleDeleteProject = async (proj: any) => {
     const jobWarning = proj.jobCount > 0 
-      ? `\n\nNotice: There are ${proj.jobCount} job(s) currently linked to this project.`
+      ? ` Note: There are ${proj.jobCount} job(s) currently linked to this project.`
       : '';
-    if (window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?${jobWarning}`)) {
+    const ok = await confirm({
+      title: 'Delete Project',
+      message: `Are you sure you want to delete project "${proj.name || proj.title}"?${jobWarning}`,
+      variant: 'danger',
+      confirmText: 'Delete Project'
+    });
+    if (ok) {
       await deleteProject(proj.id || proj.name, proj.clientId);
     }
   };

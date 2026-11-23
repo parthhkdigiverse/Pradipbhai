@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Plus, Search, Edit, X, Printer, Trash2, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { SearchableSelect } from './SearchableSelect';
 import { Pagination } from './Pagination';
 
 export function VendorsPage() {
+  const { confirm } = useConfirm();
   const { vendors, addVendor, updateVendor, deleteVendor, currentUserRole, hasPermission } = useData();
   const canManageVendors = hasPermission(currentUserRole, 'Manage Vendors');
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,7 +120,14 @@ export function VendorsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this vendor?")) {
+    const v = vendors.find(item => item.id === id);
+    const ok = await confirm({
+      title: 'Delete Vendor',
+      message: `Are you sure you want to delete "${v?.name || 'this vendor'}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Vendor'
+    });
+    if (ok) {
       await deleteVendor(id);
     }
   };

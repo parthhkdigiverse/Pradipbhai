@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Edit, Trash2, Box, X, Clock, AlertCircle } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { SearchableSelect } from './SearchableSelect';
 import { Pagination } from './Pagination';
 
 export function CatalogPage() {
+  const { confirm } = useConfirm();
   const { products, addProduct, updateProduct, deleteProduct, currentUserRole, hasPermission } = useData();
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const canManageProducts = hasPermission(currentUserRole, 'Manage Products');
@@ -121,8 +123,15 @@ export function CatalogPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this product?')) {
+  const handleDelete = async (id: string) => {
+    const prod = products.find(p => p.id === id);
+    const ok = await confirm({
+      title: 'Delete Product',
+      message: `Are you sure you want to delete "${prod?.name || 'this product'}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Product'
+    });
+    if (ok) {
       deleteProduct(id);
     }
   };

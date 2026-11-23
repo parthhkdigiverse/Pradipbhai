@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, X, FileText, Trash2, Calendar, FileCheck, CheckCircle, Edit2, Eye, Sparkles, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
@@ -10,6 +11,7 @@ import { JobDetailsModal } from './JobDetailsModal';
 import { Pagination } from './Pagination';
 
 export function InvoicesPage() {
+  const { confirm } = useConfirm();
   const { invoices, addInvoice, updateInvoice, deleteInvoice, clients, jobs, products, activeFilterIntent, setActiveFilterIntent, currentUserRole, hasPermission } = useData();
   const { dateFormat } = useSettings();
   const canCreateEditInvoices = hasPermission(currentUserRole, 'Create/Edit Invoices');
@@ -260,7 +262,13 @@ export function InvoicesPage() {
       alert("All jobs already have formal invoices!");
       return;
     }
-    if (!confirm(`Generate formal sequential invoices for ${uninvoicedJobs.length} job(s) from Reports?`)) return;
+    const ok = await confirm({
+      title: 'Batch Generate Invoices',
+      message: `Generate formal sequential invoices for ${uninvoicedJobs.length} job(s) from Reports?`,
+      variant: 'primary',
+      confirmText: 'Generate Invoices'
+    });
+    if (!ok) return;
 
     let currentInvoices = [...invoices];
     for (const job of uninvoicedJobs) {
@@ -478,8 +486,15 @@ export function InvoicesPage() {
     updateInvoice(id, { status });
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this invoice?")) {
+  const handleDelete = async (id: string) => {
+    const inv = invoices.find(i => i.id === id);
+    const ok = await confirm({
+      title: 'Delete Invoice',
+      message: `Are you sure you want to delete invoice "${inv?.invoiceNumber || 'this invoice'}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Invoice'
+    });
+    if (ok) {
       deleteInvoice(id);
     }
   };

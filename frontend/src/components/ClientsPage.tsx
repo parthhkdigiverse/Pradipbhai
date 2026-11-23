@@ -20,11 +20,13 @@ import {
 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { Pagination } from './Pagination';
 
 export function ClientsPage() {
+  const { confirm } = useConfirm();
   const { dateFormat } = useSettings();
   const { 
     clients, 
@@ -238,9 +240,15 @@ export function ClientsPage() {
     const clientName = client?.company || client?.name || 'this client';
     const linkedJobs = jobs.filter(j => j.clientId === id);
     const jobWarning = linkedJobs.length > 0 
-      ? `\n\nNotice: There are ${linkedJobs.length} job(s) currently linked to this client.`
+      ? ` Note: There are ${linkedJobs.length} job(s) currently linked to this client.`
       : '';
-    if (window.confirm(`Are you sure you want to delete "${clientName}"? This cannot be undone.${jobWarning}`)) {
+    const ok = await confirm({
+      title: 'Delete Client',
+      message: `Are you sure you want to delete "${clientName}"? This action cannot be undone.${jobWarning}`,
+      variant: 'danger',
+      confirmText: 'Delete Client'
+    });
+    if (ok) {
       await deleteClient(id);
       setOpenMenuId(null);
     }
@@ -691,12 +699,18 @@ export function ClientsPage() {
                                             </button>
                                             {canDeleteProjects && (
                                               <button 
-                                                onClick={() => {
-                                                  if (window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?`)) {
+                                                onClick={async () => {
+                                                  const ok = await confirm({
+                                                    title: 'Delete Project',
+                                                    message: `Are you sure you want to delete project "${proj.name || proj.title}"?`,
+                                                    variant: 'danger',
+                                                    confirmText: 'Delete Project'
+                                                  });
+                                                  if (ok) {
                                                     deleteProject(proj.id || proj.name, client.id);
                                                   }
                                                 }} 
-                                                className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors" 
+                                                className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer" 
                                                 title="Delete Project"
                                               >
                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -985,12 +999,20 @@ export function ClientsPage() {
                   {editingProjectIndex !== null && canDeleteProjects && projectClientId && (
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         const client = clients.find(c => c.id === projectClientId);
                         const proj = client?.projects?.[editingProjectIndex];
-                        if (proj && window.confirm(`Are you sure you want to delete project "${proj.name || proj.title}"?`)) {
-                          deleteProject(proj.id || proj.name, projectClientId);
-                          handleCloseProjectModal();
+                        if (proj) {
+                          const ok = await confirm({
+                            title: 'Delete Project',
+                            message: `Are you sure you want to delete project "${proj.name || proj.title}"?`,
+                            variant: 'danger',
+                            confirmText: 'Delete Project'
+                          });
+                          if (ok) {
+                            deleteProject(proj.id || proj.name, projectClientId);
+                            handleCloseProjectModal();
+                          }
                         }
                       }}
                       className="px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all flex items-center gap-1.5 border border-rose-200 cursor-pointer shadow-2xs"

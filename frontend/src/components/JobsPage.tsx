@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer, ArrowUpDown, ArrowUp, ArrowDown, Info } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
+import { useConfirm } from '../context/ConfirmContext';
 import { formatDate, parseJobStartTimeMs, formatPrintDays, formatTimelineDiff } from '../utils/dateFormatter';
 import { localDateStr } from '../utils/dateUtils';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
@@ -334,6 +335,7 @@ export const getRoleCategory = (roleStr?: string): string => {
 };
 
 export function JobsPage() {
+  const { confirm } = useConfirm();
   const { jobs, addJob, updateJob, deleteJob, staff, clients, vendors, products, activeFilterIntent, setActiveFilterIntent, activeJobTracker, setActiveJobTracker, currentUserRole, currentUser, isPunchedIn, setIsPunchedIn, setPunchInTime, attendance, addAttendance, updateAttendance, hasPermission, openPunchInModal, addWorkLog, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount, dateFormat } = useSettings();
   const [searchTerm, setSearchTerm] = useState('');
@@ -2467,12 +2469,18 @@ export function JobsPage() {
                         )}
                         {hasPermission(currentUserRole, 'Delete Job') && (
                           <button 
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this job?')) {
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Delete Job',
+                                message: `Are you sure you want to delete "${job.title || 'this job'}"? This action cannot be undone.`,
+                                variant: 'danger',
+                                confirmText: 'Delete Job'
+                              });
+                              if (ok) {
                                 deleteJob(job.id);
                               }
                             }}
-                            className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
+                            className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors cursor-pointer"
                             title="Delete Job"
                           >
                             <Trash2 className="w-3 h-3" />
