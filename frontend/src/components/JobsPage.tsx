@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Plus, X, Briefcase, Play, Edit, FilterX, Square, Clock, Mail, ChevronDown, ExternalLink, Link, Folder, CheckCircle2, Trash2, RotateCcw, MessageSquare, LayoutGrid, Pause, Eye, Printer, ArrowUpDown, ArrowUp, ArrowDown, Info } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
-import { formatDate, parseJobStartTimeMs } from '../utils/dateFormatter';
+import { formatDate, parseJobStartTimeMs, formatPrintDays, formatTimelineDiff } from '../utils/dateFormatter';
 import { localDateStr } from '../utils/dateUtils';
 import { calculateLatePunchIn } from '../utils/attendanceUtils';
 import { SearchableSelect } from './SearchableSelect';
@@ -28,6 +28,20 @@ function LiveJobTimeCell({
   handleOpenDelayModal
 }: LiveJobTimeCellProps) {
   const isProgress = job.status === 'Progress' || job.status === 'In Progress';
+  const isPrint = isPrintingJob(job);
+  const [showPopover, setShowPopover] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showPopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowPopover(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPopover]);
 
   const getTimeState = () => {
     const baseTracked = Number(job.trackedTime) || 0;
@@ -73,70 +87,103 @@ function LiveJobTimeCell({
   const timelineInfo = useMemo(() => {
     if (!job.estimatedTime) return { isExceeded: false, expectedText: '', diffText: '' };
     const val = parseFloat(job.estimatedTime) || 0;
-    const unit = job.estimatedTimeUnit || 'Hours';
+    const unit = job.estimatedTimeUnit || (isPrint ? 'Days' : 'Hours');
     const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : unit === 'Minutes' ? val * 60 : val * 3600;
     const currentTracked = isProgress ? timeState.totalSec : (Number(job.trackedTime) || 0);
     const isExceeded = expectedSeconds > 0 && currentTracked > expectedSeconds;
     const diffSecs = Math.max(0, currentTracked - expectedSeconds);
-    const diffText = diffSecs >= 3600 ? `${(diffSecs / 3600).toFixed(1)} hrs` : `${Math.ceil(diffSecs / 60)} mins`;
+    const diffText = formatTimelineDiff(diffSecs, isPrint || unit === 'Days');
     return {
       isExceeded,
       expectedText: `${val} ${unit}`,
       diffText,
       expectedSeconds
     };
-  }, [job.estimatedTime, job.estimatedTimeUnit, isProgress, timeState.totalSec, job.trackedTime]);
+  }, [job.estimatedTime, job.estimatedTimeUnit, isProgress, timeState.totalSec, job.trackedTime, isPrint]);
+
+  const displayTotal = isPrint ? formatPrintDays(timeState.totalSec) : formatTime(timeState.totalSec);
+  const displaySession = isPrint ? formatPrintDays(timeState.sessionSec) : formatTime(timeState.sessionSec);
+  const displayPrior = isPrint ? formatPrintDays(Number(job.trackedTime)) : formatTime(Number(job.trackedTime));
+
+  const tooltipSummary = isPrint
+    ? (isProgress 
+        ? `Print Tracked: ${displayTotal}${timeState.totalSec > 0 ? ` (${formatTime(timeState.totalSec)})` : ''}${sinceStr ? ` • ${sinceStr}` : ''}`
+        : `Print Tracked: ${displayTotal}`)
+    : (isProgress && hasPreviousTracked 
+        ? `Total: ${formatTime(timeState.totalSec)} (Session: ${formatTime(timeState.sessionSec)}, Prior: ${formatTime(Number(job.trackedTime))})` 
+        : isProgress 
+          ? `Session: ${formatTime(timeState.sessionSec)}` 
+          : `Tracked: ${formatTime(job.trackedTime || 0)}`);
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div 
-        className={`flex items-center justify-center gap-1.5 text-xs font-mono px-2 py-1 rounded border transition-colors ${
-          isProgress 
-            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold' 
-            : 'bg-gray-50 text-gray-600 border-gray-100 font-medium'
-        }`}
-        title={isProgress && hasPreviousTracked ? `Total Time on Job: ${formatTime(timeState.totalSec)} (Prior Work: ${formatTime(Number(job.trackedTime))} + Current Session: ${formatTime(timeState.sessionSec)})` : undefined}
-      >
-        {isProgress ? (
-          <>
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-            </span>
-            <Clock className="w-3 h-3 text-emerald-600" />
-            <span>{hasPreviousTracked ? `Total: ${formatTime(timeState.totalSec)}` : formatTime(timeState.totalSec)}</span>
-          </>
-        ) : (
-          <>
-            <Clock className="w-3 h-3 text-gray-400" />
-            <span>{formatTime(job.trackedTime || 0)}</span>
-          </>
-        )}
+    <div className="relative inline-flex flex-col items-center justify-center gap-0.5" ref={popoverRef}>
+      {/* Compact Main Row */}
+      <div className="inline-flex items-center gap-1.5">
+        <div 
+          className={`inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full border transition-all ${
+            isProgress 
+              ? (isPrint ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-xs font-bold' : 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs font-bold') 
+              : 'bg-gray-50 text-gray-700 border-gray-200 font-medium'
+          }`}
+          title={tooltipSummary}
+        >
+          {isProgress ? (
+            <>
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isPrint ? 'bg-amber-400' : 'bg-emerald-400'} opacity-75`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isPrint ? 'bg-amber-600' : 'bg-emerald-600'}`}></span>
+              </span>
+              {isPrint ? (
+                <Printer className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              ) : (
+                <Clock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              )}
+              <span>{displayTotal}</span>
+            </>
+          ) : (
+            <>
+              {isPrint ? (
+                <Printer className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              ) : (
+                <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              )}
+              <span>{isPrint ? formatPrintDays(job.trackedTime || 0) : formatTime(job.trackedTime || 0)}</span>
+            </>
+          )}
+        </div>
+
+        {/* Info Icon Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPopover(prev => !prev);
+          }}
+          className={`p-1 rounded-full transition-all cursor-pointer ${
+            showPopover 
+              ? (isPrint ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400/50' : 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-400/50')
+              : 'text-gray-400 hover:text-emerald-700 hover:bg-gray-100'
+          }`}
+          title="Click to view full time breakdown"
+          aria-label="View Time Breakdown"
+        >
+          <Info className="w-3.5 h-3.5" />
+        </button>
       </div>
-      {isProgress && hasPreviousTracked && timeState.sessionSec > 0 && (
-        <span className="text-[9px] text-emerald-700 font-semibold bg-emerald-100/70 px-1.5 py-0.2 rounded border border-emerald-200/60" title={`Current session: ${formatTime(timeState.sessionSec)} | Prior work: ${formatTime(Number(job.trackedTime))}`}>
-          This Session: {formatTime(timeState.sessionSec)}
-        </span>
-      )}
-      {isProgress && sinceStr && (
-        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/60 px-1.5 py-0.5 rounded border border-emerald-200/50">
-          {sinceStr}
-        </span>
-      )}
-      {timelineInfo.expectedText && (
-        <span className="text-[10px] text-gray-500 font-medium">
-          Est: {timelineInfo.expectedText}
-        </span>
-      )}
+
+      {/* Compact Delay Alert (only shown if exceeded) */}
       {timelineInfo.isExceeded && (
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[9px] font-bold">
-            ⚠️ Exceeded (+{timelineInfo.diffText})
+        <div className="flex items-center gap-1 mt-0.5">
+          <span 
+            className="px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[9px] font-bold"
+            title={`Exceeded estimated timeline by ${timelineInfo.diffText}`}
+          >
+            ⚠️ +{timelineInfo.diffText}
           </span>
           {job.delayReason ? (
             <button 
               onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
-              className="text-[10px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-semibold text-left max-w-[160px] truncate block cursor-pointer transition-colors" 
+              className="text-[9px] text-amber-800 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300 font-semibold max-w-[100px] truncate cursor-pointer transition-colors" 
               title={`Delay Reason: ${job.delayReason}`}
             >
               💬 {job.delayReason}
@@ -144,11 +191,120 @@ function LiveJobTimeCell({
           ) : (
             <button 
               onClick={(e) => { e.stopPropagation(); handleOpenDelayModal(job); }} 
-              className="text-[10px] text-white bg-rose-500 hover:bg-rose-600 font-bold px-2 py-0.5 rounded shadow-sm animate-pulse block cursor-pointer transition-all"
+              className="text-[9px] text-white bg-rose-500 hover:bg-rose-600 font-bold px-1.5 py-0.2 rounded shadow-xs cursor-pointer transition-all"
             >
-              ⚠️ Add Delay Reason
+              + Reason
             </button>
           )}
+        </div>
+      )}
+
+      {/* Floating Detailed Info Popover Card */}
+      {showPopover && (
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className="absolute z-50 top-full mt-2 left-1/2 -translate-x-1/2 w-64 bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-gray-200/90 p-3 text-left animate-in fade-in zoom-in-95 duration-150"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100 mb-2">
+            <span className="text-[11px] font-bold text-gray-800 flex items-center gap-1.5">
+              {isPrint ? <Printer className="w-3.5 h-3.5 text-amber-600" /> : <Clock className="w-3.5 h-3.5 text-emerald-600" />}
+              {isPrint ? 'Printing Time Breakdown' : 'Time Breakdown'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPopover(false)}
+              className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Breakdown Rows */}
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-gray-500">Total Tracked:</span>
+              <span className={`font-mono font-bold px-1.5 py-0.5 rounded border ${isPrint ? 'text-amber-800 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
+                {displayTotal}
+                {isPrint && timeState.totalSec > 0 && (
+                  <span className="text-[10px] text-gray-400 font-normal ml-1">({formatTime(timeState.totalSec)})</span>
+                )}
+              </span>
+            </div>
+
+            {isProgress && (
+              <>
+                <div className="flex items-center justify-between py-0.5">
+                  <span className="text-gray-500">Current Session:</span>
+                  <span className="font-mono font-semibold text-gray-800 flex items-center gap-1">
+                    <span className={`h-1.5 w-1.5 rounded-full ${isPrint ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`}></span>
+                    {displaySession}
+                  </span>
+                </div>
+
+                {sinceStr && (
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="text-gray-500">Started At:</span>
+                    <span className="font-medium text-gray-700">{sinceStr}</span>
+                  </div>
+                )}
+
+                {hasPreviousTracked && (
+                  <div className="flex items-center justify-between py-0.5">
+                    <span className="text-gray-500">Prior Sessions:</span>
+                    <span className="font-mono text-gray-600">{displayPrior}</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {timelineInfo.expectedText && (
+              <div className="flex items-center justify-between py-0.5 border-t border-gray-100 pt-1.5 mt-1">
+                <span className="text-gray-500">Estimated Timeline:</span>
+                <span className="font-semibold text-gray-700">{timelineInfo.expectedText}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between py-0.5">
+              <span className="text-gray-500">Status:</span>
+              {timelineInfo.isExceeded ? (
+                <span className="font-bold text-rose-600 text-[10px] flex items-center gap-1">
+                  ⚠️ Exceeded (+{timelineInfo.diffText})
+                </span>
+              ) : isProgress ? (
+                <span className={`font-semibold ${isPrint ? 'text-amber-700' : 'text-emerald-600'} flex items-center gap-1`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${isPrint ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                  In Progress
+                </span>
+              ) : (
+                <span className="text-gray-500">Completed / Idle</span>
+              )}
+            </div>
+
+            {/* Delay Reason Section inside Popover */}
+            {timelineInfo.isExceeded && (
+              <div className="pt-2 border-t border-gray-100 mt-1">
+                <span className="block text-[10px] text-gray-500 font-medium mb-1">Delay Reason:</span>
+                {job.delayReason ? (
+                  <div 
+                    onClick={() => { setShowPopover(false); handleOpenDelayModal(job); }}
+                    className="p-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded text-amber-900 text-[10px] cursor-pointer transition-colors"
+                    title="Click to edit delay reason"
+                  >
+                    💬 {job.delayReason}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setShowPopover(false); handleOpenDelayModal(job); }}
+                    className="w-full text-center py-1 bg-rose-500 hover:bg-rose-600 text-white rounded font-bold text-[10px] transition-colors cursor-pointer"
+                  >
+                    Add Delay Reason
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -480,12 +636,13 @@ export function JobsPage() {
   const getJobTimelineInfo = (job: any) => {
     if (!job.estimatedTime) return { isExceeded: false, expectedText: '', diffText: '' };
     const val = parseFloat(job.estimatedTime) || 0;
-    const unit = job.estimatedTimeUnit || 'Hours';
+    const isPrint = isPrintingJob(job);
+    const unit = job.estimatedTimeUnit || (isPrint ? 'Days' : 'Hours');
     const expectedSeconds = unit === 'Days' ? val * 24 * 3600 : unit === 'Minutes' ? val * 60 : val * 3600;
     const tracked = job.trackedTime || 0;
     const isExceeded = tracked > expectedSeconds;
-    const diffSecs = tracked - expectedSeconds;
-    const diffText = diffSecs >= 3600 ? `${(diffSecs / 3600).toFixed(1)} hrs` : `${Math.ceil(diffSecs / 60)} mins`;
+    const diffSecs = Math.max(0, tracked - expectedSeconds);
+    const diffText = formatTimelineDiff(diffSecs, isPrint || unit === 'Days');
     return {
       isExceeded,
       expectedText: `${val} ${unit}`,
@@ -734,7 +891,8 @@ export function JobsPage() {
     if (jobId) {
       const job = jobs.find(x => x.id === jobId);
       if (job) {
-        const existingDue = job.dueDate || calculateDeadlineFromTimeline(job.estimatedTime, job.estimatedTimeUnit || 'Hours') || '';
+        const isPrint = isPrintingJob(job);
+        const existingDue = job.dueDate || calculateDeadlineFromTimeline(job.estimatedTime, job.estimatedTimeUnit || (isPrint ? 'Days' : 'Hours')) || '';
         setFormData({
           title: job.title,
           clientId: job.clientId || '',
@@ -752,7 +910,7 @@ export function JobsPage() {
           workLink: job.workLink || '',
           workLocation: job.workLocation || '',
           estimatedTime: job.estimatedTime !== undefined && job.estimatedTime !== null ? String(job.estimatedTime) : '',
-          estimatedTimeUnit: job.estimatedTimeUnit || 'Hours',
+          estimatedTimeUnit: job.estimatedTimeUnit || (isPrint ? 'Days' : 'Hours'),
           delayReason: job.delayReason || '',
           createdBy: job.createdBy || ''
         });
@@ -778,7 +936,7 @@ export function JobsPage() {
         workLink: '',
         workLocation: '',
         estimatedTime: '',
-        estimatedTimeUnit: 'Hours',
+        estimatedTimeUnit: jobType === 'Printing' ? 'Days' : 'Hours',
         delayReason: '',
         createdBy: currentUser?.name || localStorage.getItem('userName') || ''
       });
@@ -2391,7 +2549,18 @@ export function JobsPage() {
                   <label className="text-sm font-bold text-indigo-900">Current Job Type:</label>
                   <select 
                     value={newJobType} 
-                    onChange={(e) => setNewJobType(e.target.value as 'Designing' | 'Printing')}
+                    onChange={(e) => {
+                      const selectedType = e.target.value as 'Designing' | 'Printing';
+                      setNewJobType(selectedType);
+                      if (selectedType === 'Printing' && (!formData.estimatedTimeUnit || formData.estimatedTimeUnit === 'Hours')) {
+                        const autoDue = calculateDeadlineFromTimeline(formData.estimatedTime, 'Days');
+                        setFormData(prev => ({
+                          ...prev,
+                          estimatedTimeUnit: 'Days',
+                          ...(autoDue ? { dueDate: autoDue } : {})
+                        }));
+                      }
+                    }}
                     className="px-3 py-1.5 bg-white border border-indigo-200 rounded-lg text-sm font-semibold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
                   >
                     <option value="Designing">✏️ Designing Job</option>
@@ -2934,10 +3103,10 @@ export function JobsPage() {
                   <span className="font-bold">Assigned Staff:</span> {getStaffName(delayModalJob.teamId)}
                 </p>
                 <p className="text-amber-800">
-                  <span className="font-bold">Estimated Timeline:</span> {delayModalJob.estimatedTime} {delayModalJob.estimatedTimeUnit || 'Hours'}
+                  <span className="font-bold">Estimated Timeline:</span> {delayModalJob.estimatedTime} {delayModalJob.estimatedTimeUnit || (isPrintingJob(delayModalJob) ? 'Days' : 'Hours')}
                 </p>
                 <p className="text-rose-700 font-bold">
-                  <span className="font-bold">Tracked Work Time:</span> {formatTime(delayModalJob.trackedTime || 0)} (Exceeded)
+                  <span className="font-bold">Tracked Work Time:</span> {isPrintingJob(delayModalJob) ? formatPrintDays(delayModalJob.trackedTime || 0) : formatTime(delayModalJob.trackedTime || 0)} (Exceeded)
                 </p>
               </div>
 

@@ -46,3 +46,44 @@ export function parseJobStartTimeMs(val: string | number | null | undefined): nu
   const ms = new Date(normalizedStr).getTime();
   return isNaN(ms) ? null : ms;
 }
+
+/**
+ * Formats elapsed tracking seconds into Days for Print jobs.
+ * Examples:
+ *   0 seconds -> "0 Days"
+ *   < 1 hour -> "< 1 Day"
+ *   3 hours -> "1 Day"
+ *   24 hours -> "1 Day"
+ *   36 hours -> "1.5 Days"
+ *   48 hours -> "2 Days"
+ *   72 hours -> "3 Days"
+ *   192 hours -> "8 Days"
+ */
+export function formatPrintDays(seconds: number): string {
+  const sec = Math.max(0, Math.floor(seconds || 0));
+  if (sec === 0) return '0 Days';
+  if (sec < 86400) {
+    const hrs = Math.floor(sec / 3600);
+    return hrs < 1 ? '< 1 Day' : '1 Day';
+  }
+  const days = sec / 86400;
+  const rounded = Math.round(days * 10) / 10;
+  if (rounded % 1 === 0) {
+    return `${rounded} ${rounded === 1 ? 'Day' : 'Days'}`;
+  }
+  return `${rounded} Days`;
+}
+
+/**
+ * Formats timeline delay difference cleanly:
+ * For print jobs (or Day units): returns "1 Day", "2 Days", etc.
+ * For design jobs (Hours/Minutes): returns "X hrs" or "X mins"
+ */
+export function formatTimelineDiff(diffSecs: number, isPrint: boolean = false): string {
+  if (diffSecs <= 0) return '';
+  if (isPrint) {
+    const days = Math.max(1, Math.ceil(diffSecs / 86400));
+    return `${days} ${days === 1 ? 'Day' : 'Days'}`;
+  }
+  return diffSecs >= 3600 ? `${(diffSecs / 3600).toFixed(1)} hrs` : `${Math.ceil(diffSecs / 60)} mins`;
+}

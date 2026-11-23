@@ -43,7 +43,36 @@ export function ChatPage() {
   const isRootAdmin = currentUserId === 'super-admin' || currentUserId === 'emp-admin' || 
     currentUserEmail === 'admin@alphacreative.com' || currentUserEmail === 'admin@alpha.com';
 
-  const [contactSummaries, setContactSummaries] = useState<Record<string, { lastMessage: string; time: string; sender?: string }>>({});
+  const [messages, setMessages] = useState<Record<string, Message[]>>({});
+  const [contactSummaries, setContactSummaries] = useState<Record<string, { lastMessage: string; time: string; createdAt?: string; sender?: string; unread?: number }>>({});
+
+  const getContactLastActivityMs = (contactId: string | number): number => {
+    const sId = String(contactId);
+    const summary = contactSummaries[sId] || 
+      (sId === 'emp-admin' ? contactSummaries['super-admin'] : 
+      (sId === 'super-admin' ? contactSummaries['emp-admin'] : null));
+    let summaryTime = 0;
+    if (summary?.createdAt) {
+      const parsed = new Date(summary.createdAt).getTime();
+      if (!isNaN(parsed)) summaryTime = parsed;
+    }
+    
+    const msgList = messages[sId] || 
+      (sId === 'emp-admin' ? messages['super-admin'] : 
+      (sId === 'super-admin' ? messages['emp-admin'] : null)) || [];
+    let lastMsgTime = 0;
+    if (msgList.length > 0) {
+      const lastMsg = msgList[msgList.length - 1];
+      if ((lastMsg as any).createdAt) {
+        const parsed = new Date((lastMsg as any).createdAt).getTime();
+        if (!isNaN(parsed)) lastMsgTime = parsed;
+      } else if (typeof lastMsg.id === 'number' && lastMsg.id > 1600000000000) {
+        lastMsgTime = lastMsg.id;
+      }
+    }
+
+    return Math.max(summaryTime, lastMsgTime);
+  };
 
   const MOCK_CONTACTS = useMemo(() => {
     return staff
@@ -70,15 +99,22 @@ export function ChatPage() {
           status: 'online',
           lastMessage: summary?.lastMessage || 'No messages yet',
           time: summary?.time || '',
-          unread: 0,
+          unread: summary?.unread || 0,
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
         };
+      })
+      .sort((a, b) => {
+        const timeA = getContactLastActivityMs(a.id);
+        const timeB = getContactLastActivityMs(b.id);
+        if (timeA !== timeB) {
+          return timeB - timeA; // Descending: Most recent message on top!
+        }
+        return a.name.localeCompare(b.name);
       });
-  }, [staff, currentUserId, currentUserEmail, isRootAdmin, contactSummaries]);
+  }, [staff, currentUserId, currentUserEmail, isRootAdmin, contactSummaries, messages]);
 
   const [activeContactId, setActiveContactId] = useState<string | number | null>(null);
   const [messageText, setMessageText] = useState("");
-  const [messages, setMessages] = useState<Record<string | number, Message[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [chatSearchQuery, setChatSearchQuery] = useState("");
   const [showSearchInChat, setShowSearchInChat] = useState(false);
@@ -100,7 +136,11 @@ export function ChatPage() {
 
   const activeContact = MOCK_CONTACTS.find(c => c.id === activeContactId);
   
-  const rawMessages = activeContactId ? (messages[activeContactId] || []) : [];
+  const rawMessages = activeContactId ? (
+    messages[activeContactId] || 
+    (activeContactId === 'emp-admin' ? messages['super-admin'] : (activeContactId === 'super-admin' ? messages['emp-admin'] : [])) || 
+    []
+  ) : [];
   
   const currentMessages = rawMessages.filter(m => {
     if (showStarredOnly && !m.isStarred) return false;
@@ -216,21 +256,37 @@ export function ChatPage() {
           setMessages(prev => {
             const currentList = prev[targetKey] || [];
             if (currentList.some(m => m.id === message.id)) return prev;
-            return { ...prev, [targetKey]: [...currentList, message] };
+            const updated = [...currentList, message];
+            const next: Record<string, Message[]> = { ...prev, [String(targetKey)]: updated };
+            if (String(targetKey) === 'emp-admin') next['super-admin'] = updated;
+            if (String(targetKey) === 'super-admin') next['emp-admin'] = updated;
+            return next;
           });
 
-          // Update contact summary immediately
+          // Update contact summary immediately with current timestamp for top ranking
+          const nowIso = new Date().toISOString();
+          const nowTime = message.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const isViewingThis = Boolean(activeContactId && (
+            String(activeContactId) === String(targetKey) ||
+            (String(activeContactId) === 'emp-admin' && String(targetKey) === 'super-admin') ||
+            (String(activeContactId) === 'super-admin' && String(targetKey) === 'emp-admin')
+          ));
+
           setContactSummaries(prev => ({
             ...prev,
             [targetKey]: {
               lastMessage: message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Message'),
-              time: message.time || ''
+              time: nowTime,
+              createdAt: nowIso,
+              sender: message.sender || 'them',
+              unread: (prev[targetKey]?.unread || 0) + (isViewingThis ? 0 : 1)
             }
           }));
 
           // Auto-scroll on incoming message if currently looking at this active conversation
-          if (activeContactId && String(activeContactId) === String(targetKey)) {
+          if (isViewingThis) {
             setTimeout(() => scrollToBottom(), 100);
+            fetchRemoteMessages(activeContactId!);
             if (refreshGlobalUnread) refreshGlobalUnread();
           }
         } else if (type === 'update_message') {
@@ -310,6 +366,20 @@ export function ChatPage() {
     setMessages(prev => ({
       ...prev,
       [activeContactId]: [...(prev[activeContactId] || []), tempMsg]
+    }));
+
+    const nowIso = new Date().toISOString();
+    const nowTime = payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setContactSummaries(prev => ({
+      ...prev,
+      [activeContactId]: {
+        lastMessage: messageText || (pendingAttachments.length > 0 ? `📎 Attachment: ${pendingAttachments[0].name}` : 'Message'),
+        time: nowTime,
+        createdAt: nowIso,
+        sender: 'me',
+        unread: 0
+      }
     }));
 
     setMessageText("");
@@ -564,6 +634,10 @@ export function ChatPage() {
                     setActiveContactId(contact.id);
                     setReplyingTo(null);
                     setEditingMsgId(null);
+                    setContactSummaries(prev => prev[contact.id]?.unread ? {
+                      ...prev,
+                      [contact.id]: { ...prev[contact.id], unread: 0 }
+                    } : prev);
                   }}
                   className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${
                     activeContactId === contact.id ? 'bg-primary/10 border-primary/40 shadow-sm' : 'hover:bg-white/40 border-transparent'

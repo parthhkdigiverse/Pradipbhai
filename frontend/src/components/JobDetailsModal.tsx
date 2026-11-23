@@ -15,9 +15,9 @@ import {
   Eye, 
   Tag 
 } from 'lucide-react';
-import { useData } from '../context/DataContext';
+import { useData, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
-import { formatDate, parseJobStartTimeMs } from '../utils/dateFormatter';
+import { formatDate, parseJobStartTimeMs, formatPrintDays } from '../utils/dateFormatter';
 
 interface JobDetailsModalProps {
   job: any | null;
@@ -331,32 +331,42 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
                 <div>
                   <span className="text-[11px] text-gray-400 block">Estimated Time</span>
                   <span className="text-sm font-bold text-gray-800">
-                    {job.estimatedTime ? `${job.estimatedTime} ${job.estimatedTimeUnit || 'Hours'}` : '—'}
+                    {job.estimatedTime ? `${job.estimatedTime} ${job.estimatedTimeUnit || (isPrintingJob(job) ? 'Days' : 'Hours')}` : '—'}
                   </span>
                 </div>
                 <div className="pt-2 border-t border-gray-200/60">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-gray-400 block">Tracked Working Time</span>
                     {isCurrentlyActive && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-full border border-emerald-200/60">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                        isPrintingJob(job) 
+                          ? 'text-amber-800 bg-amber-100/80 border-amber-200/60' 
+                          : 'text-emerald-700 bg-emerald-100/80 border-emerald-200/60'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${isPrintingJob(job) ? 'bg-amber-500' : 'bg-emerald-500'} animate-pulse`} />
                         Live
                       </span>
                     )}
                   </div>
                   <div className="flex items-baseline gap-2 mt-0.5">
                     <span className="text-sm font-bold font-mono text-gray-800">
-                      {effectiveTrackedTime > 0 ? formatTrackedTime(effectiveTrackedTime) : '00:00:00'}
+                      {isPrintingJob(job)
+                        ? formatPrintDays(effectiveTrackedTime)
+                        : (effectiveTrackedTime > 0 ? formatTrackedTime(effectiveTrackedTime) : '00:00:00')
+                      }
                     </span>
-                    {effectiveTrackedTime > 0 && (
+                    {effectiveTrackedTime > 0 && !isPrintingJob(job) && (
                       <span className="text-xs text-gray-500 font-medium">
                         ({formatHoursDecimal(effectiveTrackedTime)})
                       </span>
                     )}
                   </div>
                   {isCurrentlyActive && sessionSec > 0 && baseTracked > 0 && (
-                    <span className="text-[10px] text-emerald-600 block mt-0.5 font-medium">
-                      Session: {formatTrackedTime(sessionSec)} • Prior: {formatTrackedTime(baseTracked)}
+                    <span className={`text-[10px] block mt-0.5 font-medium ${isPrintingJob(job) ? 'text-amber-700' : 'text-emerald-600'}`}>
+                      {isPrintingJob(job)
+                        ? `Session: ${formatPrintDays(sessionSec)} • Prior: ${formatPrintDays(baseTracked)}`
+                        : `Session: ${formatTrackedTime(sessionSec)} • Prior: ${formatTrackedTime(baseTracked)}`
+                      }
                     </span>
                   )}
                 </div>

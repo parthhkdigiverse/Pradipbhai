@@ -287,18 +287,35 @@ export function ClientsPage() {
     return filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   }, [filteredClients, currentPage, itemsPerPage]);
 
+  const getClientRevenueStats = (client: any) => {
+    if (!client) return { totalRevenue: 0, paidRevenue: 0, pendingRevenue: 0, jobsCount: 0, hasJobs: false };
+    const cJobs = (jobs || []).filter(j => j && (j.clientId === client.id || j.client_id === client.id));
+    const jobsTotal = cJobs.reduce((sum, j) => sum + (Number(j.totalAmount) || 0), 0);
+    const jobsPaid = cJobs.reduce((sum, j) => sum + (Number(j.paidAmount) || 0), 0);
+    const projBudget = (client.projects || []).reduce((pSum: number, p: any) => pSum + (parseFloat(p.budget || '0') || 0), 0);
+    const totalRevenue = jobsTotal > 0 ? jobsTotal : projBudget;
+    const pendingRevenue = Math.max(0, totalRevenue - jobsPaid);
+
+    return {
+      totalRevenue,
+      paidRevenue: jobsPaid,
+      pendingRevenue,
+      jobsCount: cJobs.length,
+      hasJobs: cJobs.length > 0
+    };
+  };
+
   const stats = useMemo(() => {
     const activeClients = clients.filter(c => c.status === 'Active' || c.status === 'Onboarding');
     const totalRevenue = activeClients.reduce((sum, c) => {
-      const clientRevenue = (c.projects || []).reduce((pSum: number, p: any) => pSum + parseFloat(p.budget || '0'), 0);
-      return sum + clientRevenue;
+      return sum + getClientRevenueStats(c).totalRevenue;
     }, 0);
     const mrr = Math.round(totalRevenue / 12); // Mock MRR calculation
     const avgLTV = activeClients.length > 0 ? Math.round(totalRevenue / activeClients.length) : 0;
     
     // New clients this month
     const thisMonth = new Date().getMonth();
-    const newClients = clients.filter(c => new Date(c.clientSince).getMonth() === thisMonth).length;
+    const newClients = clients.filter(c => c.clientSince && new Date(c.clientSince).getMonth() === thisMonth).length;
 
     return [
       { title: "Active Clients", value: activeClients.length.toString(), trend: "+2", trendUp: true, icon: <Building className="w-5 h-5" />, color: "text-primary" },
@@ -306,7 +323,7 @@ export function ClientsPage() {
       { title: "Average LTV", value: `₹${avgLTV.toLocaleString()}`, trend: "+5%", trendUp: true, icon: <TrendingUp className="w-5 h-5" />, color: "text-indigo-600" },
       { title: "New Clients (Monthly)", value: newClients.toString(), trend: "-1", trendUp: false, icon: <Users className="w-5 h-5" />, color: "text-amber-600" },
     ];
-  }, [clients]);
+  }, [clients, jobs]);
 
   const getStatusBadge = (client: any) => {
     const status = client.status;
@@ -493,7 +510,7 @@ export function ClientsPage() {
                               </div>
                             </td>
                             <td className="px-5 py-4 text-sm font-bold text-emerald-700 bg-emerald-50/50 rounded">
-                              ₹{(editRowData.projects || []).reduce((sum: number, p: any) => sum + parseFloat(p.budget || '0'), 0).toLocaleString()}
+                              ₹{getClientRevenueStats(editRowData).totalRevenue.toLocaleString()}
                             </td>
                             <td className="px-5 py-4 text-right">
                               <div className="flex justify-end gap-2">
@@ -538,8 +555,34 @@ export function ClientsPage() {
                                 {formatDate(client.clientSince, dateFormat)}
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-sm font-bold text-emerald-700">
-                              ₹{(client.projects || []).reduce((sum: number, p: any) => sum + parseFloat(p.budget || '0'), 0).toLocaleString()}
+                            <td className="px-5 py-4">
+                              {(() => {
+                                const rev = getClientRevenueStats(client);
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-emerald-700">
+                                      ₹{rev.totalRevenue.toLocaleString()}
+                                    </span>
+                                    {rev.hasJobs ? (
+                                      <span className="text-[10px] text-gray-500 font-medium">
+                                        {rev.jobsCount} job{rev.jobsCount === 1 ? '' : 's'} • {rev.paidRevenue >= rev.totalRevenue && rev.totalRevenue > 0 ? (
+                                          <span className="text-emerald-600 font-semibold">Paid in Full</span>
+                                        ) : rev.pendingRevenue > 0 ? (
+                                          <span className="text-amber-600 font-semibold">₹{rev.pendingRevenue.toLocaleString()} pending</span>
+                                        ) : (
+                                          <span>₹{rev.paidRevenue.toLocaleString()} paid</span>
+                                        )}
+                                      </span>
+                                    ) : (client.projects || []).length > 0 ? (
+                                      <span className="text-[10px] text-gray-400">
+                                        {(client.projects || []).length} project budget{(client.projects || []).length === 1 ? '' : 's'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-400">No jobs yet</span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="px-5 py-4 text-right relative">
                               <div className="flex items-center justify-end gap-1.5">
@@ -595,8 +638,35 @@ export function ClientsPage() {
                       {expandedRowId === client.id && (
                         <tr className="bg-white/40">
                           <td colSpan={6} className="px-8 py-6 border-b border-white/20">
-                            <div className="flex flex-col">
-                              <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-col gap-5">
+                              {/* Client Financial & Billing Summary Card */}
+                              {(() => {
+                                const rev = getClientRevenueStats(client);
+                                return (
+                                  <div className="bg-white/80 border border-white/80 rounded-2xl p-4 shadow-2xs grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                    <div>
+                                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Total Billed</span>
+                                      <span className="text-base font-extrabold text-gray-800">₹{rev.totalRevenue.toLocaleString()}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Total Paid</span>
+                                      <span className="text-base font-extrabold text-emerald-600">₹{rev.paidRevenue.toLocaleString()}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Balance Pending</span>
+                                      <span className={`text-base font-extrabold ${rev.pendingRevenue > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
+                                        ₹{rev.pendingRevenue.toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Linked Jobs</span>
+                                      <span className="text-base font-extrabold text-indigo-600">{rev.jobsCount} Jobs</span>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
+                              <div className="flex items-center justify-between mb-1">
                                 <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
                                   <Briefcase className="w-4 h-4 text-primary" /> Active Projects
                                 </h4>
