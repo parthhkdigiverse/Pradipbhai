@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, FileText, Download, Trash2, Calendar, FileCheck, CheckCircle, Edit2, Eye } from 'lucide-react';
+import { Search, Plus, X, FileText, Trash2, Calendar, FileCheck, CheckCircle, Edit2, Eye, Sparkles, Clock } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -17,7 +17,6 @@ export function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterClient, setFilterClient] = useState('All');
-  const [filterType, setFilterType] = useState('All');
 
   // View-only job details modal state
   const [viewOnlyJob, setViewOnlyJob] = useState<any | null>(null);
@@ -33,13 +32,12 @@ export function InvoicesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo]);
+  }, [searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo]);
 
   const resetFilters = () => {
     setSearchTerm('');
     setFilterStatus('All');
     setFilterClient('All');
-    setFilterType('All');
     setFilterDateFrom('');
     setFilterDateTo('');
   };
@@ -69,8 +67,8 @@ export function InvoicesPage() {
             setFormData({
               issueDate: new Date().toISOString().split('T')[0],
               dueDate: '',
-              taxRate: '18',
-              invoiceType: 'Tax',
+              taxRate: '0',
+              invoiceType: 'Standard',
             });
             setIsModalOpen(true);
           }
@@ -84,8 +82,8 @@ export function InvoicesPage() {
   const [formData, setFormData] = useState({
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: '',
-    taxRate: '18',
-    invoiceType: 'Tax',
+    taxRate: '0',
+    invoiceType: 'Standard',
   });
 
   const handleAddCustomItem = () => {
@@ -117,34 +115,187 @@ export function InvoicesPage() {
     setCustomItems(prev => prev.filter(item => item.id !== id));
   };
 
-  // Calculations moved below filteredInvoices
+  // Compute next sequential invoice number (e.g. INV-001, INV-002...)
+  const getNextInvoiceNumber = (prefix: string = 'INV', customInvoicesList: any[] = invoices) => {
+    const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+    let maxNum = 0;
+    for (const inv of (customInvoicesList || [])) {
+      if (inv?.invoiceNumber) {
+        const match = String(inv.invoiceNumber).match(regex);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    }
+    return `${prefix}-${(maxNum + 1).toString().padStart(3, '0')}`;
+  };
+
+  // Merge formal saved invoices with all jobs from Reports so the Invoices page shows everything
+  const allInvoiceItems = useMemo(() => {
+    // 1. Formal saved invoices
+    const list: any[] = (invoices || []).map(inv => ({
+      ...inv,
+      isJobFallback: false,
+      isInvoiceMade: true
+    }));
+
+    // 2. Add jobs that don't have a formal invoice yet
+    (jobs || []).forEach(job => {
+      const alreadyInvoiced = list.some(inv => 
+        inv.jobIds && Array.isArray(inv.jobIds) && inv.jobIds.includes(job.id)
+      );
+
+      if (!alreadyInvoiced) {
+        const subtotal = job.totalAmount || 0;
+        list.push({
+          id: `preview-${job.id}`,
+          jobId: job.id,
+          invoiceNumber: `DRAFT-${String(job.id).slice(-6).toUpperCase()}`,
+          clientId: job.clientId,
+          jobIds: [job.id],
+          items: [
+            {
+              id: job.id,
+              description: job.title || 'Job Item',
+              quantity: 1,
+              rate: subtotal,
+              amount: subtotal,
+              isJob: true,
+              jobId: job.id
+            }
+          ],
+          subtotal,
+          tax: 0,
+          total: subtotal,
+          status: 'Not Made',
+          paymentStatus: job.paymentStatus || 'Unpaid',
+          issueDate: job.createdAt ? job.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+          dueDate: job.dueDate || '',
+          invoiceType: 'Standard',
+          taxRate: '0',
+          isJobFallback: true,
+          isInvoiceMade: false,
+          jobRef: job
+        });
+      }
+    });
+
+    return list;
+  }, [invoices, jobs]);
 
   const filteredInvoices = useMemo(() => {
-    return (invoices || []).filter(inv => {
+    return allInvoiceItems.filter(inv => {
       if (!inv) return false;
       const sLower = searchTerm.toLowerCase();
       const clientName = (clients || []).find(c => c && c.id === inv.clientId)?.company || '';
+      const jobTitles = (inv.jobIds || []).map((jId: string) => {
+        const j = (jobs || []).find((x: any) => x && x.id === jId);
+        return j ? j.title : '';
+      }).join(' ');
+
       const matchSearch = (inv.invoiceNumber || '').toLowerCase().includes(sLower) ||
                           (inv.status || '').toLowerCase().includes(sLower) ||
                           clientName.toLowerCase().includes(sLower) ||
+                          jobTitles.toLowerCase().includes(sLower) ||
                           (inv.total && inv.total.toString().includes(sLower)) ||
                           (inv.issueDate && inv.issueDate.includes(sLower)) ||
                           (inv.dueDate && inv.dueDate.includes(sLower));
-      const matchStatus = filterStatus === 'All' || inv.status === filterStatus;
+
+      let matchStatus = true;
+      if (filterStatus !== 'All') {
+        if (filterStatus === 'Invoice Made') matchStatus = inv.isInvoiceMade;
+        else if (filterStatus === 'Not Made') matchStatus = !inv.isInvoiceMade;
+        else matchStatus = inv.status === filterStatus;
+      }
+
       const matchClient = filterClient === 'All' || inv.clientId === filterClient;
-      const matchType = filterType === 'All' || inv.invoiceType === filterType;
       
       const matchDateFrom = !filterDateFrom || (inv.issueDate && new Date(inv.issueDate) >= new Date(filterDateFrom));
       const matchDateTo = !filterDateTo || (inv.issueDate && new Date(inv.issueDate) <= new Date(filterDateTo));
       
-      return matchSearch && matchStatus && matchClient && matchType && matchDateFrom && matchDateTo;
+      return matchSearch && matchStatus && matchClient && matchDateFrom && matchDateTo;
     });
-  }, [invoices, searchTerm, filterStatus, filterClient, filterType, filterDateFrom, filterDateTo, clients]);
+  }, [allInvoiceItems, searchTerm, filterStatus, filterClient, filterDateFrom, filterDateTo, clients, jobs]);
 
   const paginatedInvoices = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredInvoices.slice(start, start + itemsPerPage);
   }, [filteredInvoices, currentPage, itemsPerPage]);
+
+  // Overall Invoice Tracking Statistics
+  const invoiceTrackingStats = useMemo(() => {
+    const total = allInvoiceItems.length;
+    const madeCount = allInvoiceItems.filter(i => i.isInvoiceMade).length;
+    const pendingCount = total - madeCount;
+    return { total, madeCount, pendingCount };
+  }, [allInvoiceItems]);
+
+  // Make a single formal invoice from a job
+  const handleMakeFormalInvoice = async (item: any) => {
+    const nextNum = getNextInvoiceNumber('INV');
+    const invoicePayload = {
+      invoiceNumber: nextNum,
+      clientId: item.clientId,
+      jobIds: item.jobIds || [],
+      items: item.items || [],
+      issueDate: item.issueDate || new Date().toISOString().split('T')[0],
+      dueDate: item.dueDate || '',
+      subtotal: item.subtotal || 0,
+      taxRate: '0',
+      tax: 0,
+      total: item.subtotal || item.total || 0,
+      status: item.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
+      invoiceType: 'Standard'
+    };
+    await addInvoice(invoicePayload);
+  };
+
+  // One-click batch generate formal invoices for all uninvoiced jobs
+  const handleMakeAllInvoices = async () => {
+    const uninvoicedJobs = (jobs || []).filter(job => 
+      !(invoices || []).some(inv => inv.jobIds && inv.jobIds.includes(job.id))
+    );
+    if (uninvoicedJobs.length === 0) {
+      alert("All jobs already have formal invoices!");
+      return;
+    }
+    if (!confirm(`Generate formal sequential invoices for ${uninvoicedJobs.length} job(s) from Reports?`)) return;
+
+    let currentInvoices = [...invoices];
+    for (const job of uninvoicedJobs) {
+      const invNum = getNextInvoiceNumber('INV', currentInvoices);
+      const subtotal = job.totalAmount || 0;
+
+      const payload = {
+        invoiceNumber: invNum,
+        clientId: job.clientId,
+        jobIds: [job.id],
+        items: [
+          {
+            id: job.id,
+            description: job.title || 'Job Item',
+            quantity: 1,
+            rate: subtotal,
+            amount: subtotal,
+            isJob: true,
+            jobId: job.id
+          }
+        ],
+        issueDate: job.createdAt ? job.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+        dueDate: job.dueDate || '',
+        subtotal,
+        taxRate: '0',
+        tax: 0,
+        total: subtotal,
+        status: job.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
+        invoiceType: 'Standard'
+      };
+
+      const saved = await addInvoice(payload);
+      currentInvoices.push(saved || payload);
+    }
+  };
 
   // Calculate totals based on filtered invoices
   const totalOutstanding = useMemo(() => {
@@ -177,12 +328,7 @@ export function InvoicesPage() {
     return jobsSum + customSum;
   }, [selectedJobIds, jobs, customItems]);
 
-  const modalTax = useMemo(() => {
-    if (formData.invoiceType === 'Retail') return 0;
-    return (modalSubtotal * parseFloat(formData.taxRate || '0')) / 100;
-  }, [modalSubtotal, formData.taxRate, formData.invoiceType]);
-
-  const modalTotal = modalSubtotal + modalTax;
+  const modalTotal = modalSubtotal;
 
   const handleOpenModal = () => {
     setEditingInvoiceId(null);
@@ -192,8 +338,8 @@ export function InvoicesPage() {
     setFormData({
       issueDate: new Date().toISOString().split('T')[0],
       dueDate: '',
-      taxRate: '18',
-      invoiceType: 'Tax',
+      taxRate: '0',
+      invoiceType: 'Standard',
     });
     setIsModalOpen(true);
   };
@@ -215,8 +361,8 @@ export function InvoicesPage() {
     setFormData({
       issueDate: invoice.issueDate || new Date().toISOString().split('T')[0],
       dueDate: invoice.dueDate || '',
-      taxRate: invoice.taxRate || '18',
-      invoiceType: invoice.invoiceType || 'Tax',
+      taxRate: '0',
+      invoiceType: 'Standard',
     });
     setIsModalOpen(true);
   };
@@ -291,15 +437,13 @@ export function InvoicesPage() {
         issueDate: formData.issueDate,
         dueDate: formData.dueDate,
         subtotal: modalSubtotal,
-        tax: modalTax,
-        total: modalTotal,
-        invoiceType: formData.invoiceType,
-        taxRate: formData.taxRate,
+        tax: 0,
+        total: modalSubtotal,
+        invoiceType: 'Standard',
+        taxRate: '0',
       });
     } else {
-      const typeInvoicesCount = invoices.filter(i => i.invoiceType === formData.invoiceType).length;
-      const prefix = formData.invoiceType === 'Retail' ? 'RET' : 'TAX';
-      const newInvoiceNumber = `${prefix}-${(typeInvoicesCount + 1).toString().padStart(3, '0')}`;
+      const newInvoiceNumber = getNextInvoiceNumber('INV');
 
       const newInvoice = {
         id: Math.random().toString(36).substr(2, 9),
@@ -310,11 +454,11 @@ export function InvoicesPage() {
         issueDate: formData.issueDate,
         dueDate: formData.dueDate,
         subtotal: modalSubtotal,
-        tax: modalTax,
-        total: modalTotal,
+        tax: 0,
+        total: modalSubtotal,
         status: 'Sent',
-        invoiceType: formData.invoiceType,
-        taxRate: formData.taxRate
+        invoiceType: 'Standard',
+        taxRate: '0'
       };
 
       addInvoice({
@@ -350,6 +494,16 @@ export function InvoicesPage() {
           <h1 className="text-3xl font-bold text-gray-800 drop-shadow-sm mb-1">Invoices</h1>
         </div>
         <div className="flex items-center gap-3">
+          {canCreateEditInvoices && invoiceTrackingStats.pendingCount > 0 && (
+            <button 
+              onClick={handleMakeAllInvoices}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all hover:-translate-y-0.5 flex items-center gap-2 cursor-pointer"
+              title="Generate formal sequential invoices for all pending jobs from Reports"
+            >
+              <Sparkles className="w-4 h-4" />
+              Sync &amp; Make All Invoices ({invoiceTrackingStats.pendingCount})
+            </button>
+          )}
           {canCreateEditInvoices && (
             <button 
               onClick={handleOpenModal}
@@ -363,7 +517,7 @@ export function InvoicesPage() {
       </div>
 
       {/* Top Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-gray-500 mb-1">Total Outstanding</p>
@@ -373,6 +527,7 @@ export function InvoicesPage() {
             <FileText className="w-6 h-6 text-primary" />
           </div>
         </div>
+
         <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-rose-500 mb-1">Overdue Amount</p>
@@ -380,6 +535,42 @@ export function InvoicesPage() {
           </div>
           <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center border border-rose-100">
             <Calendar className="w-6 h-6 text-rose-600" />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setFilterStatus(prev => prev === 'Invoice Made' ? 'All' : 'Invoice Made')}
+          className={`glass-panel p-5 rounded-[1.5rem] border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+            filterStatus === 'Invoice Made' ? 'border-emerald-500 ring-2 ring-emerald-400/40 bg-emerald-50/40' : 'border-white/60 hover:border-emerald-300'
+          }`}
+          title="Click to filter Invoices Made"
+        >
+          <div>
+            <p className="text-sm font-semibold text-emerald-600 mb-1 flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" /> Invoices Made
+            </p>
+            <h3 className="text-3xl font-bold text-emerald-700">{invoiceTrackingStats.madeCount}</h3>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
+            <FileCheck className="w-6 h-6 text-emerald-600" />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setFilterStatus(prev => prev === 'Not Made' ? 'All' : 'Not Made')}
+          className={`glass-panel p-5 rounded-[1.5rem] border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+            filterStatus === 'Not Made' ? 'border-amber-500 ring-2 ring-amber-400/40 bg-amber-50/40' : 'border-white/60 hover:border-amber-300'
+          }`}
+          title="Click to filter Pending / Not Made"
+        >
+          <div>
+            <p className="text-sm font-semibold text-amber-600 mb-1 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" /> Pending Invoice
+            </p>
+            <h3 className="text-3xl font-bold text-amber-700">{invoiceTrackingStats.pendingCount}</h3>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100">
+            <Plus className="w-6 h-6 text-amber-600" />
           </div>
         </div>
       </div>
@@ -390,31 +581,21 @@ export function InvoicesPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input 
             type="text" 
-            placeholder="Search by invoice number..." 
+            placeholder="Search by invoice number or job title..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-white/70 border border-white/80 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 placeholder:text-gray-400"
           />
         </div>
 
-        <div className="w-full sm:w-36 shrink-0">
-          <SearchableSelect
-            value={filterType}
-            onChange={setFilterType}
-            options={[
-              { value: 'All', label: 'All Types' },
-              { value: 'Tax', label: 'Tax Invoice' },
-              { value: 'Retail', label: 'Retail Invoice' }
-            ]}
-          />
-        </div>
-
-        <div className="w-full sm:w-36 shrink-0">
+        <div className="w-full sm:w-40 shrink-0">
           <SearchableSelect
             value={filterStatus}
             onChange={setFilterStatus}
             options={[
               { value: 'All', label: 'All Status' },
+              { value: 'Invoice Made', label: '✅ Invoice Made' },
+              { value: 'Not Made', label: '⚠️ Not Made (Pending)' },
               { value: 'Draft', label: 'Draft' },
               { value: 'Sent', label: 'Sent' },
               { value: 'Paid', label: 'Paid' },
@@ -453,7 +634,7 @@ export function InvoicesPage() {
           />
         </div>
 
-        {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterType !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
+        {(searchTerm !== '' || filterStatus !== 'All' || filterClient !== 'All' || filterDateFrom !== '' || filterDateTo !== '') && (
           <button 
             onClick={resetFilters}
             className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 border border-rose-200"
@@ -485,11 +666,63 @@ export function InvoicesPage() {
                   <tr key={invoice.id} className="hover:bg-white/60 transition-colors group">
                     <td className="py-4 px-6 font-bold text-gray-400">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                     <td className="py-4 px-6">
-                      <button onClick={(e) => { e.stopPropagation(); setSelectedPreviewInvoice(invoice); }} className="font-bold text-primary text-sm hover:underline hover:text-primary/80 text-left">{invoice.invoiceNumber}</button>
+                      {invoice.isJobFallback ? (
+                        <div className="flex flex-col items-start gap-1">
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              handleMakeFormalInvoice(invoice);
+                            }} 
+                            className="font-bold text-amber-700 text-sm hover:underline hover:text-amber-800 text-left flex items-center gap-1 cursor-pointer"
+                            title="Click to create formal invoice"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>{invoice.invoiceNumber}</span>
+                          </button>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                            Pending Creation
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-start gap-1">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setSelectedPreviewInvoice(invoice); }} 
+                            className="font-bold text-primary text-sm hover:underline hover:text-primary/80 text-left flex items-center gap-1 cursor-pointer"
+                          >
+                            <FileCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{invoice.invoiceNumber}</span>
+                          </button>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                            Official Invoice
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <span className="font-semibold text-gray-700">{getClientName(invoice.clientId)}</span>
-                      <div className="text-[10px] text-gray-500 mt-0.5">{invoice.jobIds?.length || 0} jobs linked</div>
+                      {invoice.jobIds && invoice.jobIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {invoice.jobIds.map((jobId: string) => {
+                            const job = (jobs || []).find((j: any) => j && j.id === jobId);
+                            return (
+                              <button
+                                key={jobId}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (job) setViewOnlyJob(job);
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/60 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                                title={job ? `Click to view job details: ${job.title}` : `Job ID: ${jobId}`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                <span className="truncate max-w-[140px]">{job ? job.title : jobId}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-gray-400 mt-0.5">Custom Invoice (0 jobs)</div>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-right font-bold text-gray-800">
                       {invoice.total.toLocaleString()}
@@ -501,36 +734,63 @@ export function InvoicesPage() {
                       {invoice.dueDate}
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <select
-                        value={invoice.status}
-                        onChange={(e) => updateInvoiceStatus(invoice.id, e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
-                          invoice.status === 'Draft' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
-                          invoice.status === 'Sent' ? 'bg-primary/10 text-primary border-primary' : 
-                          invoice.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
-                          'bg-rose-100 text-rose-700 border-rose-200'
-                        }`}
-                        style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
-                      >
-                        <option value="Draft">Draft</option>
-                        <option value="Sent">Sent</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Overdue">Overdue</option>
-                      </select>
+                      {invoice.isJobFallback ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMakeFormalInvoice(invoice);
+                          }}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-transform hover:scale-105 cursor-pointer flex items-center gap-1 mx-auto"
+                          title="Generate official sequential invoice for this job"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Make Invoice</span>
+                        </button>
+                      ) : (
+                        <select
+                          value={invoice.status}
+                          onChange={(e) => updateInvoiceStatus(invoice.id, e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wide focus:outline-none cursor-pointer appearance-none relative text-center ${
+                            invoice.status === 'Draft' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
+                            invoice.status === 'Sent' ? 'bg-primary/10 text-primary border-primary' : 
+                            invoice.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            'bg-rose-100 text-rose-700 border-rose-200'
+                          }`}
+                          style={{ paddingRight: '1.25rem', backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23000000%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right .3rem top 50%', backgroundSize: '.55rem auto' }}
+                        >
+                          <option value="Draft">Draft</option>
+                          <option value="Sent">Sent</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Overdue">Overdue</option>
+                        </select>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {invoice.status !== 'Paid' && (
-                          <button 
-                            onClick={() => updateInvoiceStatus(invoice.id, 'Paid')}
-                            className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
-                            title="Mark as Paid"
+                        {invoice.isJobFallback ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMakeFormalInvoice(invoice);
+                            }}
+                            className="w-6 h-6 rounded bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Make Formal Invoice"
                           >
-                            <CheckCircle className="w-3.5 h-3.5" />
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
+                        ) : (
+                          invoice.status !== 'Paid' && (
+                            <button 
+                              onClick={() => updateInvoiceStatus(invoice.id, 'Paid')}
+                              className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-colors"
+                              title="Mark as Paid"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                            </button>
+                          )
                         )}
-                        {canCreateEditInvoices && (
+                        {!invoice.isJobFallback && canCreateEditInvoices && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleEditInvoice(invoice); }}
                             className="w-6 h-6 rounded bg-amber-50 text-amber-600 flex items-center justify-center hover:bg-amber-100 transition-colors"
@@ -540,12 +800,16 @@ export function InvoicesPage() {
                           </button>
                         )}
                         <button 
-                          className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/10 transition-colors"
-                          title="Download PDF"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPreviewInvoice(invoice);
+                          }}
+                          className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors cursor-pointer"
+                          title="Preview / Print / PDF"
                         >
-                          <Download className="w-3 h-3" />
+                          <Eye className="w-3 h-3" />
                         </button>
-                        {canDeleteInvoices && (
+                        {!invoice.isJobFallback && canDeleteInvoices && (
                           <button 
                             onClick={() => handleDelete(invoice.id)}
                             className="w-6 h-6 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 transition-colors"
@@ -596,18 +860,6 @@ export function InvoicesPage() {
             
             <form onSubmit={handleSaveInvoice} className="flex flex-col overflow-hidden">
               <div className="p-5 overflow-y-auto space-y-4">
-
-                {/* Invoice Type Toggle */}
-                <div className="mb-2 flex gap-6 p-4 rounded-xl bg-gray-50/50 border border-gray-100">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="invoiceType" value="Tax" checked={formData.invoiceType === 'Tax'} onChange={() => setFormData({...formData, invoiceType: 'Tax'})} className="w-4 h-4 text-primary focus:ring-primary/50" />
-                    <span className="text-sm font-bold text-gray-700">Tax Invoice</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="invoiceType" value="Retail" checked={formData.invoiceType === 'Retail'} onChange={() => setFormData({...formData, invoiceType: 'Retail'})} className="w-4 h-4 text-primary focus:ring-primary/50" />
-                    <span className="text-sm font-bold text-gray-700">Retail Invoice</span>
-                  </label>
-                </div>
 
                 {/* Select Client */}
                 <div>
@@ -818,8 +1070,8 @@ export function InvoicesPage() {
                   </div>
                 )}
 
-                {/* Dates & Tax */}
-                <div className={`grid gap-4 ${formData.invoiceType === 'Tax' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                {/* Dates */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Issue Date <span className="text-rose-500">*</span></label>
                     <input type="date" required value={formData.issueDate} onChange={e => setFormData({...formData, issueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
@@ -828,18 +1080,6 @@ export function InvoicesPage() {
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Due Date</label>
                     <input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" />
                   </div>
-                  {formData.invoiceType === 'Tax' && (
-                    <div>
-                      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Tax Rate (%)</label>
-                      <select value={formData.taxRate} onChange={e => setFormData({...formData, taxRate: e.target.value})} className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800">
-                        <option value="0">0%</option>
-                        <option value="5">5%</option>
-                        <option value="12">12%</option>
-                        <option value="18">18%</option>
-                        <option value="28">28%</option>
-                      </select>
-                    </div>
-                  )}
                 </div>
 
                 {/* Summary Totals */}
@@ -847,10 +1087,6 @@ export function InvoicesPage() {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-500 font-medium">Subtotal</span>
                     <span className="text-gray-800 font-bold">₹{modalSubtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500 font-medium">Tax ({formData.taxRate}%)</span>
-                    <span className="text-gray-800 font-bold">₹{modalTax.toLocaleString()}</span>
                   </div>
                   <div className="h-px bg-gray-200 my-1"></div>
                   <div className="flex justify-between items-center">

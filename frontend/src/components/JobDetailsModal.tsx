@@ -13,7 +13,8 @@ import {
   Copy, 
   Check, 
   Eye, 
-  Tag 
+  Tag,
+  FileText
 } from 'lucide-react';
 import { useData, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
@@ -25,10 +26,15 @@ interface JobDetailsModalProps {
 }
 
 export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
-  const { clients, staff, vendors, products, currentUserRole, activeJobTracker } = useData();
+  const { clients, staff, vendors, products, invoices, currentUserRole, activeJobTracker } = useData();
   const isEmployee = currentUserRole !== 'Admin' && currentUserRole !== 'Manager';
   const { dateFormat } = useSettings();
   const [copiedLocation, setCopiedLocation] = useState(false);
+
+  const matchedInvoice = useMemo(() => {
+    if (!job?.id) return null;
+    return (invoices || []).find((inv: any) => inv.jobIds && inv.jobIds.includes(job.id));
+  }, [job?.id, invoices]);
 
   const isProgress = Boolean(job && (job.status === 'Progress' || job.status === 'In Progress'));
   const activeStartTime = useMemo(() => {
@@ -194,6 +200,20 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
                   }`}>
                     {job.paymentStatus || (balanceAmount === 0 ? 'Paid' : (paidAmount > 0 ? 'Partial' : 'Unpaid'))}
                   </span>
+                )}
+
+                {/* Invoice Status Badge */}
+                {!isEmployee && (
+                  matchedInvoice ? (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-indigo-50 text-indigo-700 border-indigo-200 flex items-center gap-1 shadow-2xs" title={`Official Invoice: ${matchedInvoice.invoiceNumber}`}>
+                      <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{matchedInvoice.invoiceNumber}</span>
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold border bg-gray-50 text-gray-500 border-gray-200" title="No invoice generated yet for this job">
+                      No Invoice
+                    </span>
+                  )
                 )}
               </div>
             </div>

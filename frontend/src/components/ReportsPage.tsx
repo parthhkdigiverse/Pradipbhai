@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown, Calendar, CalendarRange } from 'lucide-react';
+import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown, Calendar, CalendarRange, Plus, FileCheck } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 
-export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPage?: (page: string) => void }) {
-  const { clients, jobs, staff, products, vendors, invoices, currentUserRole, hasPermission } = useData();
+export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string) => void }) {
+  const { clients, jobs, staff, products, vendors, invoices, addInvoice, currentUserRole, hasPermission } = useData();
   const { dateFormat } = useSettings();
   const canExport = hasPermission(currentUserRole, 'Export Reports');
   const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any | null>(null);
@@ -24,31 +24,65 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }, []);
 
+  // Compute next sequential invoice number (e.g. INV-001, INV-002...)
+  const getNextInvoiceNumber = (prefix: string = 'INV') => {
+    const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+    let maxNum = 0;
+    for (const inv of (invoices || [])) {
+      if (inv?.invoiceNumber) {
+        const match = String(inv.invoiceNumber).match(regex);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+    }
+    return `${prefix}-${(maxNum + 1).toString().padStart(3, '0')}`;
+  };
+
+  // Directly create formal invoice without showing preview
+  const handleMakeInvoice = async (jobId: string) => {
+    const targetJob = jobs.find((j: any) => j.id === jobId);
+    if (!targetJob) return;
+
+    const subtotal = targetJob.totalAmount || 0;
+    const total = subtotal;
+    const invoiceNum = getNextInvoiceNumber('INV');
+
+    const invoicePayload = {
+      invoiceNumber: invoiceNum,
+      clientId: targetJob.clientId,
+      jobIds: [targetJob.id],
+      items: [
+        {
+          id: targetJob.id,
+          description: targetJob.title || 'Job Item',
+          quantity: 1,
+          rate: subtotal,
+          amount: subtotal,
+          isJob: true,
+          jobId: targetJob.id
+        }
+      ],
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: targetJob.dueDate || '',
+      subtotal,
+      tax: 0,
+      total,
+      status: targetJob.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
+      invoiceType: 'Standard',
+      taxRate: '0'
+    };
+
+    await addInvoice(invoicePayload);
+  };
+
   const handleJobClick = (jobId: string) => {
     const matchedInvoice = invoices.find((inv: any) => inv.jobIds && inv.jobIds.includes(jobId));
     if (matchedInvoice) {
       setSelectedPreviewInvoice(matchedInvoice);
     } else {
-      const targetJob = jobs.find((j: any) => j.id === jobId);
-      if (targetJob) {
-        const subtotal = targetJob.totalAmount || 0;
-        const tax = (subtotal * 18) / 100;
-        const total = subtotal + tax;
-        setSelectedPreviewInvoice({
-          id: 'preview-' + targetJob.id,
-          invoiceNumber: `TAX-${targetJob.id.toUpperCase()}`,
-          clientId: targetJob.clientId,
-          jobIds: [targetJob.id],
-          issueDate: new Date().toISOString().split('T')[0],
-          dueDate: targetJob.dueDate || '',
-          subtotal,
-          tax,
-          total,
-          status: targetJob.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
-          invoiceType: 'Tax',
-          taxRate: '18'
-        });
-      }
+      handleMakeInvoice(jobId);
     }
   };
   
@@ -120,6 +154,7 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
   const [jobFilterStaff, setJobFilterStaff] = useState('All');
   const [jobFilterProduct, setJobFilterProduct] = useState('All');
   const [jobFilterBilling, setJobFilterBilling] = useState('All');
+  const [jobFilterInvoice, setJobFilterInvoice] = useState<'All' | 'Invoiced' | 'Not Invoiced'>('All');
   const [jobFilterType, setJobFilterType] = useState('All');
 
   // Job Date Filter States
@@ -136,6 +171,7 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
     setJobFilterStaff('All');
     setJobFilterProduct('All');
     setJobFilterBilling('All');
+    setJobFilterInvoice('All');
     setJobFilterType('All');
     setJobDateFilterType('all');
     setJobFilterMonth(currentMonthStr);
@@ -152,6 +188,15 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
       const matchStaff = jobFilterStaff === 'All' || job.teamId === jobFilterStaff;
       const matchProduct = jobFilterProduct === 'All' || job.productId === jobFilterProduct;
       const matchBilling = jobFilterBilling === 'All' || job.paymentStatus === jobFilterBilling;
+      
+      // Invoice created tracking match
+      let matchInvoice = true;
+      if (jobFilterInvoice !== 'All') {
+        const hasJobInvoice = (invoices || []).some((inv: any) => inv.jobIds && inv.jobIds.includes(job.id));
+        if (jobFilterInvoice === 'Invoiced') matchInvoice = hasJobInvoice;
+        else if (jobFilterInvoice === 'Not Invoiced') matchInvoice = !hasJobInvoice;
+      }
+
       const matchType = jobFilterType === 'All' || 
         (jobFilterType === 'Printing' && isPrintingJob(job)) ||
         (jobFilterType === 'Designing' && isDesigningJob(job)) ||
@@ -180,9 +225,18 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
         }
       }
 
-      return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchType && matchDate;
+      return matchSearch && matchStatus && matchClient && matchStaff && matchProduct && matchBilling && matchInvoice && matchType && matchDate;
     });
-  }, [jobs, jobSearch, jobFilterStatus, jobFilterClient, jobFilterStaff, jobFilterProduct, jobFilterBilling, jobFilterType, jobDateFilterType, jobFilterMonth, jobStartDate, jobEndDate, jobDateFieldBasis, currentMonthStr, lastMonthStr]);
+  }, [jobs, jobSearch, jobFilterStatus, jobFilterClient, jobFilterStaff, jobFilterProduct, jobFilterBilling, jobFilterInvoice, jobFilterType, jobDateFilterType, jobFilterMonth, jobStartDate, jobEndDate, jobDateFieldBasis, currentMonthStr, lastMonthStr, invoices]);
+
+  // Overall Job Tracking Statistics for header cards
+  const jobStats = useMemo(() => {
+    const total = jobs.length;
+    const invoicedCount = jobs.filter(j => (invoices || []).some((inv: any) => inv.jobIds && inv.jobIds.includes(j.id))).length;
+    const uninvoicedCount = total - invoicedCount;
+    const totalAmount = jobs.reduce((sum, j) => sum + (j.totalAmount || 0), 0);
+    return { total, invoicedCount, uninvoicedCount, totalAmount };
+  }, [jobs, invoices]);
 
   const totalFilteredJobAmount = useMemo(() => {
     return filteredJobs.reduce((sum, job) => sum + (job.totalAmount || 0), 0);
@@ -441,6 +495,71 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
 
       {activeTab === 'jobs' && (
         <div className="flex flex-col flex-1 animate-in fade-in zoom-in-95 duration-200">
+          {/* Top Job Tracking Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 flex-shrink-0">
+            <div 
+              onClick={() => { setJobFilterInvoice('All'); }}
+              className={`glass-panel p-5 rounded-[1.5rem] border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+                jobFilterInvoice === 'All' ? 'border-primary/40 bg-white/60' : 'border-white/60 hover:border-primary/30'
+              }`}
+              title="Click to view all jobs"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Total Jobs</p>
+                <h3 className="text-3xl font-bold text-gray-800">{jobStats.total}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                <Briefcase className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+
+            <div 
+              onClick={() => { setJobFilterInvoice(prev => prev === 'Invoiced' ? 'All' : 'Invoiced'); setShowFilters(true); }}
+              className={`glass-panel p-5 rounded-[1.5rem] border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+                jobFilterInvoice === 'Invoiced' ? 'border-emerald-500 ring-2 ring-emerald-400/40 bg-emerald-50/50' : 'border-white/60 hover:border-emerald-300'
+              }`}
+              title="Click to filter only Invoiced Jobs"
+            >
+              <div>
+                <p className="text-sm font-semibold text-emerald-600 mb-1 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" /> Invoiced Jobs
+                </p>
+                <h3 className="text-3xl font-bold text-emerald-700">{jobStats.invoicedCount}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center border border-emerald-100">
+                <FileCheck className="w-6 h-6 text-emerald-600" />
+              </div>
+            </div>
+
+            <div 
+              onClick={() => { setJobFilterInvoice(prev => prev === 'Not Invoiced' ? 'All' : 'Not Invoiced'); setShowFilters(true); }}
+              className={`glass-panel p-5 rounded-[1.5rem] border shadow-sm flex items-center justify-between cursor-pointer transition-all ${
+                jobFilterInvoice === 'Not Invoiced' ? 'border-amber-500 ring-2 ring-amber-400/40 bg-amber-50/50' : 'border-white/60 hover:border-amber-300'
+              }`}
+              title="Click to filter jobs that need an Invoice"
+            >
+              <div>
+                <p className="text-sm font-semibold text-amber-600 mb-1 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" /> Pending Invoice
+                </p>
+                <h3 className="text-3xl font-bold text-amber-700">{jobStats.uninvoicedCount}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center border border-amber-100">
+                <Plus className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+
+            <div className="glass-panel p-5 rounded-[1.5rem] border border-white/60 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-primary mb-1">Total Job Revenue</p>
+                <h3 className="text-3xl font-bold text-primary">₹{jobStats.totalAmount.toLocaleString()}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                <LineChart className="w-6 h-6 text-primary" />
+              </div>
+            </div>
+          </div>
+
           {/* Advanced Filters Panel */}
           <div className="glass-panel border border-white/60 rounded-[1.5rem] shadow-sm mb-6 flex-shrink-0 bg-white/40 backdrop-blur-md overflow-hidden">
             <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-gray-100/50 bg-white/20">
@@ -536,10 +655,10 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
                   <span className="text-xs text-gray-500 uppercase font-bold tracking-wider mr-2">Total Amount:</span>
                   <span className="text-xl font-bold text-gray-800">₹{totalFilteredJobAmount.toLocaleString()}</span>
                 </div>
-                {(jobSearch !== '' || jobFilterStatus !== 'All' || jobFilterClient !== 'All' || jobFilterStaff !== 'All' || jobFilterProduct !== 'All' || jobFilterBilling !== 'All' || jobFilterType !== 'All' || jobDateFilterType !== 'all') && (
+                {(jobSearch !== '' || jobFilterStatus !== 'All' || jobFilterClient !== 'All' || jobFilterStaff !== 'All' || jobFilterProduct !== 'All' || jobFilterBilling !== 'All' || jobFilterInvoice !== 'All' || jobFilterType !== 'All' || jobDateFilterType !== 'all') && (
                   <button 
                     onClick={() => resetJobFilters()}
-                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                     Clear All
@@ -644,8 +763,8 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
                   </div>
                 </div>
 
-                {/* 6 Category Filter Dropdowns */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                {/* 7 Category Filter Dropdowns */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
                   <div>
                     <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Status</label>
                     <SearchableSelect
@@ -690,6 +809,18 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
                       options={[
                         { value: 'All', label: 'All Products' },
                         ...products.map(p => ({ value: p.id, label: p.name }))
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1 block">Invoice</label>
+                    <SearchableSelect
+                      value={jobFilterInvoice}
+                      onChange={(val) => setJobFilterInvoice(val as any)}
+                      options={[
+                        { value: 'All', label: 'All Invoices' },
+                        { value: 'Invoiced', label: 'Invoiced' },
+                        { value: 'Not Invoiced', label: 'Not Invoiced' }
                       ]}
                     />
                   </div>
@@ -745,20 +876,25 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
                   <button 
                     onClick={() => {
                       if (filteredJobs.length === 0) return;
-                      const headers = ["#", "Job Title", "Job Type", "Party", "Printer Name", "Status", "Due Date", "Created Date", "Paid Amount", "Total Amount", "Billing Status"];
-                      const rows = filteredJobs.map((j, idx) => [
-                        idx + 1,
-                        `"${(j.title || '').replace(/"/g, '""')}"`,
-                        `"${j.type || ''}"`,
-                        `"${(getClientName(j.clientId) || '').replace(/"/g, '""')}"`,
-                        `"${(getPrinterName(j.printerId) || '').replace(/"/g, '""')}"`,
-                        `"${j.status || ''}"`,
-                        `"${j.dueDate || ''}"`,
-                        `"${j.createdAt ? j.createdAt.split('T')[0] : ''}"`,
-                        j.paidAmount || 0,
-                        j.totalAmount || 0,
-                        `"${j.paymentStatus || ''}"`
-                      ]);
+                      const headers = ["#", "Job Title", "Job Type", "Party", "Printer Name", "Status", "Due Date", "Created Date", "Paid Amount", "Total Amount", "Invoice #", "Invoice Status", "Billing Status"];
+                      const rows = filteredJobs.map((j, idx) => {
+                        const matchedInv = (invoices || []).find((inv: any) => inv.jobIds && inv.jobIds.includes(j.id));
+                        return [
+                          idx + 1,
+                          `"${(j.title || '').replace(/"/g, '""')}"`,
+                          `"${j.type || ''}"`,
+                          `"${(getClientName(j.clientId) || '').replace(/"/g, '""')}"`,
+                          `"${(getPrinterName(j.printerId) || '').replace(/"/g, '""')}"`,
+                          `"${j.status || ''}"`,
+                          `"${j.dueDate || ''}"`,
+                          `"${j.createdAt ? j.createdAt.split('T')[0] : ''}"`,
+                          j.paidAmount || 0,
+                          j.totalAmount || 0,
+                          `"${matchedInv ? matchedInv.invoiceNumber : 'None'}"`,
+                          `"${matchedInv ? 'Invoiced' : 'Not Invoiced'}"`,
+                          `"${j.paymentStatus || ''}"`
+                        ];
+                      });
                       const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
                       const encodedUri = encodeURI(csvContent);
                       const link = document.createElement("a");
@@ -795,59 +931,91 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
                     <th className="py-4 px-4 text-center">Status</th>
                     <th className="py-4 px-4 text-center">Dates (Due / Created)</th>
                     <th className="py-4 px-4 text-center">Paid / Total</th>
-                    <th className="py-4 px-4 text-center">Billing</th>
+                    <th className="py-4 px-4 text-center min-w-[150px]">Invoice &amp; Billing</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredJobs.length > 0 ? (
-                    filteredJobs.map((job, index) => (
-                      <tr key={job.id} className="hover:bg-white/60 transition-colors">
-                        <td className="py-3 px-4 font-bold text-gray-400">{index + 1}</td>
-                        <td className="py-3 px-4">
-                          <button 
-                            onClick={() => handleJobClick(job.id)}
-                            className="font-bold text-primary hover:underline text-left text-sm flex items-center gap-1.5 group/link cursor-pointer"
-                            title="Click to view invoice"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-primary/70 group-hover/link:text-primary transition-colors flex-shrink-0" />
-                            <span>{job.title}</span>
-                          </button>
-                          <div className="text-[10px] text-gray-500 mt-0.5">{job.type}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-gray-700">{getClientName(job.clientId)}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-gray-700">{getPrinterName(job.printerId)}</span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-gray-600 font-medium">{job.status}</span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="font-semibold text-gray-800">{job.dueDate ? formatDate(job.dueDate, dateFormat) : '—'}</div>
-                          {job.createdAt && (
-                            <div className="text-[10px] text-gray-400 font-medium">Created: {formatDate(job.createdAt.split('T')[0], dateFormat)}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="font-semibold text-gray-700">
-                            {job.paidAmount > 0 ? `₹${job.paidAmount} / ` : '- / '}
-                            ₹{job.totalAmount}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button 
-                            onClick={() => handleJobClick(job.id)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider transition-transform hover:scale-105 cursor-pointer ${
-                              job.paymentStatus === 'Paid' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-                            }`}
-                            title="Click to view invoice"
-                          >
-                            {job.paymentStatus}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    filteredJobs.map((job, index) => {
+                      const matchedInvoice = (invoices || []).find((inv: any) => inv.jobIds && inv.jobIds.includes(job.id));
+                      return (
+                        <tr key={job.id} className="hover:bg-white/60 transition-colors">
+                          <td className="py-3 px-4 font-bold text-gray-400">{index + 1}</td>
+                          <td className="py-3 px-4">
+                            <button 
+                              onClick={() => handleJobClick(job.id)}
+                              className="font-bold text-primary hover:underline text-left text-sm flex items-center gap-1.5 group/link cursor-pointer"
+                              title={matchedInvoice ? `View invoice ${matchedInvoice.invoiceNumber}` : "Click to create invoice"}
+                            >
+                              <FileText className="w-3.5 h-3.5 text-primary/70 group-hover/link:text-primary transition-colors flex-shrink-0" />
+                              <span>{job.title}</span>
+                            </button>
+                            <div className="text-[10px] text-gray-500 mt-0.5">{job.type}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-gray-700">{getClientName(job.clientId)}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-gray-700">{getPrinterName(job.printerId)}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="text-gray-600 font-medium">{job.status}</span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="font-semibold text-gray-800">{job.dueDate ? formatDate(job.dueDate, dateFormat) : '—'}</div>
+                            {job.createdAt && (
+                              <div className="text-[10px] text-gray-400 font-medium">Created: {formatDate(job.createdAt.split('T')[0], dateFormat)}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="font-semibold text-gray-700">
+                              {job.paidAmount > 0 ? `₹${job.paidAmount} / ` : '- / '}
+                              ₹{job.totalAmount}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex flex-col items-center gap-1.5">
+                              {matchedInvoice ? (
+                                <button 
+                                  onClick={() => setSelectedPreviewInvoice(matchedInvoice)}
+                                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs group/btn"
+                                  title={`View saved invoice ${matchedInvoice.invoiceNumber}`}
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-indigo-600 group-hover/btn:scale-110 transition-transform" />
+                                  <span>{matchedInvoice.invoiceNumber}</span>
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleMakeInvoice(job.id)}
+                                  className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all flex items-center gap-1 cursor-pointer shadow-xs hover:scale-105"
+                                  title="No invoice yet. Click to make invoice"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Make Invoice</span>
+                                </button>
+                              )}
+                              
+                              <div className="flex items-center gap-1.5 text-[10px]">
+                                <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                  job.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                                }`}>
+                                  {job.paymentStatus}
+                                </span>
+                                {matchedInvoice ? (
+                                  <span className="text-emerald-700 font-bold flex items-center gap-0.5 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60" title="Invoice recorded">
+                                    <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> Invoiced
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200/60" title="No invoice recorded yet">
+                                    No Invoice
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-gray-500">
@@ -870,6 +1038,8 @@ export function ReportsPage({ setCurrentPage: _setCurrentPage }: { setCurrentPag
         <InvoicePreviewModal 
           invoice={selectedPreviewInvoice} 
           onClose={() => setSelectedPreviewInvoice(null)} 
+          setCurrentPage={setCurrentPage}
+          onInvoiceSaved={(savedInv) => setSelectedPreviewInvoice(savedInv)}
         />
       )}
     </div>

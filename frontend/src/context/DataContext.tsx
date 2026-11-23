@@ -1292,8 +1292,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     items: inv.custom_items || inv.items || [],
     issueDate: inv.date || inv.issueDate || '',
     dueDate: inv.due_date || inv.dueDate || '',
-    invoiceType: inv.invoice_type || inv.invoiceType || 'Tax',
-    taxRate: inv.tax_rate || inv.taxRate || '18'
+    invoiceType: inv.invoice_type || inv.invoiceType || 'Standard',
+    taxRate: inv.tax_rate || inv.taxRate || '0'
   });
 
   // Invoices API
