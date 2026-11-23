@@ -37,7 +37,7 @@ interface Message {
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥", "🎉", "👏", "✅"];
 
 export function ChatPage() {
-  const { staff, currentUser, currentUserRole } = useData();
+  const { staff, currentUser, currentUserRole, fetchUnreadSummaries: refreshGlobalUnread } = useData();
   const currentUserId = currentUser?.id || localStorage.getItem('userId') || '';
   const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || '').toLowerCase().trim();
   const isCurrentAdmin = (currentUserRole || currentUser?.role || localStorage.getItem('userRole')) === 'Admin' ||
@@ -172,9 +172,13 @@ export function ChatPage() {
 
   useEffect(() => {
     fetchRecentSummaries();
-    const interval = setInterval(fetchRecentSummaries, 8000);
-    return () => clearInterval(interval);
-  }, []);
+    const onFocus = () => {
+      fetchRecentSummaries();
+      if (refreshGlobalUnread) refreshGlobalUnread();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refreshGlobalUnread]);
 
   // Request desktop notification permission on chat load
   useEffect(() => {
@@ -183,120 +187,71 @@ export function ChatPage() {
     }
   }, []);
 
+  // Event-driven WebSocket listener: hooks into global WebSocket from DataContext (0 polling loops!)
   useEffect(() => {
-    if (!currentUserId) return;
+    const handleWSEvent = (e: any) => {
+      try {
+        const data = e.detail;
+        if (!data) return;
+        const { type, contactId, altContactIds, message, messageId } = data;
 
-    // Establish WebSocket connection
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/chat/ws/${currentUserId}`;
-    
-    let ws: WebSocket | null = null;
-    let reconnectTimer: any;
+        if (type === 'new_message') {
+          const altList = altContactIds || [];
+          // Match to the contact ID in our local contacts list
+          const matched = MOCK_CONTACTS.find(c => 
+            c.id === contactId || 
+            altList.includes(c.id) ||
+            (c.id === 'emp-admin' && (contactId === 'super-admin' || altList.includes('super-admin'))) ||
+            (c.id === 'super-admin' && (contactId === 'emp-admin' || altList.includes('emp-admin')))
+          );
+          const targetKey = matched ? matched.id : contactId;
 
-    const connectWebSocket = () => {
-      ws = new WebSocket(wsUrl);
-      
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const { type, contactId, altContactIds, message, messageId } = data;
-          
-          if (type === 'new_message') {
-            const altList = altContactIds || [];
-            // Match to the contact ID in our local contacts list
-            const matched = MOCK_CONTACTS.find(c => 
-              c.id === contactId || 
-              altList.includes(c.id) ||
-              (c.id === 'emp-admin' && (contactId === 'super-admin' || altList.includes('super-admin'))) ||
-              (c.id === 'super-admin' && (contactId === 'emp-admin' || altList.includes('emp-admin')))
-            );
-            const targetKey = matched ? matched.id : contactId;
+          setMessages(prev => {
+            const currentList = prev[targetKey] || [];
+            if (currentList.some(m => m.id === message.id)) return prev;
+            return { ...prev, [targetKey]: [...currentList, message] };
+          });
 
-            setMessages(prev => {
-              const currentList = prev[targetKey] || [];
-              if (currentList.some(m => m.id === message.id)) return prev;
-              return { ...prev, [targetKey]: [...currentList, message] };
-            });
-
-            // Update contact summary immediately
-            setContactSummaries(prev => ({
-              ...prev,
-              [targetKey]: {
-                lastMessage: message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Message'),
-                time: message.time || ''
-              }
-            }));
-
-            // Auto-scroll on incoming message
-            setTimeout(() => scrollToBottom(), 100);
-
-            // Desktop notification & taskbar alert for incoming messages
-            if (message && message.sender === 'them') {
-              const senderName = matched?.name || 'Team Member';
-              const preview = message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Sent a message');
-
-              try {
-                (window as any).electronAPI?.flashFrame?.();
-              } catch {}
-
-              if ('Notification' in window && Notification.permission === 'granted') {
-                try {
-                  new Notification(`💬 ${senderName}`, {
-                    body: preview,
-                    icon: '/favicon.ico'
-                  });
-                } catch {}
-              }
+          // Update contact summary immediately
+          setContactSummaries(prev => ({
+            ...prev,
+            [targetKey]: {
+              lastMessage: message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Message'),
+              time: message.time || ''
             }
-          } else if (type === 'update_message') {
-            setMessages(prev => ({
-              ...prev,
-              [contactId]: (prev[contactId] || []).map(m => m.id === message.id ? message : m)
-            }));
-          } else if (type === 'delete_message') {
-            setMessages(prev => ({
-              ...prev,
-              [contactId]: (prev[contactId] || []).filter(m => m.id !== messageId)
-            }));
+          }));
+
+          // Auto-scroll on incoming message if currently looking at this active conversation
+          if (activeContactId === targetKey) {
+            setTimeout(() => scrollToBottom(), 100);
+            if (refreshGlobalUnread) refreshGlobalUnread();
           }
-        } catch (e) {
-          console.warn("Error processing websocket message", e);
+        } else if (type === 'update_message') {
+          setMessages(prev => ({
+            ...prev,
+            [contactId]: (prev[contactId] || []).map(m => m.id === message.id ? message : m)
+          }));
+        } else if (type === 'delete_message') {
+          setMessages(prev => ({
+            ...prev,
+            [contactId]: (prev[contactId] || []).filter(m => m.id !== messageId)
+          }));
         }
-      };
-
-      ws.onclose = () => {
-        // Auto-reconnect after 3 seconds
-        reconnectTimer = setTimeout(() => connectWebSocket(), 3000);
-      };
-    };
-
-    connectWebSocket();
-
-    return () => {
-      clearTimeout(reconnectTimer);
-      if (ws) {
-        // Delay close slightly to prevent "closed before connection established" warning in Strict Mode
-        setTimeout(() => {
-          if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-            ws.close();
-          }
-        }, 1000);
+      } catch (e) {
+        console.warn("Error processing app_ws_event in ChatPage", e);
       }
     };
-  }, [currentUserId, staff, activeContact]);
 
+    window.addEventListener('app_ws_event', handleWSEvent);
+    return () => window.removeEventListener('app_ws_event', handleWSEvent);
+  }, [MOCK_CONTACTS, activeContactId, refreshGlobalUnread]);
+
+  // Load chat messages only once when contact is selected (no polling loop)
   useEffect(() => {
     if (!activeContactId) return;
-    // Initial fetch to load history when clicking a contact
     fetchRemoteMessages(activeContactId);
-
-    // Periodic polling fallback every 4 seconds to guarantee sync even if WebSocket hiccups
-    const pollInterval = setInterval(() => {
-      fetchRemoteMessages(activeContactId);
-    }, 4000);
-
-    return () => clearInterval(pollInterval);
-  }, [activeContactId]);
+    if (refreshGlobalUnread) refreshGlobalUnread();
+  }, [activeContactId, refreshGlobalUnread]);
 
   // Handle Send or Update Message
   const handleSendMessage = async (e?: React.FormEvent) => {

@@ -60,6 +60,18 @@ class ConnectionManager:
                 except Exception:
                     pass
 
+    async def broadcast(self, message: dict):
+        visited: set[int] = set()
+        for user_id, connections in list(self.active_connections.items()):
+            for connection in list(connections):
+                conn_id = id(connection)
+                if conn_id not in visited:
+                    visited.add(conn_id)
+                    try:
+                        await connection.send_json(message)
+                    except Exception:
+                        pass
+
 manager = ConnectionManager()
 
 ws_router = APIRouter(prefix="/chat/ws", tags=["Chat WebSockets"])

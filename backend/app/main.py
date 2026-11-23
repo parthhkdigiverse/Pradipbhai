@@ -63,7 +63,12 @@ async def sync_version_middleware(request: Request, call_next):
             if path.startswith("/api") and not path.startswith("/api/chat") and not path.startswith("/api/sync"):
                 parts = [p for p in path.split("/") if p]
                 module = parts[1] if len(parts) > 1 else None
-                bump_sync_version(module)
+                new_v = bump_sync_version(module)
+                try:
+                    from app.api.chat import manager
+                    await manager.broadcast({"type": "data_sync", "version": new_v, "module": module})
+                except Exception:
+                    pass
     return response
 
 from app.api.deps import get_current_user

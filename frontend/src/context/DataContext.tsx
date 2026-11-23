@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
 import { localDateStr } from '../utils/dateUtils';
@@ -251,6 +251,7 @@ interface DataContextType {
 
   unreadChatCount: number;
   setUnreadChatCount: React.Dispatch<React.SetStateAction<number>>;
+  fetchUnreadSummaries: () => Promise<void>;
 
   currentUserRole: string;
   setCurrentUserRole: React.Dispatch<React.SetStateAction<string>>;
@@ -557,6 +558,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })) : [];
   });
   const [staff, setStaff] = useState<any[]>(() => loadCachedData('cache_staff', []));
+  const staffRef = useRef(staff);
+  useEffect(() => {
+    staffRef.current = staff;
+  }, [staff]);
 
   const currentUser = useMemo(() => {
     const email = localStorage.getItem('userEmail') || 'admin@alphacreative.com';
@@ -613,25 +618,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [workLogs, setWorkLogs] = useState<any[]>(() => loadCachedData('cache_worklogs', []));
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
 
-  useEffect(() => {
-    const fetchUnread = async () => {
-      const token = localStorage.getItem('authToken');
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_BASE_URL}/chat/summary/recent`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const total = Object.values(data).reduce((acc: number, c: any) => acc + (c.unread || 0), 0);
-          setUnreadChatCount(total);
-        }
-      } catch {}
-    };
-
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 8000);
-    return () => clearInterval(interval);
+  const fetchUnreadSummaries = useCallback(async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/chat/summary/recent`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data: Record<string, any> = await res.json();
+        const total = Object.values(data || {}).reduce<number>((acc, c: any) => acc + (Number(c?.unread) || 0), 0);
+        setUnreadChatCount(total);
+      }
+    } catch {}
   }, []);
 
   const { autoConvertLeads } = useSettings();
@@ -978,35 +977,121 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // 1. Initial fetch on mount
+    // 1. Initial data & chat summaries fetch on mount
     refreshApiData();
+    fetchUnreadSummaries();
 
-    // 2. High-speed in-memory RAM revision check (every 4 seconds)
-    // Cost: 0 SQL database queries while idle! Only queries MySQL if someone actually edited data!
-    const syncInterval = setInterval(() => {
-      const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-      if (isAuth && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
-        checkSyncVersion();
+    // 2. Event-driven WebSocket push (0 polling calls, 0 DB queries while idle!)
+    let isCleanedUp = false;
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+
+    const connectGlobalWS = () => {
+      if (isCleanedUp) return;
+      const uid = currentUser?.id || localStorage.getItem('userId');
+      if (!uid) return;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/chat/ws/${uid}`;
+
+      try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Dispatch event for any active page (e.g. ChatPage)
+            window.dispatchEvent(new CustomEvent('app_ws_event', { detail: data }));
+
+            // Instant data sync: Refresh tables only when an actual database mutation happens
+            if (data.type === 'data_sync') {
+              const serverVer = Number(data.version) || 0;
+              if (serverVer > currentSyncVersionRef.current) {
+                currentSyncVersionRef.current = serverVer;
+                refreshApiData();
+              }
+            }
+
+            // Chat message: update unread count and trigger notification
+            if (data.type === 'new_message' && data.message) {
+              if (data.message.sender === 'them') {
+                setUnreadChatCount(prev => prev + 1);
+
+                // Desktop notification & taskbar alert
+                try {
+                  (window as any).electronAPI?.flashFrame?.();
+                } catch {}
+
+                if ('Notification' in window && Notification.permission === 'granted') {
+                  try {
+                    const senderStaff = staffRef.current.find((s: any) => String(s.id) === String(data.contactId));
+                    const senderName = senderStaff?.name || 'Team Member';
+                    const preview = data.message.text || (data.message.attachment ? '📎 Attachment' : 'Sent a message');
+                    new Notification(`💬 ${senderName}`, {
+                      body: preview,
+                      icon: '/favicon.ico'
+                    });
+                  } catch {}
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("WebSocket parse error:", e);
+          }
+        };
+
+        ws.onclose = () => {
+          if (!isCleanedUp) {
+            reconnectTimeout = setTimeout(connectGlobalWS, 4000);
+          }
+        };
+      } catch (err) {
+        if (!isCleanedUp) {
+          reconnectTimeout = setTimeout(connectGlobalWS, 4000);
+        }
       }
-    }, 4000);
+    };
 
-    // 3. Instant revision check on window focus or tab visibility change
+    connectGlobalWS();
+
+    // 3. Instant sync check when user switches back to the app window
     const onWindowFocus = () => {
       const isAuth = localStorage.getItem('isAuthenticated') === 'true';
       if (isAuth) {
         checkSyncVersion();
+        fetchUnreadSummaries();
       }
     };
 
     window.addEventListener('focus', onWindowFocus);
     document.addEventListener('visibilitychange', onWindowFocus);
 
+    // 4. Relaxed fallback timer: Only fires every 60s IF WebSocket is disconnected
+    const fallbackTimer = setInterval(() => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        const isAuth = localStorage.getItem('isAuthenticated') === 'true';
+        if (isAuth && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
+          checkSyncVersion();
+          fetchUnreadSummaries();
+        }
+      }
+    }, 60000);
+
     return () => {
-      clearInterval(syncInterval);
+      isCleanedUp = true;
+      clearTimeout(reconnectTimeout);
+      clearInterval(fallbackTimer);
+      if (ws) {
+        try {
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close();
+          }
+        } catch {}
+      }
       window.removeEventListener('focus', onWindowFocus);
       document.removeEventListener('visibilitychange', onWindowFocus);
     };
-  }, []);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (currentUserRole === 'Admin') {
@@ -2147,13 +2232,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     performAutoPunchOut,
     refreshApiData,
     unreadChatCount,
-    setUnreadChatCount
+    setUnreadChatCount,
+    fetchUnreadSummaries
   }), [
     leads, clients, products, staff, attendance, payroll, vendors, jobs, invoices, holidays,
     deletedSundayDates, leaveRequests, leaveBalances, projects, activeFilterIntent,
     isPunchedIn, punchInTime, fieldDuties, activeJobTracker, workLogs, dailyRatings,
     dailyProgressRecords, employeeEvaluations, rolePermissions, currentUserRole, currentUser,
-    isPunchInModalOpen, unreadChatCount
+    isPunchInModalOpen, unreadChatCount, fetchUnreadSummaries
   ]);
 
   return (
