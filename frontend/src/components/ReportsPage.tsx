@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown, Calendar, CalendarRange, Plus, FileCheck } from 'lucide-react';
+import { Search, LineChart, Briefcase, CheckCircle, Clock, FileText, Download, FilterX, ChevronDown, Calendar, CalendarRange, Plus, FileCheck, Edit2, X } from 'lucide-react';
 import { useData, isDesigningJob, isPrintingJob, unifyDesPrintJobs } from '../context/DataContext';
 import { useSettings } from '../context/SettingsContext';
 import { formatDate } from '../utils/dateFormatter';
@@ -7,13 +7,67 @@ import { SearchableSelect } from './SearchableSelect';
 import { InvoicePreviewModal } from './InvoicePreviewModal';
 
 export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string) => void }) {
-  const { clients, jobs, staff, products, vendors, invoices, addInvoice, currentUserRole, hasPermission } = useData();
+  const { clients, jobs, staff, products, vendors, invoices, addInvoice, updateJob, currentUserRole, hasPermission } = useData();
   const { dateFormat } = useSettings();
   const canExport = hasPermission(currentUserRole, 'Export Reports');
+  const canEditJob = hasPermission(currentUserRole, 'Edit Job') || currentUserRole === 'Admin' || currentUserRole === 'Manager';
   const [selectedPreviewInvoice, setSelectedPreviewInvoice] = useState<any | null>(null);
 
   // Unify Des+Print paired jobs so reports show a single clean entry and avoid double counting revenue
   const unifiedJobs = useMemo(() => unifyDesPrintJobs(jobs), [jobs]);
+
+  // Quick Payment Editing State
+  const [editingPaymentJob, setEditingPaymentJob] = useState<any | null>(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    totalAmount: '',
+    paidAmount: '',
+    paymentStatus: 'Unpaid'
+  });
+
+  const handleOpenPaymentModal = (job: any) => {
+    setEditingPaymentJob(job);
+    setPaymentFormData({
+      totalAmount: String(job.totalAmount ?? 0),
+      paidAmount: String(job.paidAmount ?? 0),
+      paymentStatus: job.paymentStatus || 'Unpaid'
+    });
+  };
+
+  const handleSavePaymentModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPaymentJob) return;
+
+    const total = parseFloat(paymentFormData.totalAmount) || 0;
+    const paid = parseFloat(paymentFormData.paidAmount) || 0;
+    const status = paymentFormData.paymentStatus;
+    const targetIds = editingPaymentJob.pairedJobIds || [editingPaymentJob.id];
+
+    for (const id of targetIds) {
+      await updateJob(id, {
+        totalAmount: total,
+        paidAmount: paid,
+        paymentStatus: status
+      });
+    }
+
+    setEditingPaymentJob(null);
+  };
+
+  const handleUpdatePaymentStatus = async (job: any, newStatus: string) => {
+    const targetIds = job.pairedJobIds || [job.id];
+    const total = Number(job.totalAmount) || 0;
+    const patch: any = { paymentStatus: newStatus };
+
+    if (newStatus === 'Paid') {
+      patch.paidAmount = total;
+    } else if (newStatus === 'Unpaid') {
+      patch.paidAmount = 0;
+    }
+
+    for (const id of targetIds) {
+      await updateJob(id, patch);
+    }
+  };
   
   // Date calculation helpers
   const currentMonthStr = useMemo(() => {
@@ -1002,10 +1056,25 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
                             )}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <span className="font-semibold text-gray-700">
-                              {job.paidAmount > 0 ? `₹${job.paidAmount} / ` : '- / '}
-                              ₹{job.totalAmount}
-                            </span>
+                            {canEditJob ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPaymentModal(job)}
+                                className="group/amt inline-flex items-center gap-1.5 font-semibold text-gray-700 hover:text-primary transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-primary/5"
+                                title="Click to edit payment amounts"
+                              >
+                                <span>
+                                  {job.paidAmount > 0 ? `₹${job.paidAmount} / ` : '- / '}
+                                  ₹{job.totalAmount}
+                                </span>
+                                <Edit2 className="w-3 h-3 opacity-0 group-hover/amt:opacity-100 text-primary transition-opacity" />
+                              </button>
+                            ) : (
+                              <span className="font-semibold text-gray-700">
+                                {job.paidAmount > 0 ? `₹${job.paidAmount} / ` : '- / '}
+                                ₹{job.totalAmount}
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <div className="flex flex-col items-center gap-1.5">
@@ -1030,11 +1099,35 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
                               )}
                               
                               <div className="flex items-center gap-1.5 text-[10px]">
-                                <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
-                                  job.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                                }`}>
-                                  {job.paymentStatus}
-                                </span>
+                                {canEditJob ? (
+                                  <select
+                                    value={job.paymentStatus || 'Unpaid'}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => handleUpdatePaymentStatus(job, e.target.value)}
+                                    className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] border focus:outline-none cursor-pointer transition-colors ${
+                                      job.paymentStatus === 'Paid' 
+                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-200/70' 
+                                        : job.paymentStatus === 'Partial'
+                                        ? 'bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200/70'
+                                        : 'bg-rose-100 text-rose-700 border-rose-300 hover:bg-rose-200/70'
+                                    }`}
+                                    title="Click to change payment status"
+                                  >
+                                    <option value="Unpaid">UNPAID</option>
+                                    <option value="Partial">PARTIAL</option>
+                                    <option value="Paid">PAID</option>
+                                  </select>
+                                ) : (
+                                  <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                    job.paymentStatus === 'Paid' 
+                                      ? 'bg-emerald-100 text-emerald-700' 
+                                      : job.paymentStatus === 'Partial'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-rose-100 text-rose-700'
+                                  }`}>
+                                    {job.paymentStatus || 'Unpaid'}
+                                  </span>
+                                )}
                                 {matchedInvoice ? (
                                   <span className="text-emerald-700 font-bold flex items-center gap-0.5 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60" title="Invoice recorded">
                                     <CheckCircle className="w-2.5 h-2.5 text-emerald-600" /> Invoiced
@@ -1075,6 +1168,117 @@ export function ReportsPage({ setCurrentPage }: { setCurrentPage?: (page: string
           setCurrentPage={setCurrentPage}
           onInvoiceSaved={(savedInv) => setSelectedPreviewInvoice(savedInv)}
         />
+      )}
+
+      {/* Quick Payment Edit Modal */}
+      {editingPaymentJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-gray-100 transform transition-all scale-100 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <div>
+                <h3 className="font-bold text-gray-800 text-base">Update Payment</h3>
+                <p className="text-xs text-gray-500 truncate max-w-xs">{editingPaymentJob.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPaymentJob(null)}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSavePaymentModal} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Total Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={paymentFormData.totalAmount}
+                  onChange={(e) => {
+                    const total = e.target.value;
+                    setPaymentFormData(prev => {
+                      const paid = parseFloat(prev.paidAmount) || 0;
+                      const tot = parseFloat(total) || 0;
+                      let status = prev.paymentStatus;
+                      if (tot > 0 && paid >= tot) status = 'Paid';
+                      else if (paid > 0 && paid < tot) status = 'Partial';
+                      else if (paid === 0) status = 'Unpaid';
+                      return { ...prev, totalAmount: total, paymentStatus: status };
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Paid Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={paymentFormData.paidAmount}
+                  onChange={(e) => {
+                    const paid = e.target.value;
+                    setPaymentFormData(prev => {
+                      const tot = parseFloat(prev.totalAmount) || 0;
+                      const p = parseFloat(paid) || 0;
+                      let status = prev.paymentStatus;
+                      if (tot > 0 && p >= tot) status = 'Paid';
+                      else if (p > 0 && p < tot) status = 'Partial';
+                      else if (p === 0) status = 'Unpaid';
+                      return { ...prev, paidAmount: paid, paymentStatus: status };
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Payment Status</label>
+                <select
+                  value={paymentFormData.paymentStatus}
+                  onChange={(e) => {
+                    const status = e.target.value;
+                    setPaymentFormData(prev => {
+                      const tot = parseFloat(prev.totalAmount) || 0;
+                      let paid = prev.paidAmount;
+                      if (status === 'Paid') paid = String(tot);
+                      else if (status === 'Unpaid') paid = '0';
+                      return { ...prev, paymentStatus: status, paidAmount: paid };
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium bg-white cursor-pointer"
+                >
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Partial">Partial</option>
+                  <option value="Paid">Paid</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingPaymentJob(null)}
+                  className="px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-medium text-white bg-primary hover:bg-primary-hover rounded-lg shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
