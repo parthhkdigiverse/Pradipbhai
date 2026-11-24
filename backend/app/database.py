@@ -198,7 +198,8 @@ async def init_db():
             columns = [c["name"] for c in inspector.get_columns("leave_requests")]
             needed_leave_cols = [
                 ("is_half_day", "BOOLEAN DEFAULT FALSE"),
-                ("half_day_session", "VARCHAR(50) NULL")
+                ("half_day_session", "VARCHAR(50) NULL"),
+                ("days", "FLOAT DEFAULT 1.0")
             ]
             for col_name, col_type in needed_leave_cols:
                 if col_name not in columns:
@@ -206,6 +207,10 @@ async def init_db():
                         sync_conn.execute(text(f"ALTER TABLE leave_requests ADD COLUMN `{col_name}` {col_type}"))
                     except Exception as e:
                         print(f"⚠️ Column addition notice for leave_requests.{col_name}: {e}")
+            try:
+                sync_conn.execute(text("ALTER TABLE leave_requests MODIFY COLUMN `days` FLOAT DEFAULT 1.0"))
+            except Exception as e:
+                print(f"⚠️ Column modify notice for leave_requests.days: {e}")
 
         if "staff" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("staff")]

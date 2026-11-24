@@ -16,12 +16,35 @@ async def get_leave_requests(db: AsyncSession = Depends(get_db)):
 
 @router.post("/requests", response_model=LeaveRequestOut, status_code=status.HTTP_201_CREATED)
 async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = Depends(get_db)):
+    req_type = req_in.type or "Casual"
+    
+    # Enforce strictly 1 Paid Earned Leave per month (cannot be carry forwarded)
+    if req_type == "Earned":
+        target_month = (req_in.from_date or "")[:7]
+        if target_month:
+            existing_earned = await db.execute(
+                select(LeaveRequest).where(
+                    LeaveRequest.staff_id == req_in.staff_id,
+                    LeaveRequest.type == "Earned",
+                    LeaveRequest.status != "Rejected",
+                    LeaveRequest.from_date.startswith(target_month)
+                )
+            )
+            existing_list = existing_earned.scalars().all()
+            used_days = sum(float(getattr(r, "days", 1.0) or 1.0) for r in existing_list)
+            requested_days = float(req_in.days or 1.0)
+            if used_days >= 1.0 or (used_days + requested_days) > 1.0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Paid Earned Leave quota is 1 day per month (cannot be carry forwarded). Month {target_month} already has {used_days} day(s) used or pending. Additional leaves in the same month must be applied as Casual Leave."
+                )
+
     req_id = req_in.id or f"leave-{uuid.uuid4().hex[:8]}"
     leave_req = LeaveRequest(
         id=req_id,
         staff_id=req_in.staff_id,
         staff_name=req_in.staff_name,
-        type=req_in.type or "Casual",
+        type=req_type,
         from_date=req_in.from_date,
         to_date=req_in.to_date,
         days=req_in.days or 1.0,

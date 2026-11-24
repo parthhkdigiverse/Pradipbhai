@@ -34,6 +34,18 @@ function calcDays(from: string, to: string) {
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1);
 }
 
+export function getLeaveDays(r: Partial<LeaveRequest> | any): number {
+  if (!r) return 1;
+  if (r.isHalfDay || r.is_half_day || r.days === 0.5) return 0.5;
+  const d = Number(r.days);
+  if (!isNaN(d) && d > 0) return d;
+  if (r.fromDate && r.toDate) {
+    const calc = calcDays(r.fromDate, r.toDate);
+    if (calc > 0) return calc;
+  }
+  return 1;
+}
+
 const emptyForm = () => ({
   fromDate: '',
   toDate: '',
@@ -115,9 +127,9 @@ export function LeaveManagementPage() {
   const myUsed = useMemo(() => {
     const approved = myLeaves.filter(r => r.status === 'Approved');
     return {
-      Casual: approved.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
-      Sick:   approved.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
-      Earned: approved.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Casual: approved.filter(r => r.type === 'Casual').reduce((s, r) => s + getLeaveDays(r), 0),
+      Sick:   approved.filter(r => r.type === 'Sick').reduce((s, r) => s + getLeaveDays(r), 0),
+      Earned: approved.filter(r => r.type === 'Earned').reduce((s, r) => s + getLeaveDays(r), 0),
     };
   }, [myLeaves]);
 
@@ -129,9 +141,9 @@ export function LeaveManagementPage() {
       ((r.fromDate && r.fromDate.startsWith(currentMonthStr)) || (r.toDate && r.toDate.startsWith(currentMonthStr)))
     );
     return {
-      Casual: approvedThisMonth.filter(r => r.type === 'Casual').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
-      Sick:   approvedThisMonth.filter(r => r.type === 'Sick').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
-      Earned: approvedThisMonth.filter(r => r.type === 'Earned').reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0),
+      Casual: approvedThisMonth.filter(r => r.type === 'Casual').reduce((s, r) => s + getLeaveDays(r), 0),
+      Sick:   approvedThisMonth.filter(r => r.type === 'Sick').reduce((s, r) => s + getLeaveDays(r), 0),
+      Earned: approvedThisMonth.filter(r => r.type === 'Earned').reduce((s, r) => s + getLeaveDays(r), 0),
     };
   }, [myLeaves, currentMonthStr]);
 
@@ -166,7 +178,7 @@ export function LeaveManagementPage() {
   const totalSickUsed = useMemo(() => {
     return myActiveRequests
       .filter(r => r.type === 'Sick')
-      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+      .reduce((s, r) => s + getLeaveDays(r), 0);
   }, [myActiveRequests]);
 
   const remainingSickPaid = Math.max(0, sickPaidQuota - totalSickUsed);
@@ -179,34 +191,43 @@ export function LeaveManagementPage() {
         r.type === 'Earned' &&
         ((r.fromDate && r.fromDate.startsWith(selectedMonthStr)) || (r.toDate && r.toDate.startsWith(selectedMonthStr)))
       )
-      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+      .reduce((s, r) => s + getLeaveDays(r), 0);
   }, [myActiveRequests, selectedMonthStr]);
 
   const totalEarnedUsed = useMemo(() => {
     return myActiveRequests
       .filter(r => r.type === 'Earned')
-      .reduce((s, r) => s + (r.days !== undefined ? r.days : 1), 0);
+      .reduce((s, r) => s + getLeaveDays(r), 0);
   }, [myActiveRequests]);
 
   const remainingMonthEarned = Math.max(0, 1 - selectedMonthEarnedUsed);
   const remainingAnnualEarned = Math.max(0, earnedPaidQuota - totalEarnedUsed);
   const isEarnedConsumed = remainingMonthEarned <= 0 || remainingAnnualEarned <= 0;
 
-  // Check if currently selected category in form.type is consumed
-  const isCurrentCategoryConsumed = (form.type === 'Sick' && isSickConsumed) || (form.type === 'Earned' && isEarnedConsumed);
+  const requestedDays = form.fromDate ? (form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate)) : 0;
+  const isEarnedDaysExceeded = form.type === 'Earned' && requestedDays > remainingMonthEarned;
+
+  // Check if currently selected category in form.type is consumed or exceeded
+  const isCurrentCategoryConsumed = (form.type === 'Sick' && isSickConsumed) || (form.type === 'Earned' && (isEarnedConsumed || isEarnedDaysExceeded));
 
   const activeWarning = useMemo(() => {
     if (quotaWarning) return quotaWarning;
     if (form.type === 'Sick' && isSickConsumed) {
       return `Paid Sick Leave quota is exhausted! You have consumed all ${sickPaidQuota} paid Sick Leaves for this year (${totalSickUsed}/${sickPaidQuota} used). You cannot apply for Sick Leave. Please switch to Casual Leave (payroll-deductible).`;
     }
-    if (form.type === 'Earned' && isEarnedConsumed) {
-      return remainingAnnualEarned <= 0
-        ? `Annual Paid Earned Leave quota is exhausted! You have consumed all ${earnedPaidQuota} paid Earned Leaves for this year (${totalEarnedUsed}/${earnedPaidQuota} used). Please switch to Casual Leave.`
-        : `Paid Earned Leave quota is consumed for ${selectedMonthFormatted}! You have already used your 1 paid Earned Leave for this month (${selectedMonthEarnedUsed}/1 used). Earned leaves cannot be carry-forwarded (1 paid day/month). Please switch to Casual Leave.`;
+    if (form.type === 'Earned') {
+      if (remainingAnnualEarned <= 0) {
+        return `Annual Paid Earned Leave quota is exhausted! You have consumed all ${earnedPaidQuota} paid Earned Leaves for this year (${totalEarnedUsed}/${earnedPaidQuota} used). Please switch to Casual Leave.`;
+      }
+      if (remainingMonthEarned <= 0) {
+        return `Paid Earned Leave quota is consumed for ${selectedMonthFormatted}! You have already used your 1 paid Earned Leave for this month (${selectedMonthEarnedUsed}/1 used). Earned leaves cannot be carry-forwarded (1 paid day/month). Please switch to Casual Leave.`;
+      }
+      if (isEarnedDaysExceeded) {
+        return `Requested duration (${requestedDays} day${requestedDays > 1 ? 's' : ''}) exceeds available Paid Earned Leave (${remainingMonthEarned} day left for ${selectedMonthFormatted}). Earned leaves are strictly 1 paid day per month (cannot be carry forwarded). Please apply for ${remainingMonthEarned} day under Earned and the rest under Casual Leave.`;
+      }
     }
     return null;
-  }, [quotaWarning, form.type, isSickConsumed, isEarnedConsumed, sickPaidQuota, totalSickUsed, remainingAnnualEarned, earnedPaidQuota, totalEarnedUsed, selectedMonthFormatted, selectedMonthEarnedUsed]);
+  }, [quotaWarning, form.type, isSickConsumed, isEarnedConsumed, isEarnedDaysExceeded, requestedDays, sickPaidQuota, totalSickUsed, remainingAnnualEarned, earnedPaidQuota, totalEarnedUsed, selectedMonthFormatted, selectedMonthEarnedUsed, remainingMonthEarned]);
 
   const handleSelectType = (t: LeaveType) => {
     if (t === 'Sick' && isSickConsumed) {
@@ -232,10 +253,20 @@ export function LeaveManagementPage() {
   const handleApply = async () => {
     if (!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || !currentStaff) return;
     if (isCurrentCategoryConsumed) {
-      setQuotaWarning(`Cannot submit: Paid quota for ${form.type} Leave is consumed. Please switch to Casual Leave.`);
+      setQuotaWarning(`Cannot submit: Paid quota for ${form.type} Leave is consumed or exceeded. Please switch to Casual Leave.`);
       return;
     }
     const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
+    if (form.type === 'Earned') {
+      if (selectedMonthEarnedUsed >= 1) {
+        setQuotaWarning(`Cannot submit: Paid Earned Leave quota (1 day/month) is already exhausted for ${selectedMonthFormatted}! Additional leaves in the same month must be Casual Leave (payroll-deductible).`);
+        return;
+      }
+      if (days > remainingMonthEarned) {
+        setQuotaWarning(`Cannot submit: Paid Earned Leave is strictly 1 day per month (cannot be carry forwarded). Only ${remainingMonthEarned} day remains for ${selectedMonthFormatted}, but you requested ${days} day(s). Please apply for ${remainingMonthEarned} day under Earned and the rest under Casual Leave.`);
+        return;
+      }
+    }
     const targetToDate = form.isHalfDay ? form.fromDate : form.toDate;
     await addLeaveRequest({
       staffId: currentStaff.id,
@@ -306,20 +337,68 @@ export function LeaveManagementPage() {
   }, [leaveBalances]);
 
   const staffLeaveUsageMap = useMemo(() => {
-    const map = new Map<string, { usedC: number; usedS: number; usedE: number }>();
+    const map = new Map<string, { 
+      usedC: number; 
+      usedS: number; 
+      usedE: number; 
+      paidE: number; 
+      deductibleE: number;
+      paidS: number;
+      deductibleS: number;
+    }>();
+
+    // Group approved leaves by employee
+    const empLeavesMap = new Map<string, any[]>();
     (leaveRequests || []).forEach(r => {
       if (r.status !== 'Approved') return;
       const sId = r.staffId || (r as any).staff_id;
       if (!sId) return;
-      const cur = map.get(sId) || { usedC: 0, usedS: 0, usedE: 0 };
-      const days = r.days !== undefined ? r.days : 1;
-      if (r.type === 'Casual') cur.usedC += days;
-      else if (r.type === 'Sick') cur.usedS += days;
-      else if (r.type === 'Earned') cur.usedE += days;
-      map.set(sId, cur);
+      if (!empLeavesMap.has(sId)) empLeavesMap.set(sId, []);
+      empLeavesMap.get(sId)!.push(r);
     });
+
+    staff.forEach(emp => {
+      const reqs = empLeavesMap.get(emp.id) || [];
+      const bal = staffBalancesMap.get(emp.id) ?? { casual: 0, sick: 3, earned: 12 };
+      const sickQuota = bal.sick ?? 3;
+      
+      let usedC = 0;
+      let usedS = 0;
+      let usedE = 0;
+      
+      // Group Earned leaves by month (YYYY-MM)
+      const earnedByMonth = new Map<string, number>();
+      
+      reqs.forEach(r => {
+        const days = getLeaveDays(r);
+        if (r.type === 'Casual') {
+          usedC += days;
+        } else if (r.type === 'Sick') {
+          usedS += days;
+        } else if (r.type === 'Earned') {
+          usedE += days;
+          const mo = (r.fromDate || '').slice(0, 7) || 'unknown';
+          earnedByMonth.set(mo, (earnedByMonth.get(mo) || 0) + days);
+        }
+      });
+
+      // 1 day per month earned leave quota (cannot carry forward)
+      let paidE = 0;
+      let deductibleE = 0;
+      earnedByMonth.forEach(monthTotal => {
+        paidE += Math.min(monthTotal, 1);
+        deductibleE += Math.max(0, monthTotal - 1);
+      });
+
+      // 3 days sick quota per year
+      const paidS = Math.min(usedS, sickQuota);
+      const deductibleS = Math.max(0, usedS - sickQuota);
+
+      map.set(emp.id, { usedC, usedS, usedE, paidE, deductibleE, paidS, deductibleS });
+    });
+
     return map;
-  }, [leaveRequests]);
+  }, [leaveRequests, staff, staffBalancesMap]);
 
   const balanceCards = useMemo(() => [
     { 
@@ -500,7 +579,7 @@ export function LeaveManagementPage() {
                           </td>
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.fromDate}</td>
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.toDate}</td>
-                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days !== undefined ? req.days : 1}</td>
+                          <td className="py-4 px-6 text-center font-black text-gray-800">{getLeaveDays(req)}</td>
                           <td className="py-4 px-6 text-gray-500 max-w-[180px] truncate">{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
@@ -621,7 +700,7 @@ export function LeaveManagementPage() {
                           <td className="py-4 px-6 font-semibold text-gray-600">
                             {req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`}
                           </td>
-                          <td className="py-4 px-6 text-center font-black text-gray-800">{req.days !== undefined ? req.days : 1}</td>
+                          <td className="py-4 px-6 text-center font-black text-gray-800">{getLeaveDays(req)}</td>
                           <td className="py-4 px-6 text-gray-500 max-w-[160px] truncate">{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
@@ -711,14 +790,15 @@ export function LeaveManagementPage() {
               <tbody className="divide-y divide-gray-100/80">
                 {staff.map(emp => {
                   const bal = staffBalancesMap.get(emp.id) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
-                  const usage = staffLeaveUsageMap.get(emp.id) || { usedC: 0, usedS: 0, usedE: 0 };
+                  const usage = staffLeaveUsageMap.get(emp.id) || { usedC: 0, usedS: 0, usedE: 0, paidE: 0, deductibleE: 0, paidS: 0, deductibleS: 0 };
                   const usedC = usage.usedC;
                   const usedS = usage.usedS;
-                  const usedE = usage.usedE;
+                  const paidE = usage.paidE;
+                  const deductibleE = usage.deductibleE;
 
                   const earnedQuota = bal.earned ?? 12;
                   const sickQuota = bal.sick ?? 3;
-                  const remainingEarned = Math.max(0, earnedQuota - usedE);
+                  const remainingEarned = Math.max(0, earnedQuota - paidE);
                   const remainingSick = Math.max(0, sickQuota - usedS);
                   const extraSick = Math.max(0, usedS - sickQuota);
 
@@ -776,11 +856,13 @@ export function LeaveManagementPage() {
                       {/* Used Days */}
                       <td className="py-4 px-6 text-center">
                         <div className="flex items-center justify-center gap-2 text-[11px] font-bold">
-                          <span className="text-emerald-600" title="Earned Leaves">{usedE} E</span>
+                          <span className="text-emerald-600" title={`Earned Leaves: ${paidE} Paid${deductibleE > 0 ? `, ${deductibleE} Extra/Deductible` : ''}`}>
+                            {paidE} E{deductibleE > 0 ? ` (+${deductibleE}d)` : ''}
+                          </span>
                           <span className="text-gray-300">/</span>
                           <span className="text-rose-500" title="Sick Leaves">{usedS} S</span>
                           <span className="text-gray-300">/</span>
-                          <span className="text-blue-500" title="Casual Leaves">{usedC} C</span>
+                          <span className="text-blue-500" title="Casual Leaves">{usedC + deductibleE} C</span>
                         </div>
                       </td>
                       {/* Remaining Paid */}
@@ -792,6 +874,11 @@ export function LeaveManagementPage() {
                           <span className={remainingSick === 0 ? 'text-rose-500' : 'text-emerald-600'}>
                             {remainingSick > 0 ? `${remainingSick} Sick Paid` : `${extraSick} Extra Sick (Deductible)`}
                           </span>
+                          {deductibleE > 0 && (
+                            <span className="text-rose-500 text-[10px] font-semibold">
+                              {deductibleE}d Extra in same mo. (Deductible)
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1087,7 +1174,7 @@ export function LeaveManagementPage() {
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
-                <p className="text-xs font-bold text-rose-600">{rejectTarget.staffName} · {rejectTarget.type} · {rejectTarget.days} day{rejectTarget.days > 1 ? 's' : ''}</p>
+                <p className="text-xs font-bold text-rose-600">{rejectTarget.staffName} · {rejectTarget.type} · {getLeaveDays(rejectTarget)} day{getLeaveDays(rejectTarget) > 1 ? 's' : ''}</p>
                 <p className="text-xs text-rose-500 mt-0.5">{rejectTarget.fromDate} → {rejectTarget.toDate}</p>
               </div>
               <div>

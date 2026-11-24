@@ -834,17 +834,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const normalizeLeaveRequest = (l: any) => ({
-    ...l,
-    staffId: l.staff_id || l.staffId,
-    staffName: l.staff_name || l.staffName,
-    fromDate: l.from_date || l.fromDate,
-    toDate: l.to_date || l.toDate,
-    appliedOn: l.applied_on || l.appliedOn,
-    reviewedBy: l.reviewed_by || l.reviewedBy,
-    reviewNote: l.review_note || l.reviewNote,
-    reviewedOn: l.reviewed_on || l.reviewedOn
-  });
+  const normalizeLeaveRequest = (l: any) => {
+    const isHalf = Boolean(l.is_half_day !== undefined ? l.is_half_day : l.isHalfDay);
+    const rawDays = Number(l.days);
+    const days = (rawDays > 0) ? rawDays : (isHalf ? 0.5 : 1);
+    return {
+      ...l,
+      staffId: l.staff_id || l.staffId,
+      staffName: l.staff_name || l.staffName,
+      fromDate: l.from_date || l.fromDate,
+      toDate: l.to_date || l.toDate,
+      days,
+      isHalfDay: isHalf,
+      halfDaySession: l.half_day_session || l.halfDaySession || '',
+      appliedOn: l.applied_on || l.appliedOn,
+      reviewedBy: l.reviewed_by || l.reviewedBy,
+      reviewNote: l.review_note || l.reviewNote,
+      reviewedOn: l.reviewed_on || l.reviewedOn
+    };
+  };
 
   const normalizeWorkLog = (w: any) => ({
     ...w,
