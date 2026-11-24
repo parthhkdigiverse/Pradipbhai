@@ -241,12 +241,17 @@ export function PayrollPage() {
     const sickQuota = bal.sick ?? 3;
 
     // Approved leaves for this employee in the Financial Year (FY)
-    const empApprovedLeaves = (leaveRequests || []).filter(r =>
-      (r.staffId === emp.id || (r as any).staff_id === emp.id) &&
-      r.status === 'Approved' &&
-      ((r.fromDate && r.fromDate >= fyStartDate && r.fromDate <= fyEndDate) ||
-       (r.toDate && r.toDate >= fyStartDate && r.toDate <= fyEndDate))
-    );
+    const empApprovedLeaves = (leaveRequests || []).filter(r => {
+      const sId = r.staffId || (r as any).staff_id;
+      const fDate = r.fromDate || (r as any).from_date;
+      const tDate = r.toDate || (r as any).to_date || fDate;
+      return (
+        sId === emp.id &&
+        r.status === 'Approved' &&
+        ((fDate && fDate >= fyStartDate && fDate <= fyEndDate) ||
+         (tDate && tDate >= fyStartDate && tDate <= fyEndDate))
+      );
+    });
 
     interface LeaveDaySegment {
       date: string;
@@ -256,9 +261,17 @@ export function PayrollPage() {
     }
     const allLeaveDays: LeaveDaySegment[] = [];
     empApprovedLeaves.forEach(r => {
-      const dates = getLeaveDates(r.fromDate, r.toDate);
+      const fDate = r.fromDate || (r as any).from_date;
+      const tDate = r.toDate || (r as any).to_date || fDate;
+      const dates = getLeaveDates(fDate, tDate);
       if (dates.length === 0) return;
-      if (r.isHalfDay) {
+      const isHalf = Boolean(
+        r.isHalfDay || 
+        (r as any).is_half_day || 
+        r.days === 0.5 || 
+        (r.days !== undefined && Number(r.days) === 0.5)
+      );
+      if (isHalf) {
         // Exclude company holidays from consuming leave days
         if (dates[0] >= fyStartDate && dates[0] <= fyEndDate && !holidayDatesSet.has(dates[0])) {
           allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5, leaveReq: r });
@@ -320,10 +333,14 @@ export function PayrollPage() {
     const totalDeductibleLeaveDays = deductibleSickInMonth + deductibleCasualInMonth + deductibleEarnedInMonth;
     const totalPaidLeaveDays = paidEarnedInMonth + paidSickInMonth;
 
+    const approvedLeaveDaysInMonth = allLeaveDays
+      .filter(seg => seg.date.startsWith(targetMonth))
+      .reduce((sum, seg) => sum + seg.weight, 0);
+
     let daysPresent = 0;
     let daysAbsent = 0;
     let daysHalf = 0;
-    let daysLeave = 0;
+    let daysLeave = approvedLeaveDaysInMonth;
     let latePenalties = 0;
     const absentDates: string[] = [];
     const halfDayDates: string[] = [];
@@ -348,7 +365,7 @@ export function PayrollPage() {
           halfDayDates.push(r.date);
         }
       }
-      if (r.status === 'Leave') daysLeave++;
+      if (r.status === 'Leave' && approvedLeaveDaysInMonth === 0) daysLeave++;
       const penAmt = (r.penaltyAmount || r.penalty_amount || 0);
       if (penAmt > 0) {
         latePenalties += penAmt;
@@ -426,7 +443,9 @@ export function PayrollPage() {
 
     // 4. Deductible Leaves in this month
     const leavesInMonth = empApprovedLeaves.filter(r => {
-      const dates = getLeaveDates(r.fromDate, r.toDate);
+      const fDate = r.fromDate || (r as any).from_date;
+      const tDate = r.toDate || (r as any).to_date || fDate;
+      const dates = getLeaveDates(fDate, tDate);
       return dates.some(d => d.startsWith(targetMonth));
     });
 
@@ -434,61 +453,73 @@ export function PayrollPage() {
     if (deductibleCasualInMonth > 0) {
       const casuals = leavesInMonth.filter(r => r.type === 'Casual');
       casuals.forEach((r, idx) => {
-        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
-        const days = r.isHalfDay ? 0.5 : inMonthDates.length;
+        const fDate = r.fromDate || (r as any).from_date;
+        const tDate = r.toDate || (r as any).to_date || fDate;
+        const inMonthDates = getLeaveDates(fDate, tDate).filter(d => d.startsWith(targetMonth));
+        const isHalf = Boolean(
+          r.isHalfDay || 
+          (r as any).is_half_day || 
+          r.days === 0.5 || 
+          (r.days !== undefined && Number(r.days) === 0.5)
+        );
+        const days = isHalf ? 0.5 : (r.days !== undefined && Number(r.days) > 0 ? Number(r.days) : inMonthDates.length);
         const amt = Math.round(days * perDaySalary);
         const dStr = inMonthDates.map(formatShortDate).join(', ');
         deductionBreakdown.push({
           id: `ded-casual-${r.id || idx}`,
           category: 'leave',
-          title: `Casual Leave (${days} ${days === 1 ? 'day' : 'days'})`,
+          title: `Casual Leave (${days === 0.5 ? '½ day' : `${days} ${days === 1 ? 'day' : 'days'}`})`,
           dates: dStr,
           days,
           amount: amt,
           reason: r.reason || 'Casual Leave'
         });
-        autoNoteParts.push(`Casual: ${r.reason || 'Leave'} (${dStr})`);
+        autoNoteParts.push(`Casual: ${r.reason || 'Leave'} (${days === 0.5 ? '½d' : `${days}d`} - ${dStr})`);
       });
     }
 
     // Sick leaves beyond quota
     if (deductibleSickInMonth > 0) {
       const sicks = leavesInMonth.filter(r => r.type === 'Sick');
-      sicks.forEach((r, idx) => {
-        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
-        const dStr = inMonthDates.map(formatShortDate).join(', ');
-        const amt = Math.round(deductibleSickInMonth * perDaySalary);
-        deductionBreakdown.push({
-          id: `ded-sick-${r.id || idx}`,
-          category: 'leave',
-          title: `Sick Leave beyond annual 3-day quota (${deductibleSickInMonth}d)`,
-          dates: dStr,
-          days: deductibleSickInMonth,
-          amount: amt,
-          reason: r.reason || 'Sick Leave'
-        });
-        autoNoteParts.push(`Sick beyond quota: ${r.reason || 'Leave'} (${dStr})`);
+      const allSickDates = sicks.flatMap(r => {
+        const fDate = r.fromDate || (r as any).from_date;
+        const tDate = r.toDate || (r as any).to_date || fDate;
+        return getLeaveDates(fDate, tDate).filter(d => d.startsWith(targetMonth));
       });
+      const dStr = allSickDates.map(formatShortDate).join(', ');
+      const amt = Math.round(deductibleSickInMonth * perDaySalary);
+      deductionBreakdown.push({
+        id: `ded-sick-${targetMonth}`,
+        category: 'leave',
+        title: `Sick Leave beyond annual 3-day quota (${deductibleSickInMonth === 0.5 ? '½ day' : `${deductibleSickInMonth}d`})`,
+        dates: dStr,
+        days: deductibleSickInMonth,
+        amount: amt,
+        reason: sicks.map(r => r.reason).filter(Boolean).join('; ') || 'Sick Leave'
+      });
+      autoNoteParts.push(`Sick beyond quota: ${deductibleSickInMonth === 0.5 ? '½d' : `${deductibleSickInMonth}d`} (${dStr})`);
     }
 
     // Earned leaves beyond monthly quota
     if (deductibleEarnedInMonth > 0) {
       const earneds = leavesInMonth.filter(r => r.type === 'Earned');
-      earneds.forEach((r, idx) => {
-        const inMonthDates = getLeaveDates(r.fromDate, r.toDate).filter(d => d.startsWith(targetMonth));
-        const dStr = inMonthDates.map(formatShortDate).join(', ');
-        const amt = Math.round(deductibleEarnedInMonth * perDaySalary);
-        deductionBreakdown.push({
-          id: `ded-earned-${r.id || idx}`,
-          category: 'leave',
-          title: `Earned Leave beyond monthly 1-day quota (${deductibleEarnedInMonth}d)`,
-          dates: dStr,
-          days: deductibleEarnedInMonth,
-          amount: amt,
-          reason: r.reason || 'Earned Leave'
-        });
-        autoNoteParts.push(`Earned beyond quota: ${r.reason || 'Leave'} (${dStr})`);
+      const allEarnedDates = earneds.flatMap(r => {
+        const fDate = r.fromDate || (r as any).from_date;
+        const tDate = r.toDate || (r as any).to_date || fDate;
+        return getLeaveDates(fDate, tDate).filter(d => d.startsWith(targetMonth));
       });
+      const dStr = allEarnedDates.map(formatShortDate).join(', ');
+      const amt = Math.round(deductibleEarnedInMonth * perDaySalary);
+      deductionBreakdown.push({
+        id: `ded-earned-${targetMonth}`,
+        category: 'leave',
+        title: `Earned Leave beyond monthly 1-day quota (${deductibleEarnedInMonth === 0.5 ? '½ day' : `${deductibleEarnedInMonth}d`})`,
+        dates: dStr,
+        days: deductibleEarnedInMonth,
+        amount: amt,
+        reason: earneds.map(r => r.reason).filter(Boolean).join('; ') || 'Earned Leave'
+      });
+      autoNoteParts.push(`Earned beyond quota: ${deductibleEarnedInMonth === 0.5 ? '½d' : `${deductibleEarnedInMonth}d`} (${dStr})`);
     }
 
     // 5. Check manual adjustment / note
@@ -1380,7 +1411,7 @@ export function PayrollPage() {
                                 {item.dates && <span className="text-[10px] text-gray-500 font-normal">({item.dates})</span>}
                               </div>
                               {item.reason && item.id !== 'ded-manual-reason' && (
-                                <div className="text-[11px] text-gray-600 mt-0.5">
+                                <div className="text-[11px] text-gray-600 mt-0.5 cursor-help" title={item.reason}>
                                   <span className="text-rose-600 font-semibold">Reason:</span> "{item.reason}"
                                 </div>
                               )}
@@ -1777,7 +1808,7 @@ export function PayrollPage() {
                             {item.dates && <span className="text-[10px] text-gray-500 font-normal">({item.dates})</span>}
                           </div>
                           {item.reason && (
-                            <div className="text-[11px] text-gray-600 mt-0.5">
+                            <div className="text-[11px] text-gray-600 mt-0.5 cursor-help" title={item.reason}>
                               <span className="text-rose-600 font-semibold">Reason:</span> "{item.reason}"
                             </div>
                           )}

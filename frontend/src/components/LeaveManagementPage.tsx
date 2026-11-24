@@ -580,7 +580,7 @@ export function LeaveManagementPage() {
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.fromDate}</td>
                           <td className="py-4 px-6 font-semibold text-gray-700">{req.toDate}</td>
                           <td className="py-4 px-6 text-center font-black text-gray-800">{getLeaveDays(req)}</td>
-                          <td className="py-4 px-6 text-gray-500 max-w-[180px] truncate">{req.reason}</td>
+                          <td className="py-4 px-6 text-gray-500 max-w-[200px] truncate cursor-help" title={req.reason}>{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
                               <StatusIcon status={req.status} />
@@ -597,7 +597,7 @@ export function LeaveManagementPage() {
                               </button>
                             )}
                             {req.status === 'Rejected' && req.reviewNote && (
-                              <span className="text-[10px] text-gray-400 italic">"{req.reviewNote}"</span>
+                              <span className="text-[10px] text-gray-400 italic cursor-help" title={`Rejection Note: ${req.reviewNote}`}>"{req.reviewNote}"</span>
                             )}
                           </td>
                         </tr>
@@ -701,7 +701,7 @@ export function LeaveManagementPage() {
                             {req.fromDate === req.toDate ? req.fromDate : `${req.fromDate} → ${req.toDate}`}
                           </td>
                           <td className="py-4 px-6 text-center font-black text-gray-800">{getLeaveDays(req)}</td>
-                          <td className="py-4 px-6 text-gray-500 max-w-[160px] truncate">{req.reason}</td>
+                          <td className="py-4 px-6 text-gray-500 max-w-[200px] truncate cursor-help" title={req.reason}>{req.reason}</td>
                           <td className="py-4 px-6 text-center">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${sc.bg} ${sc.text}`}>
                               <StatusIcon status={req.status} />
@@ -734,7 +734,7 @@ export function LeaveManagementPage() {
                                 </span>
                               )
                             ) : req.reviewNote ? (
-                              <span className="text-[10px] text-gray-400 italic max-w-[100px] block truncate">"{req.reviewNote}"</span>
+                              <span className="text-[10px] text-gray-400 italic max-w-[100px] block truncate cursor-help" title={`Review Note: ${req.reviewNote}`}>"{req.reviewNote}"</span>
                             ) : (
                               <span className="text-gray-300">—</span>
                             )}
@@ -1176,6 +1176,11 @@ export function LeaveManagementPage() {
               <div className="bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
                 <p className="text-xs font-bold text-rose-600">{rejectTarget.staffName} · {rejectTarget.type} · {getLeaveDays(rejectTarget)} day{getLeaveDays(rejectTarget) > 1 ? 's' : ''}</p>
                 <p className="text-xs text-rose-500 mt-0.5">{rejectTarget.fromDate} → {rejectTarget.toDate}</p>
+                {rejectTarget.reason && (
+                  <p className="text-xs text-gray-700 mt-2 bg-white/70 p-2 rounded-lg border border-rose-100" title={rejectTarget.reason}>
+                    <span className="font-semibold text-rose-700">Reason:</span> "{rejectTarget.reason}"
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Rejection Note (optional)</label>

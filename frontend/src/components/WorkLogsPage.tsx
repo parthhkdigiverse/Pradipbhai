@@ -10,12 +10,12 @@ export function WorkLogsPage() {
   const [dateFilter, setDateFilter] = useState('');
 
   // Extract unique users and jobs for filter dropdowns
-  const uniqueUsers = Array.from(new Set(workLogs.map(log => log.userName || 'Unknown')));
-  const uniqueJobs = Array.from(new Set(workLogs.map(log => log.jobTitle || 'Unknown')));
+  const uniqueUsers = Array.from(new Set(workLogs.map(log => log.userName || log.staff_name || 'Unknown'))).filter(Boolean);
+  const uniqueJobs = Array.from(new Set(workLogs.map(log => log.jobTitle || log.job_title || 'Unknown'))).filter(Boolean);
 
   const filteredLogs = workLogs.filter(log => {
-    const logUser = log.userName || 'Unknown';
-    const logJob = log.jobTitle || 'Unknown';
+    const logUser = log.userName || log.staff_name || 'Unknown';
+    const logJob = log.jobTitle || log.job_title || 'Unknown';
     const matchUser = userFilter ? logUser.toLowerCase().includes(userFilter.toLowerCase()) : true;
     const matchJob = jobFilter ? logJob.toLowerCase().includes(jobFilter.toLowerCase()) : true;
     const matchDate = dateFilter ? log.date === dateFilter : true;
@@ -23,15 +23,23 @@ export function WorkLogsPage() {
   });
 
   const formatTime = (seconds: number) => {
-    if (!seconds) return '00:00:00';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
+    if (!seconds || isNaN(seconds)) return '00:00:00';
+    const totalSecs = Math.round(seconds);
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const formatDateTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+  const formatDateTime = (val: any) => {
+    if (!val) return '—';
+    if (typeof val === 'string' && val.includes(':') && !val.includes('T') && val.length <= 8) {
+      return val;
+    }
+    const num = Number(val);
+    const d = !isNaN(num) && num > 0 ? new Date(num) : new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   return (
@@ -127,28 +135,28 @@ export function WorkLogsPage() {
                     </td>
                     <td className="py-4 px-6 font-bold text-gray-800">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px]">
-                          {(log.userName || 'U').charAt(0).toUpperCase()}
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
+                          {((log.userName || log.staff_name || 'U')).charAt(0).toUpperCase()}
                         </div>
-                        {log.userName || 'Unknown'}
+                        {log.userName || log.staff_name || 'Unknown'}
                       </div>
                     </td>
                     <td className="py-4 px-6 font-bold text-primary">
                       <div className="flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-primary/70" />
-                        {log.jobTitle}
+                        <Briefcase className="w-4 h-4 text-primary/70 flex-shrink-0" />
+                        <span className="truncate max-w-xs">{log.jobTitle || log.job_title || 'General Task'}</span>
                       </div>
                     </td>
-                    <td className="py-4 px-6 text-gray-600">
-                      {formatDateTime(log.startTime)}
+                    <td className="py-4 px-6 text-gray-600 font-medium">
+                      {formatDateTime(log.startTime !== undefined ? log.startTime : log.start_time)}
                     </td>
-                    <td className="py-4 px-6 text-gray-600">
-                      {formatDateTime(log.endTime)}
+                    <td className="py-4 px-6 text-gray-600 font-medium">
+                      {formatDateTime(log.endTime !== undefined ? log.endTime : log.end_time)}
                     </td>
                     <td className="py-4 px-6 text-right font-mono font-bold text-gray-700">
                       <div className="flex items-center justify-end gap-1.5 bg-gray-50 px-2 py-1 rounded inline-flex border border-gray-100">
                         <Clock className="w-3.5 h-3.5 text-gray-400" />
-                        {formatTime(log.duration)}
+                        {formatTime(log.duration !== undefined ? Number(log.duration) : (log.hours ? Number(log.hours) * 3600 : 0))}
                       </div>
                     </td>
                   </tr>

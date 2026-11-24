@@ -856,11 +856,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const normalizeWorkLog = (w: any) => ({
     ...w,
-    userName: w.staff_name || w.userName,
+    id: w.id || `wlog-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    staffId: w.staff_id || w.staffId,
+    staff_id: w.staff_id || w.staffId,
+    userName: w.staff_name || w.userName || 'Staff Member',
+    staff_name: w.staff_name || w.userName || 'Staff Member',
     jobId: w.job_id || w.jobId,
-    jobTitle: w.job_title || w.jobTitle,
-    startTime: w.start_time || w.startTime,
-    endTime: w.end_time || w.endTime
+    job_id: w.job_id || w.jobId,
+    jobTitle: w.job_title || w.jobTitle || 'General Task',
+    job_title: w.job_title || w.jobTitle || 'General Task',
+    startTime: w.start_time !== undefined ? w.start_time : w.startTime,
+    endTime: w.end_time !== undefined ? w.end_time : w.endTime,
+    duration: w.duration !== undefined ? Number(w.duration) : ((w.hours || 0) * 3600),
+    hours: w.hours !== undefined ? Number(w.hours) : ((w.duration || 0) / 3600),
+    date: w.date || new Date().toISOString().slice(0, 10),
+    description: w.description || ''
   });
 
   const normalizePayroll = (p: any) => ({
@@ -1925,21 +1935,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // WorkLogs API
   const addWorkLog = async (logData: any) => {
     try {
+      const staffName = logData.staff_name || logData.userName || logData.staffName || 'Staff Member';
+      const staffId = logData.staff_id || logData.staffId || null;
+      const jobId = logData.job_id || logData.jobId || null;
+      const jobTitle = logData.job_title || logData.jobTitle || 'Work Log';
+      const date = logData.date || new Date().toISOString().slice(0, 10);
+      const startTime = Number(logData.start_time ?? logData.startTime) || Date.now();
+      const endTime = Number(logData.end_time ?? logData.endTime) || Date.now();
+      const duration = Number(logData.duration) || Math.max(0, Math.round((endTime - startTime) / 1000));
+      const hours = Number(logData.hours) || Math.round((duration / 3600) * 100) / 100;
+
       const payload = {
-        ...logData,
-        staff_name: logData.userName,
-        job_id: logData.jobId,
-        job_title: logData.jobTitle,
-        start_time: logData.startTime,
-        end_time: logData.endTime,
-        duration: logData.duration,
-        hours: (logData.duration || 0) / 3600
+        staff_id: staffId,
+        staff_name: staffName,
+        job_id: jobId,
+        job_title: jobTitle,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        duration,
+        hours,
+        description: logData.description || ''
       };
       const data = await apiFetch(`${API_BASE_URL}/worklogs`, { method: 'POST', body: JSON.stringify(payload) });
       const norm = normalizeWorkLog(data);
       setWorkLogs(prev => [norm, ...prev]);
       return norm;
-    } catch {
+    } catch (err) {
+      console.warn("Failed to persist worklog via API:", err);
       const norm = normalizeWorkLog({ ...logData, id: logData.id || `log-${Date.now()}` });
       setWorkLogs(prev => [norm, ...prev]);
       return norm;
