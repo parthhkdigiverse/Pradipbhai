@@ -194,6 +194,7 @@ export const unifyDesPrintJobs = (jobsList: any[]): any[] => {
           ...printJob,
           id: printJob.id,
           title: displayTitle,
+          description: printJob.description || designJob.description || '',
           type: 'Des+Print',
           status: unifiedStatus,
           trackedTime: combinedTracked,
@@ -797,6 +798,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     return {
       ...j,
+      description: j.description !== undefined && j.description !== null ? j.description : '',
       clientId: j.clientId || j.client_id || '',
       projectId: j.projectId || j.project_id || '',
       assignedStaffId: resolvedTeamId,

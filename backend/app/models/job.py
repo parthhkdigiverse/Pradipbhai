@@ -1,4 +1,5 @@
-from sqlalchemy import String, Float, Boolean, JSON, DateTime, func
+from typing import Optional
+from sqlalchemy import String, Float, Boolean, JSON, DateTime, func, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -7,6 +8,7 @@ class Job(Base):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     title: Mapped[str] = mapped_column(String(255), nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     type: Mapped[str] = mapped_column(String(50), default="Designing")
     clientId: Mapped[str] = mapped_column(String(50), nullable=True)
     projectId: Mapped[str] = mapped_column(String(50), nullable=True)

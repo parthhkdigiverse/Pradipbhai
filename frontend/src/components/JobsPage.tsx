@@ -518,6 +518,7 @@ export function JobsPage() {
 
   const [formData, setFormData] = useState({
     title: '',
+    description: '',
     clientId: '',
     projectId: '',
     productId: '',
@@ -739,6 +740,7 @@ export function JobsPage() {
       const printerName = vendors.find(v => v.id === job.printerId)?.name || '';
       
       const matchSearch = (job.title || '').toLowerCase().includes(sLower) || 
+                          (job.description || '').toLowerCase().includes(sLower) ||
                           (job.status || '').toLowerCase().includes(sLower) ||
                           (!isEmployee && (job.paymentStatus || '').toLowerCase().includes(sLower)) ||
                           (job.type || '').toLowerCase().includes(sLower) ||
@@ -897,6 +899,7 @@ export function JobsPage() {
         const existingDue = job.dueDate || calculateDeadlineFromTimeline(job.estimatedTime, job.estimatedTimeUnit || (isPrint ? 'Days' : 'Hours')) || '';
         setFormData({
           title: job.title,
+          description: job.description || '',
           clientId: job.clientId || '',
           projectId: job.projectId || '',
           productId: job.productId || '',
@@ -923,6 +926,7 @@ export function JobsPage() {
     } else {
       setFormData({
         title: '',
+        description: '',
         clientId: '',
         projectId: '',
         productId: '',
@@ -2865,7 +2869,17 @@ export function JobsPage() {
                 </div>
               </div>
 
-
+              {/* Work Description */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Work Description</label>
+                <textarea 
+                  rows={3}
+                  value={formData.description} 
+                  onChange={e => setFormData({ ...formData, description: e.target.value })} 
+                  className="w-full px-3 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800 resize-none" 
+                  placeholder="Enter job description or work instructions..." 
+                />
+              </div>
 
               {/* Printer, Created By & Deadline */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

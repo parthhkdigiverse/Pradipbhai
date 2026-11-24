@@ -239,6 +239,19 @@ export function JobDetailsModal({ job, onClose }: JobDetailsModalProps) {
             )}
           </div>
 
+          {/* Job Description (View Only) */}
+          {job.description && (
+            <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200/80 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <FileText className="w-4 h-4 text-primary" />
+                <span>Job Description</span>
+              </div>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed font-medium">
+                {job.description}
+              </p>
+            </div>
+          )}
+
           {/* Details Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             

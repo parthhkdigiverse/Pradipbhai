@@ -126,6 +126,7 @@ async def init_db():
         if "jobs" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("jobs")]
             needed_cols = [
+                ("description", "TEXT NULL"),
                 ("type", "VARCHAR(50) DEFAULT 'Designing'"),
                 ("clientId", "VARCHAR(50) NULL"),
                 ("projectId", "VARCHAR(50) NULL"),
@@ -153,13 +154,6 @@ async def init_db():
                         sync_conn.execute(text(f"ALTER TABLE jobs ADD COLUMN `{col_name}` {col_type}"))
                     except Exception as e:
                         print(f"⚠️ Column addition notice for jobs.{col_name}: {e}")
-            # Drop description column if it still exists (no longer used)
-            if "description" in columns:
-                try:
-                    sync_conn.execute(text("ALTER TABLE jobs DROP COLUMN `description`"))
-                    print("✅ Dropped deprecated jobs.description column")
-                except Exception as e:
-                    print(f"⚠️ Could not drop jobs.description: {e}")
                     
         if "clients" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("clients")]
