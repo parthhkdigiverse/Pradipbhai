@@ -7,7 +7,7 @@ const WARNING_COUNTDOWN_SECONDS = 60;
 
 export function InactivityTimeoutGuard() {
   const { inactivityTimeoutEnabled, inactivityTimeoutMinutes } = useSettings();
-  const { isPunchedIn, activeJobTracker, performAutoPunchOut, currentUserRole, fieldDuties, openPunchInModal } = useData();
+  const { isPunchedIn, activeJobTracker, performAutoPunchOut, currentUserRole, fieldDuties, openPunchInModal, accessRestrictions } = useData();
   const [showWarning, setShowWarning] = useState(false);
   const [showPunchOutNotice, setShowPunchOutNotice] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState(WARNING_COUNTDOWN_SECONDS);
@@ -53,6 +53,7 @@ export function InactivityTimeoutGuard() {
     localStorage.removeItem('authToken');
     localStorage.removeItem('userId');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
     localStorage.removeItem('userRole');
     localStorage.removeItem('isAuthenticated');
     window.location.href = '/';
@@ -126,7 +127,7 @@ export function InactivityTimeoutGuard() {
     });
   }, []);
 
-  // Allowed End Time check loop (Only for Courier / Field Duty activities)
+  // Allowed End Time check loop (Only for Courier / Field Duty activities when Time Restrictions are enabled)
   useEffect(() => {
     if (isAdmin) return;
 
@@ -140,21 +141,28 @@ export function InactivityTimeoutGuard() {
       const currentDuty = (fieldDuties || []).find((d: any) => d.id === activeJobTracker?.jobId);
       if (currentDuty && currentDuty.auto_logout === false) return;
 
-      const cachedRestrictions = localStorage.getItem('accessRestrictions');
-      let endTime = '18:00';
-
-      if (cachedRestrictions) {
-        try {
-          const parsed = JSON.parse(cachedRestrictions);
-          endTime = parsed.endTime || '18:00';
-        } catch {}
+      let restrictions: any = accessRestrictions;
+      if (!restrictions) {
+        const cachedRestrictions = localStorage.getItem('accessRestrictions');
+        if (cachedRestrictions) {
+          try {
+            restrictions = JSON.parse(cachedRestrictions);
+          } catch {}
+        }
       }
+
+      // Only enforce auto-logout if Time-based Access Restrictions are explicitly enabled
+      if (!restrictions || restrictions.enableTimeRestrictions !== true) return;
+
+      const endTime = restrictions.endTime || '18:00';
+      const [endHStr, endMStr] = endTime.split(':');
+      const endH = parseInt(endHStr, 10);
+      const endM = parseInt(endMStr, 10);
+      if (isNaN(endH) || isNaN(endM)) return;
 
       const now = new Date();
       const currentMins = now.getHours() * 60 + now.getMinutes();
-
-      const [endH, endM] = endTime.split(':').map(Number);
-      const endMins = (endH || 18) * 60 + (endM || 0);
+      const endMins = endH * 60 + endM;
 
       if (currentMins >= endMins && !isAdmin) {
         isAutoLoggingOutRef.current = true;
@@ -169,7 +177,7 @@ export function InactivityTimeoutGuard() {
 
     const interval = setInterval(checkEndTimeRestrictions, 30000);
     return () => clearInterval(interval);
-  }, [isPunchedIn, isFieldDutyActive, isAdmin, performAutoPunchOut, handleLogout, fieldDuties, activeJobTracker]);
+  }, [isPunchedIn, isFieldDutyActive, isAdmin, performAutoPunchOut, handleLogout, fieldDuties, activeJobTracker, accessRestrictions]);
 
   // Periodic check loop for idle inactivity (Admins are completely exempt, and only active when user is punched in)
   useEffect(() => {

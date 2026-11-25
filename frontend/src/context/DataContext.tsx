@@ -373,6 +373,14 @@ interface DataContextType {
   openPunchInModal: () => void;
   performAutoPunchOut: (overrideEndTime?: number) => Promise<void>;
   refreshApiData: () => Promise<void>;
+  accessRestrictions: {
+    ipWhitelist?: string[];
+    enableTimeRestrictions?: boolean;
+    startTime?: string;
+    endTime?: string;
+    enableGeoRestrictions?: boolean;
+    allowedPincodes?: any[];
+  } | null;
 }
 
 const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
@@ -708,6 +716,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => loadCachedData('cache_leave_requests', []));
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(() => loadCachedData('cache_leave_balances', []));
+  const [accessRestrictions, setAccessRestrictions] = useState<any>(() => loadCachedData('accessRestrictions', null));
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
   const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>(() => loadCachedData('cache_daily_progress', []));
   const [employeeEvaluations, setEmployeeEvaluations] = useState<EmployeeEvaluationRecord[]>(() => loadCachedData('cache_employee_evaluations', []));
@@ -965,7 +974,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, leaveBalRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes, syncVerRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, leaveBalRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes, restrictionsRes, syncVerRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -984,6 +993,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/field-duties`),
         fetchWithAuth(`${API_BASE_URL}/projects`),
         fetchWithAuth(`${API_BASE_URL}/employee-of-month`),
+        fetchWithAuth(`${API_BASE_URL}/restrictions`),
         fetch(`${API_BASE_URL}/sync/version`).then(r => r.ok ? r.json() : null),
       ]);
 
@@ -1089,6 +1099,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (eomRes.status === 'fulfilled' && Array.isArray(eomRes.value)) {
         setEmployeeEvaluations(eomRes.value);
         saveCache('cache_employee_evaluations', eomRes.value);
+      }
+      if (restrictionsRes.status === 'fulfilled' && restrictionsRes.value && typeof restrictionsRes.value === 'object') {
+        setAccessRestrictions(restrictionsRes.value);
+        saveCache('accessRestrictions', restrictionsRes.value);
       }
       if (syncVerRes.status === 'fulfilled' && syncVerRes.value?.version) {
         currentSyncVersionRef.current = Number(syncVerRes.value.version) || 0;
@@ -2551,12 +2565,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     openPunchInModal,
     performAutoPunchOut,
     refreshApiData,
+    accessRestrictions,
     unreadChatCount,
     setUnreadChatCount,
     fetchUnreadSummaries
   }), [
     leads, clients, products, staff, attendance, payroll, vendors, jobs, invoices, holidays,
-    deletedSundayDates, leaveRequests, leaveBalances, projects, activeFilterIntent,
+    deletedSundayDates, leaveRequests, leaveBalances, accessRestrictions, projects, activeFilterIntent,
     isPunchedIn, punchInTime, fieldDuties, activeJobTracker, workLogs, dailyRatings,
     dailyProgressRecords, employeeEvaluations, rolePermissions, currentUserRole, currentUser,
     isPunchInModalOpen, unreadChatCount, fetchUnreadSummaries
