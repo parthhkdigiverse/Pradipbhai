@@ -9,13 +9,30 @@ from app.schemas.payroll import PayrollCreate, PayrollUpdate, PayrollOut
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 
-@router.get("", response_model=List[PayrollOut])
-async def get_payroll_records(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PayrollRecord))
-    return result.scalars().all()
 
-@router.post("", response_model=PayrollOut, status_code=status.HTTP_201_CREATED)
-async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(get_db)):
+async def _upsert_payroll_record(payroll_in: PayrollCreate, db: AsyncSession) -> PayrollRecord:
+    """Create or update a payroll record keyed by (staff_id, month) to prevent duplicates."""
+    existing_res = await db.execute(
+        select(PayrollRecord).where(
+            PayrollRecord.staff_id == payroll_in.staff_id,
+            PayrollRecord.month == payroll_in.month,
+        )
+    )
+    existing = existing_res.scalar_one_or_none()
+    if existing:
+        existing.employee_name = payroll_in.employee_name or existing.employee_name
+        existing.salary = payroll_in.salary if payroll_in.salary is not None else existing.salary
+        existing.bonus = payroll_in.bonus if payroll_in.bonus is not None else existing.bonus
+        existing.deductions = payroll_in.deductions if payroll_in.deductions is not None else existing.deductions
+        existing.net_salary = payroll_in.net_salary if payroll_in.net_salary is not None else existing.net_salary
+        existing.status = payroll_in.status or existing.status
+        existing.account_type = payroll_in.account_type or existing.account_type
+        if payroll_in.deduction_reason is not None:
+            existing.deduction_reason = payroll_in.deduction_reason
+        if payroll_in.is_manual_deduction is not None:
+            existing.is_manual_deduction = payroll_in.is_manual_deduction
+        return existing
+
     payroll_id = payroll_in.id or f"pay-{uuid.uuid4().hex[:8]}"
     payroll = PayrollRecord(
         id=payroll_id,
@@ -28,12 +45,38 @@ async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(g
         net_salary=payroll_in.net_salary or 0.0,
         status=payroll_in.status or "Pending",
         account_type=payroll_in.account_type or "Current A/c",
-        deduction_reason=payroll_in.deduction_reason
+        deduction_reason=payroll_in.deduction_reason,
+        is_manual_deduction=bool(payroll_in.is_manual_deduction),
     )
     db.add(payroll)
+    return payroll
+
+
+@router.get("", response_model=List[PayrollOut])
+async def get_payroll_records(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(PayrollRecord))
+    return result.scalars().all()
+
+
+@router.post("", response_model=PayrollOut, status_code=status.HTTP_201_CREATED)
+async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(get_db)):
+    payroll = await _upsert_payroll_record(payroll_in, db)
     await db.commit()
     await db.refresh(payroll)
     return payroll
+
+
+@router.post("/bulk", response_model=List[PayrollOut])
+async def bulk_upsert_payroll(items: List[PayrollCreate], db: AsyncSession = Depends(get_db)):
+    records: List[PayrollRecord] = []
+    for item in items:
+        rec = await _upsert_payroll_record(item, db)
+        records.append(rec)
+    await db.commit()
+    for rec in records:
+        await db.refresh(rec)
+    return records
+
 
 @router.put("/{payroll_id}", response_model=PayrollOut)
 async def update_payroll(payroll_id: str, payroll_in: PayrollUpdate, db: AsyncSession = Depends(get_db)):
@@ -41,13 +84,14 @@ async def update_payroll(payroll_id: str, payroll_in: PayrollUpdate, db: AsyncSe
     payroll = result.scalar_one_or_none()
     if not payroll:
         raise HTTPException(status_code=404, detail="Payroll record not found")
-    
+
     for field, val in payroll_in.model_dump(exclude_unset=True).items():
         setattr(payroll, field, val)
-        
+
     await db.commit()
     await db.refresh(payroll)
     return payroll
+
 
 @router.delete("/{payroll_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_payroll(payroll_id: str, db: AsyncSession = Depends(get_db)):

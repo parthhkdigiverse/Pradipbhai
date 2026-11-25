@@ -51,11 +51,23 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: dict, user_id: str):
         if user_id in self.active_connections:
-            for connection in self.active_connections[user_id]:
+            for connection in list(self.active_connections[user_id]):
                 try:
                     await connection.send_json(message)
                 except Exception:
                     pass
+
+    async def send_to_identifiers(self, message: dict, user_ids: set[str] | list[str]):
+        visited: set[int] = set()
+        for uid in user_ids:
+            for connection in list(self.active_connections.get(uid, [])):
+                conn_id = id(connection)
+                if conn_id not in visited:
+                    visited.add(conn_id)
+                    try:
+                        await connection.send_json(message)
+                    except Exception:
+                        pass
 
     async def broadcast(self, message: dict):
         visited: set[int] = set()
@@ -170,6 +182,68 @@ async def get_recent_chat_summaries(
             }
     return summary
 
+def _serialize_message(m: ChatMessage, my_ids: set[str] | list[str]) -> dict:
+    is_me = (m.sender in my_ids) or (m.sender == "me")
+    return {
+        "id": m.id,
+        "text": m.text or "",
+        "sender": "me" if is_me else "them",
+        "time": m.time,
+        "createdAt": m.created_at.isoformat() if m.created_at else None,
+        "status": m.status,
+        "attachment": m.attachment,
+        "replyTo": m.reply_to,
+        "reactions": m.reactions or {},
+        "isStarred": m.is_starred,
+        "isForwarded": m.is_forwarded,
+        "isEdited": m.is_edited,
+    }
+
+
+async def _mark_incoming_read_and_notify(
+    db: AsyncSession,
+    my_ids: list[str],
+    target_ids: list[str],
+    reader_id: str,
+) -> None:
+    try:
+        res = await db.execute(
+            update(ChatMessage)
+            .where(
+                and_(
+                    ChatMessage.sender.in_(target_ids),
+                    ChatMessage.contact_id.in_(my_ids),
+                    ChatMessage.status != "read",
+                )
+            )
+            .values(status="read")
+        )
+        if res.rowcount and res.rowcount > 0:
+            await db.commit()
+            await manager.send_to_identifiers(
+                {"type": "messages_read", "contactId": reader_id, "altContactIds": my_ids},
+                target_ids,
+            )
+    except Exception:
+        await db.rollback()
+
+
+@router.post("/{contact_id}/read")
+async def mark_chat_read(
+    contact_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
+):
+    user_id = str(getattr(current_user, "id", ""))
+    user_email = str(getattr(current_user, "email", "")).lower().strip()
+    user_role = str(getattr(current_user, "role", ""))
+
+    my_ids = list(expand_identifiers(user_id, user_email, user_role))
+    target_ids = list(expand_identifiers(contact_id))
+    await _mark_incoming_read_and_notify(db, my_ids, target_ids, user_id or user_email)
+    return {"ok": True}
+
+
 @router.get("/{contact_id}")
 async def get_chat_messages(
     contact_id: str, 
@@ -188,55 +262,22 @@ async def get_chat_messages(
     my_ids = list(expand_identifiers(user_id, user_email, user_role))
     target_ids = list(expand_identifiers(contact_id))
 
-    # Auto-mark incoming unread messages as read
-    try:
-        await db.execute(
-            update(ChatMessage)
-            .where(
-                and_(
-                    ChatMessage.sender.in_(target_ids),
-                    ChatMessage.contact_id.in_(my_ids),
-                    ChatMessage.status != "read"
-                )
-            )
-            .values(status="read")
-        )
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
+    # Auto-mark incoming unread messages as read and notify sender via WS
+    await _mark_incoming_read_and_notify(db, my_ids, target_ids, user_id or user_email)
 
-    # Fetch 2-way messages between current user and target contact
+    # Fetch 2-way messages strictly between current user and target contact
     result = await db.execute(
         select(ChatMessage)
         .where(
             or_(
                 and_(ChatMessage.sender.in_(my_ids), ChatMessage.contact_id.in_(target_ids)),
                 and_(ChatMessage.sender.in_(target_ids), ChatMessage.contact_id.in_(my_ids)),
-                # Legacy compatibility fallback
-                and_(ChatMessage.contact_id.in_(target_ids), ChatMessage.sender.in_(["me", "them"]))
             )
         )
         .order_by(ChatMessage.created_at.asc())
     )
     records = result.scalars().all()
-    
-    out = []
-    for m in records:
-        is_me = (m.sender in my_ids) or (m.sender == "me")
-        out.append({
-            "id": m.id,
-            "text": m.text or "",
-            "sender": "me" if is_me else "them",
-            "time": m.time,
-            "status": m.status,
-            "attachment": m.attachment,
-            "replyTo": m.reply_to,
-            "reactions": m.reactions or {},
-            "isStarred": m.is_starred,
-            "isForwarded": m.is_forwarded,
-            "isEdited": m.is_edited
-        })
-    return out
+    return [_serialize_message(m, my_ids) for m in records]
 
 @router.post("/{contact_id}", status_code=status.HTTP_201_CREATED)
 async def create_chat_message(
@@ -274,9 +315,10 @@ async def create_chat_message(
     
     msg_dict = {
         "id": msg.id,
-        "text": msg.text,
+        "text": msg.text or "",
         "sender": "them", # From the perspective of the receiver
         "time": msg.time,
+        "createdAt": msg.created_at.isoformat() if msg.created_at else None,
         "status": msg.status,
         "attachment": msg.attachment,
         "replyTo": msg.reply_to,
@@ -286,30 +328,49 @@ async def create_chat_message(
         "isEdited": msg.is_edited
     }
     
-    # Notify target user via websocket (notify all target id aliases)
-    for tid in target_ids:
-        await manager.send_personal_message(
-            {"type": "new_message", "contactId": sender_id, "altContactIds": my_ids, "message": msg_dict},
-            tid
-        )
+    # Notify target user via websocket (deduplicated across aliases)
+    await manager.send_to_identifiers(
+        {"type": "new_message", "contactId": sender_id, "altContactIds": my_ids, "message": msg_dict},
+        target_ids,
+    )
     
     # Also notify other tabs of the sender
     msg_dict_me = {**msg_dict, "sender": "me"}
-    for mid in my_ids:
-        await manager.send_personal_message(
-            {"type": "new_message", "contactId": str(contact_id), "altContactIds": target_ids, "message": msg_dict_me},
-            mid
-        )
+    await manager.send_to_identifiers(
+        {"type": "new_message", "contactId": str(contact_id), "altContactIds": target_ids, "message": msg_dict_me},
+        my_ids,
+    )
 
     return msg_dict_me
 
 @router.put("/message/{msg_id}")
-async def update_chat_message(msg_id: str, payload: UpdateMessageSchema, db: AsyncSession = Depends(get_db)):
+async def update_chat_message(
+    msg_id: str,
+    payload: UpdateMessageSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
+):
     result = await db.execute(select(ChatMessage).where(ChatMessage.id == str(msg_id)))
     msg = result.scalar_one_or_none()
     
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
+
+    user_id = str(getattr(current_user, "id", ""))
+    user_email = str(getattr(current_user, "email", "")).lower().strip()
+    user_role = str(getattr(current_user, "role", ""))
+    my_ids = expand_identifiers(user_id, user_email, user_role)
+
+    sender_aliases = expand_identifiers(msg.sender)
+    contact_aliases = expand_identifiers(str(msg.contact_id))
+
+    is_sender = msg.sender in my_ids or bool(my_ids & sender_aliases)
+    is_participant = is_sender or (str(msg.contact_id) in my_ids) or bool(my_ids & contact_aliases)
+
+    if not is_participant:
+        raise HTTPException(status_code=403, detail="Not authorized to update this message")
+    if payload.text is not None and not is_sender:
+        raise HTTPException(status_code=403, detail="Only the sender can edit a message")
         
     if payload.text is not None:
         msg.text = payload.text
@@ -322,49 +383,78 @@ async def update_chat_message(msg_id: str, payload: UpdateMessageSchema, db: Asy
     await db.commit()
     await db.refresh(msg)
     
-    msg_dict = {
+    base_dict = {
         "id": msg.id,
-        "text": msg.text,
-        "sender": msg.sender,
+        "text": msg.text or "",
         "time": msg.time,
+        "createdAt": msg.created_at.isoformat() if msg.created_at else None,
         "status": msg.status,
         "attachment": msg.attachment,
         "replyTo": msg.reply_to,
         "reactions": msg.reactions or {},
         "isStarred": msg.is_starred,
         "isForwarded": msg.is_forwarded,
-        "isEdited": msg.is_edited
+        "isEdited": msg.is_edited,
     }
     
-    sender_aliases = expand_identifiers(msg.sender)
-    contact_aliases = expand_identifiers(str(msg.contact_id))
-    
-    # Send update to all participants
-    for cid in contact_aliases:
-        await manager.send_personal_message({"type": "update_message", "contactId": msg.sender, "message": msg_dict}, cid)
-    for sid in sender_aliases:
-        await manager.send_personal_message({"type": "update_message", "contactId": str(msg.contact_id), "message": msg_dict}, sid)
+    msg_for_sender = {**base_dict, "sender": "me"}
+    msg_for_receiver = {**base_dict, "sender": "them"}
 
-    return msg_dict
+    # Send perspective-accurate updates to receiver & sender tabs
+    await manager.send_to_identifiers(
+        {
+            "type": "update_message",
+            "contactId": msg.sender,
+            "altContactIds": list(sender_aliases),
+            "message": msg_for_receiver,
+        },
+        contact_aliases,
+    )
+    await manager.send_to_identifiers(
+        {
+            "type": "update_message",
+            "contactId": str(msg.contact_id),
+            "altContactIds": list(contact_aliases),
+            "message": msg_for_sender,
+        },
+        sender_aliases,
+    )
+
+    return msg_for_sender if is_sender else msg_for_receiver
 
 @router.delete("/message/{msg_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_chat_message(msg_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_chat_message(
+    msg_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
+):
     result = await db.execute(select(ChatMessage).where(ChatMessage.id == str(msg_id)))
     msg = result.scalar_one_or_none()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
+
+    user_id = str(getattr(current_user, "id", ""))
+    user_email = str(getattr(current_user, "email", "")).lower().strip()
+    user_role = str(getattr(current_user, "role", ""))
+    my_ids = expand_identifiers(user_id, user_email, user_role)
+
+    sender_aliases = expand_identifiers(msg.sender)
+    if msg.sender not in my_ids and not (my_ids & sender_aliases):
+        raise HTTPException(status_code=403, detail="Only the sender can delete this message")
         
     sender = msg.sender
     contact_id = str(msg.contact_id)
-    
-    sender_aliases = expand_identifiers(sender)
     contact_aliases = expand_identifiers(contact_id)
     
     await db.delete(msg)
     await db.commit()
     
     # Notify both participants of deletion
-    for cid in contact_aliases:
-        await manager.send_personal_message({"type": "delete_message", "contactId": sender, "messageId": msg_id}, cid)
-    for sid in sender_aliases:
-        await manager.send_personal_message({"type": "delete_message", "contactId": contact_id, "messageId": msg_id}, sid)
+    await manager.send_to_identifiers(
+        {"type": "delete_message", "contactId": sender, "altContactIds": list(sender_aliases), "messageId": msg_id},
+        contact_aliases,
+    )
+    await manager.send_to_identifiers(
+        {"type": "delete_message", "contactId": contact_id, "altContactIds": list(contact_aliases), "messageId": msg_id},
+        sender_aliases,
+    )

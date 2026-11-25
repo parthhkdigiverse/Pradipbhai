@@ -14,16 +14,17 @@ interface Attachment {
 }
 
 interface ReplyInfo {
-  id: number;
+  id: string | number;
   text: string;
   senderName: string;
 }
 
 interface Message {
-  id: number;
+  id: string | number;
   text: string;
   sender: 'me' | 'them';
   time: string;
+  createdAt?: string | null;
   status?: 'sent' | 'delivered' | 'read';
   replyTo?: ReplyInfo | null;
   attachment?: Attachment | null;
@@ -122,17 +123,22 @@ export function ChatPage() {
   
   // Interactive features states
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-  const [editingMsgId, setEditingMsgId] = useState<number | null>(null);
+  const [editingMsgId, setEditingMsgId] = useState<string | number | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  const [activeMenuMsgId, setActiveMenuMsgId] = useState<number | null>(null);
+  const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | number | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollStateRef = useRef<{ contactId: string | number | null; msgCount: number; attCount: number }>({
+    contactId: null,
+    msgCount: 0,
+    attCount: 0,
+  });
 
   const activeContact = MOCK_CONTACTS.find(c => c.id === activeContactId);
   
@@ -162,8 +168,21 @@ export function ChatPage() {
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, activeContactId, pendingAttachments]);
+    const prev = prevScrollStateRef.current;
+    const contactChanged = prev.contactId !== activeContactId;
+    const newMessageAdded = rawMessages.length > prev.msgCount;
+    const attachmentAdded = pendingAttachments.length > prev.attCount;
+
+    if (contactChanged || newMessageAdded || attachmentAdded) {
+      scrollToBottom();
+    }
+
+    prevScrollStateRef.current = {
+      contactId: activeContactId,
+      msgCount: rawMessages.length,
+      attCount: pendingAttachments.length,
+    };
+  }, [activeContactId, rawMessages.length, pendingAttachments.length]);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -184,6 +203,26 @@ export function ChatPage() {
     return token ? { 'Authorization': `Bearer ${token}` } : {};
   };
 
+  const areMessageListsEqual = (a: Message[], b: Message[]) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const m1 = a[i];
+      const m2 = b[i];
+      if (
+        m1.id !== m2.id ||
+        m1.text !== m2.text ||
+        m1.sender !== m2.sender ||
+        m1.status !== m2.status ||
+        Boolean(m1.isEdited) !== Boolean(m2.isEdited) ||
+        Boolean(m1.isStarred) !== Boolean(m2.isStarred) ||
+        JSON.stringify(m1.reactions || {}) !== JSON.stringify(m2.reactions || {})
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const fetchRemoteMessages = async (contactId: string | number) => {
     try {
       const res = await fetch(`/api/chat/${contactId}`, { headers: getAuthHeaders() });
@@ -194,7 +233,11 @@ export function ChatPage() {
             const existing = prev[contactId] || [];
             const remoteIds = new Set(data.map((m: any) => m.id));
             const inFlight = existing.filter(m => typeof m.id === 'number' && !remoteIds.has(m.id));
-            return { ...prev, [contactId]: [...data, ...inFlight] };
+            const merged = [...data, ...inFlight];
+            if (areMessageListsEqual(existing, merged)) {
+              return prev;
+            }
+            return { ...prev, [contactId]: merged };
           });
         }
       }
@@ -230,75 +273,92 @@ export function ChatPage() {
     }
   }, []);
 
-  // Event-driven WebSocket listener: hooks into global WebSocket from DataContext (0 polling loops!)
+  // Event-driven WebSocket listener: hooks into global WebSocket from DataContext
   useEffect(() => {
+    const resolveWSContactKey = (contactId: any, altContactIds?: any[]): string => {
+      const altList = (altContactIds || []).map(String);
+      const contactIdStr = String(contactId || '').trim();
+      const matched = MOCK_CONTACTS.find(c => {
+        const cId = String(c.id).trim();
+        const cEmail = (c.email || '').trim().toLowerCase();
+        return cId === contactIdStr ||
+          altList.includes(cId) ||
+          (cEmail && (cEmail === contactIdStr.toLowerCase() || altList.includes(cEmail))) ||
+          (cId === 'emp-admin' && (contactIdStr === 'super-admin' || altList.includes('super-admin'))) ||
+          (cId === 'super-admin' && (contactIdStr === 'emp-admin' || altList.includes('emp-admin')));
+      });
+      return matched ? String(matched.id) : contactIdStr;
+    };
+
+    const isSameContactAsActive = (targetKey: string) => Boolean(activeContactId && (
+      String(activeContactId) === String(targetKey) ||
+      (String(activeContactId) === 'emp-admin' && String(targetKey) === 'super-admin') ||
+      (String(activeContactId) === 'super-admin' && String(targetKey) === 'emp-admin')
+    ));
+
+    const updateContactMessages = (targetKey: string, updater: (list: Message[]) => Message[]) => {
+      setMessages(prev => {
+        const currentList = prev[targetKey] || [];
+        const updated = updater(currentList);
+        const next: Record<string, Message[]> = { ...prev, [targetKey]: updated };
+        if (targetKey === 'emp-admin') next['super-admin'] = updated;
+        if (targetKey === 'super-admin') next['emp-admin'] = updated;
+        return next;
+      });
+    };
+
     const handleWSEvent = (e: any) => {
       try {
         const data = e.detail;
         if (!data) return;
         const { type, contactId, altContactIds, message, messageId } = data;
+        const targetKey = resolveWSContactKey(contactId, altContactIds);
 
-        if (type === 'new_message') {
-          const altList = (altContactIds || []).map(String);
-          const contactIdStr = String(contactId || '').trim();
-          // Match to the contact ID in our local contacts list
-          const matched = MOCK_CONTACTS.find(c => {
-            const cId = String(c.id).trim();
-            const cEmail = (c.email || '').trim().toLowerCase();
-            return cId === contactIdStr || 
-              altList.includes(cId) ||
-              (cEmail && (cEmail === contactIdStr.toLowerCase() || altList.includes(cEmail))) ||
-              (cId === 'emp-admin' && (contactIdStr === 'super-admin' || altList.includes('super-admin'))) ||
-              (cId === 'super-admin' && (contactIdStr === 'emp-admin' || altList.includes('emp-admin')));
-          });
-          const targetKey = matched ? matched.id : contactId;
+        if (type === 'new_message' && message) {
+          const isViewingThis = isSameContactAsActive(targetKey);
+          const effectiveMessage = (isViewingThis && message.sender === 'them')
+            ? { ...message, status: 'read' as const }
+            : message;
 
-          setMessages(prev => {
-            const currentList = prev[targetKey] || [];
-            if (currentList.some(m => m.id === message.id)) return prev;
-            const updated = [...currentList, message];
-            const next: Record<string, Message[]> = { ...prev, [String(targetKey)]: updated };
-            if (String(targetKey) === 'emp-admin') next['super-admin'] = updated;
-            if (String(targetKey) === 'super-admin') next['emp-admin'] = updated;
-            return next;
+          updateContactMessages(targetKey, currentList => {
+            if (currentList.some(m => m.id === effectiveMessage.id)) return currentList;
+            return [...currentList, effectiveMessage];
           });
 
           // Update contact summary immediately with current timestamp for top ranking
-          const nowIso = new Date().toISOString();
-          const nowTime = message.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const isViewingThis = Boolean(activeContactId && (
-            String(activeContactId) === String(targetKey) ||
-            (String(activeContactId) === 'emp-admin' && String(targetKey) === 'super-admin') ||
-            (String(activeContactId) === 'super-admin' && String(targetKey) === 'emp-admin')
-          ));
+          const nowIso = effectiveMessage.createdAt || new Date().toISOString();
+          const nowTime = effectiveMessage.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
           setContactSummaries(prev => ({
             ...prev,
             [targetKey]: {
-              lastMessage: message.text || (message.attachment ? `📎 Attachment: ${message.attachment.name}` : 'Message'),
+              lastMessage: effectiveMessage.text || (effectiveMessage.attachment ? `📎 Attachment: ${effectiveMessage.attachment.name}` : 'Message'),
               time: nowTime,
               createdAt: nowIso,
-              sender: message.sender || 'them',
-              unread: (prev[targetKey]?.unread || 0) + (isViewingThis ? 0 : 1)
+              sender: effectiveMessage.sender || 'them',
+              unread: isViewingThis ? 0 : (prev[targetKey]?.unread || 0) + (effectiveMessage.sender === 'them' ? 1 : 0)
             }
           }));
 
-          // Auto-scroll on incoming message if currently looking at this active conversation
-          if (isViewingThis) {
-            setTimeout(() => scrollToBottom(), 100);
-            fetchRemoteMessages(activeContactId!);
-            if (refreshGlobalUnread) refreshGlobalUnread();
+          // Mark incoming message read immediately and send receipt without re-fetching full history
+          if (isViewingThis && message.sender === 'them') {
+            fetch(`/api/chat/${activeContactId}/read`, { method: 'POST', headers: getAuthHeaders() })
+              .then(() => { if (refreshGlobalUnread) refreshGlobalUnread(); })
+              .catch(() => {});
           }
-        } else if (type === 'update_message') {
-          setMessages(prev => ({
-            ...prev,
-            [contactId]: (prev[contactId] || []).map(m => m.id === message.id ? message : m)
-          }));
-        } else if (type === 'delete_message') {
-          setMessages(prev => ({
-            ...prev,
-            [contactId]: (prev[contactId] || []).filter(m => m.id !== messageId)
-          }));
+        } else if (type === 'update_message' && message) {
+          updateContactMessages(targetKey, currentList =>
+            currentList.map(m => m.id === message.id ? { ...m, ...message } : m)
+          );
+        } else if (type === 'delete_message' && messageId) {
+          updateContactMessages(targetKey, currentList =>
+            currentList.filter(m => m.id !== messageId)
+          );
+          fetchRecentSummaries();
+        } else if (type === 'messages_read') {
+          updateContactMessages(targetKey, currentList =>
+            currentList.map(m => m.sender === 'me' && m.status !== 'read' ? { ...m, status: 'read' } : m)
+          );
         }
       } catch (e) {
         console.warn("Error processing app_ws_event in ChatPage", e);
@@ -309,11 +369,20 @@ export function ChatPage() {
     return () => window.removeEventListener('app_ws_event', handleWSEvent);
   }, [MOCK_CONTACTS, activeContactId, refreshGlobalUnread]);
 
-  // Load chat messages only once when contact is selected (no polling loop)
+  // Fetch conversation on selection + gentle fallback sync only while tab is visible
   useEffect(() => {
     if (!activeContactId) return;
     fetchRemoteMessages(activeContactId);
     if (refreshGlobalUnread) refreshGlobalUnread();
+
+    const interval = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        fetchRemoteMessages(activeContactId);
+        fetchRecentSummaries();
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, [activeContactId, refreshGlobalUnread]);
 
   // Handle Send or Update Message
@@ -345,73 +414,78 @@ export function ChatPage() {
     }
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const payload = {
-      text: messageText,
-      sender: "me" as const,
-      time: timeStr,
-      status: "sent" as const,
-      attachment: pendingAttachments[0] || null,
-      replyTo: replyingTo ? {
-        id: replyingTo.id,
-        text: replyingTo.text || (replyingTo.attachment ? `[${replyingTo.attachment.type}] ${replyingTo.attachment.name}` : ""),
-        senderName: replyingTo.sender === "me" ? "Me" : activeContact?.name || "Them"
-      } : null
-    };
-
-    const tempMsg: Message = {
-      id: Date.now(),
-      ...payload
-    };
-
-    setMessages(prev => ({
-      ...prev,
-      [activeContactId]: [...(prev[activeContactId] || []), tempMsg]
-    }));
-
-    const nowIso = new Date().toISOString();
-    const nowTime = payload.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    setContactSummaries(prev => ({
-      ...prev,
-      [activeContactId]: {
-        lastMessage: messageText || (pendingAttachments.length > 0 ? `📎 Attachment: ${pendingAttachments[0].name}` : 'Message'),
-        time: nowTime,
-        createdAt: nowIso,
-        sender: 'me',
-        unread: 0
-      }
-    }));
+    const attachmentsToSend: (Attachment | null)[] = pendingAttachments.length > 0 ? pendingAttachments : [null];
+    const targetContactId = activeContactId;
+    const textToSend = messageText;
+    const replyPayload = replyingTo ? {
+      id: replyingTo.id,
+      text: replyingTo.text || (replyingTo.attachment ? `[${replyingTo.attachment.type}] ${replyingTo.attachment.name}` : ""),
+      senderName: replyingTo.sender === "me" ? "Me" : activeContact?.name || "Them"
+    } : null;
 
     setMessageText("");
     setPendingAttachments([]);
     setReplyingTo(null);
     setEmojiPickerOpen(false);
 
-    try {
-      const res = await fetch(`/api/chat/${activeContactId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        setMessages(prev => {
-          const currentList = prev[activeContactId] || [];
-          // If websocket already inserted the real one, just remove the temp one
-          if (currentList.some(m => m.id === result.id)) {
-            return { ...prev, [activeContactId]: currentList.filter(m => m.id !== tempMsg.id) };
-          }
-          // Otherwise, replace temp with real
-          return { ...prev, [activeContactId]: currentList.map(m => m.id === tempMsg.id ? result : m) };
-        });
-      }
-    } catch (err) {
-      console.warn("Failed to send chat message:", err);
-      // Remove optimistic message on failure
+    for (let idx = 0; idx < attachmentsToSend.length; idx++) {
+      const att = attachmentsToSend[idx];
+      const payload = {
+        text: idx === 0 ? textToSend : "",
+        sender: "me" as const,
+        time: timeStr,
+        status: "sent" as const,
+        attachment: att,
+        replyTo: idx === 0 ? replyPayload : null,
+      };
+
+      const tempMsg: Message = {
+        id: Date.now() + idx,
+        ...payload
+      };
+
       setMessages(prev => ({
         ...prev,
-        [activeContactId]: (prev[activeContactId] || []).filter(m => m.id !== tempMsg.id)
+        [targetContactId]: [...(prev[targetContactId] || []), tempMsg]
       }));
+
+      const nowIso = new Date().toISOString();
+      setContactSummaries(prev => ({
+        ...prev,
+        [targetContactId]: {
+          lastMessage: payload.text || (att ? `📎 Attachment: ${att.name}` : 'Message'),
+          time: timeStr,
+          createdAt: nowIso,
+          sender: 'me',
+          unread: 0
+        }
+      }));
+
+      try {
+        const res = await fetch(`/api/chat/${targetContactId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setMessages(prev => {
+            const currentList = prev[targetContactId] || [];
+            if (currentList.some(m => m.id === result.id)) {
+              return { ...prev, [targetContactId]: currentList.filter(m => m.id !== tempMsg.id) };
+            }
+            return { ...prev, [targetContactId]: currentList.map(m => m.id === tempMsg.id ? result : m) };
+          });
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        console.warn("Failed to send chat message:", err);
+        setMessages(prev => ({
+          ...prev,
+          [targetContactId]: (prev[targetContactId] || []).filter(m => m.id !== tempMsg.id)
+        }));
+      }
     }
   };
 
@@ -475,6 +549,7 @@ export function ChatPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(e.target.files);
+      e.target.value = '';
     }
   };
 
@@ -527,25 +602,42 @@ export function ChatPage() {
     setActiveMenuMsgId(null);
   };
 
-  // React to Message
-  const handleAddReaction = (msgId: number, emoji: string) => {
+  // React to Message (persisted to backend & synced via WebSocket)
+  const handleAddReaction = async (msgId: string | number, emoji: string) => {
     if (!activeContactId) return;
+    const reactorKey = currentUser?.name || currentUserId || 'me';
+    const targetList = messages[activeContactId] || rawMessages;
+    const targetMsg = targetList.find(m => m.id === msgId);
+    if (!targetMsg) return;
+
+    const currentReactions = { ...(targetMsg.reactions || {}) };
+    const users = currentReactions[emoji] || [];
+    if (users.includes(reactorKey) || users.includes('me')) {
+      currentReactions[emoji] = users.filter(u => u !== reactorKey && u !== 'me');
+      if (currentReactions[emoji].length === 0) delete currentReactions[emoji];
+    } else {
+      currentReactions[emoji] = [...users, reactorKey];
+    }
+
     setMessages(prev => ({
       ...prev,
-      [activeContactId]: (prev[activeContactId] || []).map(m => {
-        if (m.id !== msgId) return m;
-        const currentReactions = { ...(m.reactions || {}) };
-        const users = currentReactions[emoji] || [];
-        if (users.includes('me')) {
-          currentReactions[emoji] = users.filter(u => u !== 'me');
-          if (currentReactions[emoji].length === 0) delete currentReactions[emoji];
-        } else {
-          currentReactions[emoji] = [...users, 'me'];
-        }
-        return { ...m, reactions: currentReactions };
-      })
+      [activeContactId]: (prev[activeContactId] || []).map(m =>
+        m.id === msgId ? { ...m, reactions: currentReactions } : m
+      )
     }));
     setActiveMenuMsgId(null);
+
+    if (typeof msgId === 'string') {
+      try {
+        await fetch(`/api/chat/message/${msgId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify({ reactions: currentReactions })
+        });
+      } catch (err) {
+        console.warn("Failed to persist chat reaction:", err);
+      }
+    }
   };
 
   // Download / Save file

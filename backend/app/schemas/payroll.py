@@ -12,6 +12,7 @@ class PayrollBase(BaseModel):
     status: Optional[str] = "Pending"
     account_type: Optional[str] = "Current A/c"
     deduction_reason: Optional[str] = None
+    is_manual_deduction: Optional[bool] = False
 
 class PayrollCreate(PayrollBase):
     id: Optional[str] = None
@@ -24,6 +25,7 @@ class PayrollUpdate(BaseModel):
     status: Optional[str] = None
     account_type: Optional[str] = None
     deduction_reason: Optional[str] = None
+    is_manual_deduction: Optional[bool] = None
 
 class PayrollOut(PayrollBase):
     id: str

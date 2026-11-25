@@ -1,7 +1,15 @@
-import { useState, useMemo } from 'react';
-import { Search, Calculator, IndianRupee, FileText, X, CheckCircle, Calendar } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Calculator, IndianRupee, FileText, X, CheckCircle, Calendar, RefreshCw } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { SearchableSelect } from './SearchableSelect';
+import {
+  getFYStartYear,
+  getFYBounds,
+  getFYLabel as formatFYLabel,
+  expandLeaveDates,
+  buildFYLeaveSegments,
+  calculateStaffLeaveQuotas,
+} from '../utils/leavePayrollUtils';
 
 export function PayrollPage() {
   const { 
@@ -11,6 +19,7 @@ export function PayrollPage() {
     setPayroll, 
     addPayroll, 
     updatePayroll: apiUpdatePayroll, 
+    bulkUpsertPayroll,
     holidays, 
     currentUserRole, 
     hasPermission, 
@@ -52,11 +61,14 @@ export function PayrollPage() {
     const targetMonth = deductionModalData.month;
     const newAmt = Math.max(0, modalDeductionAmount);
     const newReason = modalDeductionReason.trim();
+    const isManualOverride = Math.round(newAmt) !== Math.round(deductionModalData.calculatedDeductions || 0);
 
     await updatePayroll(staffId, {
       deductions: newAmt,
       deductionReason: newReason,
-      deduction_reason: newReason
+      deduction_reason: newReason,
+      isManualDeduction: isManualOverride,
+      is_manual_deduction: isManualOverride,
     }, targetMonth);
 
     if (selectedPayslip && (selectedPayslip.id === staffId || selectedPayslip.staffId === staffId)) {
@@ -120,18 +132,9 @@ export function PayrollPage() {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
 
-  const getFYStartYearFromMonth = (yearMonth: string) => {
-    const [yearStr, monthStr] = yearMonth.split('-');
-    const y = parseInt(yearStr, 10);
-    const m = parseInt(monthStr, 10);
-    return m >= 4 ? y : y - 1;
-  };
+  const getFYStartYearFromMonth = (yearMonth: string) => getFYStartYear(yearMonth);
 
-  const getFYLabel = (startYear: number | string) => {
-    const y = parseInt(String(startYear), 10);
-    const nextShort = String((y + 1) % 100).padStart(2, '0');
-    return `FY ${y}-${nextShort}`;
-  };
+  const getFYLabel = (startYear: number | string) => formatFYLabel(startYear);
 
   const getFYMonths = (startYear: number) => {
     const list: { monthKey: string; monthName: string; yearNum: number; displayMonth: string }[] = [];
@@ -201,20 +204,7 @@ export function PayrollPage() {
     return new Date(parseInt(year), parseInt(month), 0).getDate();
   };
 
-  const getLeaveDates = (fromDate: string, toDate?: string): string[] => {
-    const dates: string[] = [];
-    const start = new Date(fromDate + 'T00:00:00');
-    const end = new Date((toDate || fromDate) + 'T00:00:00');
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return [fromDate];
-    }
-    const cur = new Date(start);
-    while (cur <= end) {
-      dates.push(cur.toISOString().slice(0, 10));
-      cur.setDate(cur.getDate() + 1);
-    }
-    return dates;
-  };
+  const getLeaveDates = (fromDate: string, toDate?: string): string[] => expandLeaveDates(fromDate, toDate);
 
   const formatShortDate = (dStr: string) => {
     if (!dStr) return '';
@@ -231,14 +221,12 @@ export function PayrollPage() {
   // Helper to compute a single employee's monthly payroll stats
   const calculateStaffMonth = (emp: any, targetMonth: string) => {
     const targetFYStart = getFYStartYearFromMonth(targetMonth);
-    const fyStartDate = `${targetFYStart}-04-01`;
-    const fyEndDate = `${targetFYStart + 1}-03-31`;
+    const { fyStartDate, fyEndDate } = getFYBounds(targetFYStart);
     const holidaysInMonth = holidays.filter(h => h.date.startsWith(targetMonth)).length;
     const holidayDatesSet = new Set(holidays.map(h => h.date));
     const record = payroll.find(p => (p.staffId === emp.id || p.staff_id === emp.id) && p.month === targetMonth);
 
     const bal = leaveBalances?.find(b => (b.staffId === emp.id || (b as any).staff_id === emp.id)) ?? { staffId: emp.id, casual: 0, sick: 3, earned: 12 };
-    const sickQuota = bal.sick ?? 3;
 
     // Approved leaves for this employee in the Financial Year (FY)
     const empApprovedLeaves = (leaveRequests || []).filter(r => {
@@ -253,89 +241,24 @@ export function PayrollPage() {
       );
     });
 
-    interface LeaveDaySegment {
-      date: string;
-      type: 'Casual' | 'Sick' | 'Earned';
-      weight: number;
-      leaveReq: any;
-    }
-    const allLeaveDays: LeaveDaySegment[] = [];
-    empApprovedLeaves.forEach(r => {
-      const fDate = r.fromDate || (r as any).from_date;
-      const tDate = r.toDate || (r as any).to_date || fDate;
-      const dates = getLeaveDates(fDate, tDate);
-      if (dates.length === 0) return;
-      const isHalf = Boolean(
-        r.isHalfDay || 
-        (r as any).is_half_day || 
-        r.days === 0.5 || 
-        (r.days !== undefined && Number(r.days) === 0.5)
-      );
-      if (isHalf) {
-        // Exclude company holidays from consuming leave days
-        if (dates[0] >= fyStartDate && dates[0] <= fyEndDate && !holidayDatesSet.has(dates[0])) {
-          allLeaveDays.push({ date: dates[0], type: r.type, weight: 0.5, leaveReq: r });
-        }
-      } else {
-        dates.forEach(d => {
-          // Exclude company holidays from consuming leave days
-          if (d >= fyStartDate && d <= fyEndDate && !holidayDatesSet.has(d)) {
-            allLeaveDays.push({ date: d, type: r.type, weight: 1.0, leaveReq: r });
-          }
-        });
-      }
-    });
-    allLeaveDays.sort((a, b) => a.date.localeCompare(b.date));
+    const allLeaveDays = buildFYLeaveSegments(
+      leaveRequests || [],
+      emp.id,
+      holidayDatesSet,
+      fyStartDate,
+      fyEndDate,
+      ['Approved']
+    );
+    const quotas = calculateStaffLeaveQuotas(allLeaveDays, bal, targetMonth);
 
-    // 1 day per month earned leave quota (no carry forward)
-    const monthlyEarnedQuota = Math.max(1, (bal.earned ?? 12) / 12);
-    const earnedDaysInMonth = allLeaveDays
-      .filter(seg => seg.type === 'Earned' && seg.date.startsWith(targetMonth))
-      .reduce((sum, seg) => sum + seg.weight, 0);
+    const deductibleEarnedInMonth = quotas.deductibleEarnedInMonth;
+    const deductibleSickInMonth = quotas.deductibleSickInMonth;
+    const deductibleCasualInMonth = quotas.casualInMonth;
 
-    const paidEarnedInMonth = Math.min(earnedDaysInMonth, monthlyEarnedQuota);
-    const deductibleEarnedInMonth = Math.max(0, earnedDaysInMonth - monthlyEarnedQuota);
-
-    // Sick leaves: 3 paid per year (no carry forward)
-    let cumulativeSick = 0;
-    let deductibleSickInMonth = 0;
-    let paidSickInMonth = 0;
-    let deductibleCasualInMonth = 0;
-
-    const approvedLeaveDatesThisMonth = new Set<string>();
-
-    allLeaveDays.forEach(seg => {
-      const isInTargetMonth = seg.date.startsWith(targetMonth);
-      if (isInTargetMonth) {
-        approvedLeaveDatesThisMonth.add(seg.date);
-      }
-
-      if (seg.type === 'Sick') {
-        const prev = cumulativeSick;
-        cumulativeSick += seg.weight;
-        if (isInTargetMonth) {
-          if (cumulativeSick <= sickQuota) {
-            paidSickInMonth += seg.weight;
-          } else if (prev < sickQuota) {
-            paidSickInMonth += (sickQuota - prev);
-            deductibleSickInMonth += (cumulativeSick - sickQuota);
-          } else {
-            deductibleSickInMonth += seg.weight;
-          }
-        }
-      } else if (seg.type === 'Casual') {
-        if (isInTargetMonth) {
-          deductibleCasualInMonth += seg.weight;
-        }
-      }
-    });
-
-    const totalDeductibleLeaveDays = deductibleSickInMonth + deductibleCasualInMonth + deductibleEarnedInMonth;
-    const totalPaidLeaveDays = paidEarnedInMonth + paidSickInMonth;
-
-    const approvedLeaveDaysInMonth = allLeaveDays
-      .filter(seg => seg.date.startsWith(targetMonth))
-      .reduce((sum, seg) => sum + seg.weight, 0);
+    const totalDeductibleLeaveDays = quotas.totalDeductibleInMonth;
+    const totalPaidLeaveDays = quotas.totalPaidInMonth;
+    const approvedLeaveDaysInMonth = quotas.approvedLeaveDaysInMonth;
+    const approvedLeaveDatesThisMonth = quotas.approvedLeaveDatesInMonth;
 
     let daysPresent = 0;
     let daysAbsent = 0;
@@ -365,7 +288,7 @@ export function PayrollPage() {
           halfDayDates.push(r.date);
         }
       }
-      if (r.status === 'Leave' && approvedLeaveDaysInMonth === 0) daysLeave++;
+      if (r.status === 'Leave' && !approvedLeaveDatesThisMonth.has(r.date)) daysLeave++;
       const penAmt = (r.penaltyAmount || r.penalty_amount || 0);
       if (penAmt > 0) {
         latePenalties += penAmt;
@@ -375,12 +298,13 @@ export function PayrollPage() {
 
     const daysInMonth = getDaysInMonth(targetMonth);
     const workingDays = Math.max(1, daysInMonth - holidaysInMonth);
-    const perDaySalary = emp.baseSalary / workingDays;
+    const basicVal = record?.basic !== undefined ? record.basic : (record?.salary !== undefined ? record.salary : emp.baseSalary);
+    const perDaySalary = basicVal / workingDays;
     
     const leaveDeductions = totalDeductibleLeaveDays * perDaySalary;
     const attendanceDeductions = (daysAbsent * perDaySalary) + (daysHalf * (perDaySalary / 2)) + latePenalties;
     const calculatedDeductions = Math.round(attendanceDeductions + leaveDeductions);
-    const calculatedNet = Math.max(0, emp.baseSalary - calculatedDeductions);
+    const calculatedNet = Math.max(0, basicVal - calculatedDeductions);
 
     // Build itemized deduction breakdown
     interface DeductionItem {
@@ -449,20 +373,16 @@ export function PayrollPage() {
       return dates.some(d => d.startsWith(targetMonth));
     });
 
-    // Casual leaves
+    // Casual leaves (use holiday-excluded, month-split days matching totalDeductibleLeaveDays)
     if (deductibleCasualInMonth > 0) {
       const casuals = leavesInMonth.filter(r => r.type === 'Casual');
       casuals.forEach((r, idx) => {
         const fDate = r.fromDate || (r as any).from_date;
         const tDate = r.toDate || (r as any).to_date || fDate;
-        const inMonthDates = getLeaveDates(fDate, tDate).filter(d => d.startsWith(targetMonth));
-        const isHalf = Boolean(
-          r.isHalfDay || 
-          (r as any).is_half_day || 
-          r.days === 0.5 || 
-          (r.days !== undefined && Number(r.days) === 0.5)
-        );
-        const days = isHalf ? 0.5 : (r.days !== undefined && Number(r.days) > 0 ? Number(r.days) : inMonthDates.length);
+        const inMonthDates = getLeaveDates(fDate, tDate).filter(d => d.startsWith(targetMonth) && !holidayDatesSet.has(d));
+        const reqDays = r.id ? quotas.requestDaysInMonth.get(String(r.id)) : undefined;
+        const days = reqDays !== undefined ? reqDays : inMonthDates.length;
+        if (days <= 0) return;
         const amt = Math.round(days * perDaySalary);
         const dStr = inMonthDates.map(formatShortDate).join(', ');
         deductionBreakdown.push({
@@ -522,10 +442,24 @@ export function PayrollPage() {
       autoNoteParts.push(`Earned beyond quota: ${deductibleEarnedInMonth === 0.5 ? '½d' : `${deductibleEarnedInMonth}d`} (${dStr})`);
     }
 
-    // 5. Check manual adjustment / note
+    // 5. Check manual adjustment / note and live sync state
     const manualDeductionReason = record?.deductionReason || record?.deduction_reason || '';
-    const currentDeductions = record?.deductions !== undefined ? record.deductions : calculatedDeductions;
+    const isManualDeduction = Boolean(record?.isManualDeduction || record?.is_manual_deduction);
+    const isPendingLiveSync = Boolean(record && record.status !== 'Paid' && !isManualDeduction);
+    const currentDeductions = !record || isPendingLiveSync
+      ? calculatedDeductions
+      : (record.deductions !== undefined ? record.deductions : calculatedDeductions);
     const manualDiff = currentDeductions - calculatedDeductions;
+    const isOutOfSyncWithCalc = Boolean(
+      record && !isPendingLiveSync && Math.round(currentDeductions) !== calculatedDeductions
+    );
+    const computedNetPay = Math.max(0, basicVal - currentDeductions);
+    const needsDbSync = Boolean(
+      isPendingLiveSync &&
+      record?.id &&
+      (Math.round(record.deductions ?? 0) !== calculatedDeductions ||
+        Math.round(record.netPay ?? record.net_salary ?? 0) !== computedNetPay)
+    );
 
     if (manualDeductionReason) {
       deductionBreakdown.push({
@@ -550,11 +484,16 @@ export function PayrollPage() {
     return {
       month: targetMonth,
       payrollId: record?.id || null,
-      basic: record?.basic !== undefined ? record.basic : (record?.salary !== undefined ? record.salary : emp.baseSalary),
+      basic: basicVal,
       deductions: currentDeductions,
       calculatedDeductions,
       manualDiff,
-      netPay: record?.netPay !== undefined ? record.netPay : (record?.net_salary !== undefined ? record.net_salary : (record ? ((record.basic ?? emp.baseSalary) - currentDeductions) : calculatedNet)),
+      isManualDeduction,
+      isOutOfSyncWithCalc,
+      needsDbSync,
+      netPay: isPendingLiveSync
+        ? computedNetPay
+        : (record?.netPay !== undefined ? record.netPay : (record?.net_salary !== undefined ? record.net_salary : (record ? Math.max(0, basicVal - currentDeductions) : calculatedNet))),
       status: record?.status || 'Pending',
       paymentAccount: record?.paymentAccount || (record?.account_type === 'Savings A/c' ? 'Savings' : 'Current'),
       deductionReason: manualDeductionReason,
@@ -712,124 +651,170 @@ export function PayrollPage() {
     };
   }, [displayedPayroll, filterMode]);
 
-  const updatePayroll = async (staffId: string, updates: any, targetMonth: string = selectedMonth) => {
-    let targetId: string | null = null;
-    let isNew = false;
-    let fullRecord: any = null;
+  const syncedKeysRef = useRef<Set<string>>(new Set());
 
-    setPayroll(prev => {
-      const existingIdx = prev.findIndex(p => (p.staffId === staffId || p.staff_id === staffId) && p.month === targetMonth);
-      if (existingIdx >= 0) {
-        const newArr = [...prev];
-        const existing = newArr[existingIdx];
-        const merged = { ...existing, ...updates };
-        const basicVal = merged.basic !== undefined ? merged.basic : (merged.salary || 0);
-        const dedVal = merged.deductions !== undefined ? merged.deductions : 0;
-        merged.netPay = basicVal - dedVal;
-        merged.net_salary = basicVal - dedVal;
-        newArr[existingIdx] = merged;
-        targetId = merged.id;
-        fullRecord = merged;
-        return newArr;
-      } else {
-        const emp = staff.find(s => s.id === staffId);
-        const calc = emp ? calculateStaffMonth(emp, targetMonth) : null;
-        const basicVal = updates.basic !== undefined ? updates.basic : (calc?.basic ?? (emp?.baseSalary || 0));
-        const dedVal = updates.deductions !== undefined ? updates.deductions : (calc?.deductions ?? 0);
-        const newRecord = {
-          id: `pay-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`,
-          staffId,
-          staff_id: staffId,
-          employeeName: emp?.name || '',
-          employee_name: emp?.name || '',
-          month: targetMonth,
-          basic: basicVal,
-          salary: basicVal,
-          deductions: dedVal,
-          netPay: basicVal - dedVal,
-          net_salary: basicVal - dedVal,
-          status: 'Pending',
-          paymentAccount: 'Current',
-          deductionReason: '',
-          deduction_reason: '',
-          ...updates
-        };
-        newRecord.netPay = (newRecord.basic ?? basicVal) - (newRecord.deductions ?? dedVal);
-        newRecord.net_salary = newRecord.netPay;
-        targetId = newRecord.id;
-        isNew = true;
-        fullRecord = newRecord;
-        return [...prev, newRecord];
+  // Automatically persist Pending non-manual payroll records when leave/attendance deductions change
+  useEffect(() => {
+    if (!canManagePayroll) return;
+    const toSync: any[] = [];
+    displayedPayroll.forEach((emp: any) => {
+      if (emp.mode === 'monthly' && emp.needsDbSync && emp.payrollId) {
+        const key = `${emp.payrollId}:${emp.calculatedDeductions}:${emp.netPay}`;
+        if (!syncedKeysRef.current.has(key)) {
+          syncedKeysRef.current.add(key);
+          toSync.push({
+            id: emp.payrollId,
+            deductions: emp.calculatedDeductions,
+            netPay: emp.netPay,
+            net_salary: emp.netPay,
+            isManualDeduction: false,
+            is_manual_deduction: false,
+          });
+        }
+      } else if (emp.mode === 'yearly' && Array.isArray(emp.monthDataList)) {
+        emp.monthDataList.forEach((mData: any) => {
+          if (mData.needsDbSync && mData.payrollId) {
+            const key = `${mData.payrollId}:${mData.calculatedDeductions}:${mData.netPay}`;
+            if (!syncedKeysRef.current.has(key)) {
+              syncedKeysRef.current.add(key);
+              toSync.push({
+                id: mData.payrollId,
+                deductions: mData.calculatedDeductions,
+                netPay: mData.netPay,
+                net_salary: mData.netPay,
+                isManualDeduction: false,
+                is_manual_deduction: false,
+              });
+            }
+          }
+        });
       }
     });
 
-    try {
-      if (targetId && !isNew) {
-        await apiUpdatePayroll(targetId, updates);
-      } else if (fullRecord) {
-        await addPayroll(fullRecord);
+    if (toSync.length > 0) {
+      toSync.forEach(item => {
+        apiUpdatePayroll(item.id, {
+          deductions: item.deductions,
+          netPay: item.netPay,
+          isManualDeduction: false,
+        }).catch(() => {});
+      });
+    }
+  }, [displayedPayroll, canManagePayroll]);
+
+  const updatePayroll = async (staffId: string, updates: any, targetMonth: string = selectedMonth) => {
+    const existing = payroll.find(p => (p.staffId === staffId || p.staff_id === staffId) && p.month === targetMonth);
+
+    if (existing) {
+      const merged = { ...existing, ...updates };
+      const basicVal = merged.basic !== undefined ? merged.basic : (merged.salary || 0);
+      const dedVal = merged.deductions !== undefined ? merged.deductions : 0;
+      const netVal = Math.max(0, basicVal - dedVal);
+      merged.basic = basicVal;
+      merged.salary = basicVal;
+      merged.netPay = netVal;
+      merged.net_salary = netVal;
+
+      setPayroll(prev => prev.map(p => (p.id === existing.id ? merged : p)));
+
+      try {
+        await apiUpdatePayroll(existing.id, {
+          ...updates,
+          basic: basicVal,
+          deductions: dedVal,
+          netPay: netVal,
+        });
+      } catch (e) {
+        console.error('Failed to sync payroll update to backend', e);
       }
-    } catch (e) {
-      console.error('Failed to sync payroll update to backend', e);
+    } else {
+      const emp = staff.find(s => s.id === staffId);
+      const calc = emp ? calculateStaffMonth(emp, targetMonth) : null;
+      const basicVal = updates.basic !== undefined ? updates.basic : (calc?.basic ?? (emp?.baseSalary || 0));
+      const dedVal = updates.deductions !== undefined ? updates.deductions : (calc?.deductions ?? 0);
+      const netVal = Math.max(0, basicVal - dedVal);
+      const newRecord = {
+        id: `pay-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`,
+        staffId,
+        staff_id: staffId,
+        employeeName: emp?.name || '',
+        employee_name: emp?.name || '',
+        month: targetMonth,
+        basic: basicVal,
+        salary: basicVal,
+        deductions: dedVal,
+        netPay: netVal,
+        net_salary: netVal,
+        status: 'Pending',
+        paymentAccount: 'Current',
+        deductionReason: '',
+        deduction_reason: '',
+        isManualDeduction: false,
+        is_manual_deduction: false,
+        ...updates,
+      };
+      newRecord.netPay = Math.max(0, (newRecord.basic ?? basicVal) - (newRecord.deductions ?? dedVal));
+      newRecord.net_salary = newRecord.netPay;
+
+      setPayroll(prev => [...prev, newRecord]);
+
+      try {
+        await addPayroll(newRecord);
+      } catch (e) {
+        console.error('Failed to sync new payroll record to backend', e);
+      }
     }
   };
 
-  const markAllPaid = () => {
+  const markAllPaid = async () => {
+    const recordsToUpsert: any[] = [];
+
     if (filterMode === 'yearly') {
       const fyMonthsList = getFYMonths(parseInt(selectedFY, 10));
-      setPayroll(prev => {
-        let next = [...prev];
-        displayedPayroll.forEach(emp => {
-          fyMonthsList.forEach(item => {
-            const m = item.monthKey;
-            const mData = emp.monthDataList?.find((x: any) => x.month === m);
-            if (mData && mData.status !== 'Paid') {
-              const existingIdx = next.findIndex(x => x.staffId === emp.id && x.month === m);
-              if (existingIdx >= 0) {
-                next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
-              } else {
-                next.push({
-                  id: Math.random().toString(36).substr(2, 9),
-                  staffId: emp.id,
-                  month: m,
-                  basic: mData.basic,
-                  deductions: mData.deductions,
-                  netPay: mData.netPay,
-                  status: 'Paid',
-                  paymentAccount: 'Current'
-                });
-              }
-            }
-          });
-        });
-        return next;
-      });
-    } else {
-      const pending = displayedPayroll.filter(p => p.status === 'Pending');
-      if (pending.length === 0) return;
-
-      setPayroll(prev => {
-        let next = [...prev];
-        pending.forEach(p => {
-          const existingIdx = next.findIndex(x => x.staffId === p.id && x.month === selectedMonth);
-          if (existingIdx >= 0) {
-            next[existingIdx] = { ...next[existingIdx], status: 'Paid' };
-          } else {
-            next.push({
-              id: Math.random().toString(36).substr(2, 9),
-              staffId: p.id,
-              month: selectedMonth,
-              basic: p.basic,
-              deductions: p.deductions,
-              netPay: p.netPay,
+      displayedPayroll.forEach(emp => {
+        fyMonthsList.forEach(item => {
+          const m = item.monthKey;
+          const mData = emp.monthDataList?.find((x: any) => x.month === m);
+          if (mData && mData.status !== 'Paid') {
+            const existing = payroll.find(x => (x.staffId === emp.id || x.staff_id === emp.id) && x.month === m);
+            recordsToUpsert.push({
+              id: existing?.id || `pay-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`,
+              staffId: emp.id,
+              employeeName: emp.name,
+              month: m,
+              basic: mData.basic,
+              deductions: mData.deductions,
+              netPay: mData.netPay,
               status: 'Paid',
-              paymentAccount: 'Current'
+              paymentAccount: existing?.paymentAccount || 'Current',
+              deductionReason: existing?.deductionReason || mData.deductionReason || '',
+              isManualDeduction: Boolean(existing?.isManualDeduction ?? mData.isManualDeduction),
             });
           }
         });
-        return next;
+      });
+    } else {
+      const pending = displayedPayroll.filter(p => p.status === 'Pending');
+      pending.forEach(p => {
+        const existing = payroll.find(x => (x.staffId === p.id || x.staff_id === p.id) && x.month === selectedMonth);
+        recordsToUpsert.push({
+          id: existing?.id || `pay-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`,
+          staffId: p.id,
+          employeeName: p.name,
+          month: selectedMonth,
+          basic: p.basic,
+          deductions: p.deductions,
+          netPay: p.netPay,
+          status: 'Paid',
+          paymentAccount: existing?.paymentAccount || p.paymentAccount || 'Current',
+          deductionReason: existing?.deductionReason || p.deductionReason || '',
+          isManualDeduction: Boolean(existing?.isManualDeduction ?? p.isManualDeduction),
+        });
       });
     }
+
+    if (recordsToUpsert.length === 0) return;
+    await bulkUpsertPayroll(recordsToUpsert);
   };
 
   return (
@@ -1117,13 +1102,33 @@ export function PayrollPage() {
                               <input 
                                 type="number"
                                 value={emp.deductions}
-                                onChange={(e) => updatePayroll(emp.id, { deductions: parseFloat(e.target.value) || 0 })}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                  updatePayroll(emp.id, {
+                                    deductions: val,
+                                    isManualDeduction: Math.round(val) !== Math.round(emp.calculatedDeductions || 0),
+                                  });
+                                }}
                                 className="w-20 text-right bg-white/50 border border-white/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-rose-400 text-rose-600 font-bold"
                               />
                             ) : (
                               <span>₹{emp.deductions.toLocaleString()}</span>
                             )}
                           </div>
+                          {emp.isOutOfSyncWithCalc && canManagePayroll && (
+                            <button
+                              type="button"
+                              onClick={() => updatePayroll(emp.id, {
+                                deductions: emp.calculatedDeductions,
+                                isManualDeduction: false,
+                              })}
+                              className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                              title={`Leave & attendance currently calculate ₹${emp.calculatedDeductions.toLocaleString()}. Click to sync.`}
+                            >
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              Sync (₹{emp.calculatedDeductions.toLocaleString()})
+                            </button>
+                          )}
                           {/* Note / Reason Badge */}
                           {(emp.deductions > 0 || emp.deductionReason) ? (
                             <button
@@ -1132,7 +1137,7 @@ export function PayrollPage() {
                                 staffId: emp.id,
                                 name: emp.name,
                                 role: emp.role,
-                                baseSalary: emp.baseSalary,
+                                baseSalary: emp.basic,
                                 month: selectedMonth,
                                 workingDays: emp.workingDays,
                                 perDaySalary: emp.perDaySalary,
@@ -1158,7 +1163,7 @@ export function PayrollPage() {
                                   staffId: emp.id,
                                   name: emp.name,
                                   role: emp.role,
-                                  baseSalary: emp.baseSalary,
+                                  baseSalary: emp.basic,
                                   month: selectedMonth,
                                   workingDays: emp.workingDays,
                                   perDaySalary: emp.perDaySalary,
@@ -1372,7 +1377,7 @@ export function PayrollPage() {
                               staffId: selectedPayslip.id,
                               name: selectedPayslip.name,
                               role: selectedPayslip.role,
-                              baseSalary: selectedPayslip.baseSalary,
+                              baseSalary: selectedPayslip.basic,
                               month: selectedMonth,
                               workingDays: selectedPayslip.workingDays,
                               perDaySalary: selectedPayslip.perDaySalary,

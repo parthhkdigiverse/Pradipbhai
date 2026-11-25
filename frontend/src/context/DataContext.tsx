@@ -274,6 +274,7 @@ interface DataContextType {
   setPayroll: React.Dispatch<React.SetStateAction<any[]>>;
   addPayroll: (payrollData: any) => Promise<any>;
   updatePayroll: (id: string, updateData: any) => Promise<any>;
+  bulkUpsertPayroll: (records: any[]) => Promise<any[]>;
 
   vendors: any[];
   setVendors: React.Dispatch<React.SetStateAction<any[]>>;
@@ -314,6 +315,8 @@ interface DataContextType {
 
   leaveBalances: LeaveBalance[];
   setLeaveBalances: React.Dispatch<React.SetStateAction<LeaveBalance[]>>;
+  updateLeaveBalance: (staffId: string, updates: Partial<LeaveBalance>) => Promise<any>;
+  resetLeaveBalances: () => Promise<any>;
   
   convertLeadToClient: (lead: any) => void;
   projects: any[];
@@ -704,7 +707,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return mergeSundaysWithHolidays(cached, deleted);
   });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(() => loadCachedData('cache_leave_requests', []));
-  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>(() => loadCachedData('cache_leave_balances', []));
   const [dailyRatings, setDailyRatings] = useState<Record<string, number>>({});
   const [dailyProgressRecords, setDailyProgressRecords] = useState<DailyRecord[]>(() => loadCachedData('cache_daily_progress', []));
   const [employeeEvaluations, setEmployeeEvaluations] = useState<EmployeeEvaluationRecord[]>(() => loadCachedData('cache_employee_evaluations', []));
@@ -873,6 +876,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     description: w.description || ''
   });
 
+  const normalizeLeaveBalance = (b: any): LeaveBalance => ({
+    staffId: b.staff_id || b.staffId,
+    casual: b.casual !== undefined ? Number(b.casual) : 0,
+    sick: b.sick !== undefined ? Number(b.sick) : 3,
+    earned: b.earned !== undefined ? Number(b.earned) : 12,
+  });
+
   const normalizePayroll = (p: any) => ({
     ...p,
     id: p.id,
@@ -891,7 +901,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     paymentAccount: (p.account_type === 'Savings A/c' || p.paymentAccount === 'Savings') ? 'Savings' : 'Current',
     account_type: p.account_type || (p.paymentAccount === 'Savings' ? 'Savings A/c' : 'Current A/c'),
     deductionReason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || ''),
-    deduction_reason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || '')
+    deduction_reason: p.deduction_reason !== undefined ? (p.deduction_reason || '') : (p.deductionReason || ''),
+    isManualDeduction: Boolean(p.is_manual_deduction !== undefined ? p.is_manual_deduction : p.isManualDeduction),
+    is_manual_deduction: Boolean(p.is_manual_deduction !== undefined ? p.is_manual_deduction : p.isManualDeduction),
   });
 
   const normalizeProject = (p: any) => ({
@@ -953,7 +965,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return res.json();
       };
 
-      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes, syncVerRes] = await Promise.allSettled([
+      const [clientsRes, jobsRes, invoicesRes, payrollRes, progressRes, leadsRes, staffRes, attRes, holRes, leaveRes, leaveBalRes, workRes, venRes, permRes, prodRes, fdRes, projRes, eomRes, syncVerRes] = await Promise.allSettled([
         fetchWithAuth(`${API_BASE_URL}/clients`),
         fetchWithAuth(`${API_BASE_URL}/jobs`),
         fetchWithAuth(`${API_BASE_URL}/invoices`),
@@ -964,6 +976,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         fetchWithAuth(`${API_BASE_URL}/attendance`),
         fetchWithAuth(`${API_BASE_URL}/holidays`),
         fetchWithAuth(`${API_BASE_URL}/leaves/requests`),
+        fetchWithAuth(`${API_BASE_URL}/leaves/balances`),
         fetchWithAuth(`${API_BASE_URL}/worklogs`),
         fetchWithAuth(`${API_BASE_URL}/vendors`),
         fetchWithAuth(`${API_BASE_URL}/permissions`),
@@ -1054,6 +1067,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const normLeaves = leaveRes.value.map(normalizeLeaveRequest);
         setLeaveRequests(normLeaves);
         saveCache('cache_leave_requests', normLeaves);
+      }
+      if (leaveBalRes.status === 'fulfilled' && Array.isArray(leaveBalRes.value)) {
+        const normBalances = leaveBalRes.value.map(normalizeLeaveBalance);
+        setLeaveBalances(normBalances);
+        saveCache('cache_leave_balances', normBalances);
       }
       if (workRes.status === 'fulfilled' && Array.isArray(workRes.value)) {
         const normWork = workRes.value.map(normalizeWorkLog);
@@ -1490,15 +1508,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
       status: payrollData.status || 'Pending',
       account_type: payrollData.paymentAccount === 'Savings' ? 'Savings A/c' : (payrollData.account_type || 'Current A/c'),
       deduction_reason: payrollData.deductionReason !== undefined ? payrollData.deductionReason : (payrollData.deduction_reason || null),
+      is_manual_deduction: Boolean(payrollData.isManualDeduction !== undefined ? payrollData.isManualDeduction : payrollData.is_manual_deduction),
     };
     try {
       const data = await apiFetch(`${API_BASE_URL}/payroll`, { method: 'POST', body: JSON.stringify(payload) });
       const norm = normalizePayroll(data);
-      setPayroll(prev => [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))]);
+      setPayroll(prev => {
+        const next = [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))];
+        saveCache('cache_payroll', next);
+        return next;
+      });
       return norm;
     } catch {
       const norm = normalizePayroll(payrollData);
-      setPayroll(prev => [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))]);
+      setPayroll(prev => {
+        const next = [norm, ...prev.filter(p => p.id !== norm.id && !(p.staffId === norm.staffId && p.month === norm.month))];
+        saveCache('cache_payroll', next);
+        return next;
+      });
       return norm;
     }
   };
@@ -1520,14 +1547,67 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (updateData.deductionReason !== undefined || updateData.deduction_reason !== undefined) {
       payload.deduction_reason = updateData.deductionReason !== undefined ? updateData.deductionReason : updateData.deduction_reason;
     }
+    if (updateData.isManualDeduction !== undefined || updateData.is_manual_deduction !== undefined) {
+      payload.is_manual_deduction = Boolean(updateData.isManualDeduction !== undefined ? updateData.isManualDeduction : updateData.is_manual_deduction);
+    }
 
     try {
       const data = await apiFetch(`${API_BASE_URL}/payroll/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       const norm = normalizePayroll(data);
-      setPayroll(prev => prev.map(p => p.id === id ? norm : p));
+      setPayroll(prev => {
+        const next = prev.map(p => p.id === id ? norm : p);
+        saveCache('cache_payroll', next);
+        return next;
+      });
       return norm;
     } catch {
-      setPayroll(prev => prev.map(p => p.id === id ? normalizePayroll({ ...p, ...updateData }) : p));
+      setPayroll(prev => {
+        const next = prev.map(p => p.id === id ? normalizePayroll({ ...p, ...updateData }) : p);
+        saveCache('cache_payroll', next);
+        return next;
+      });
+    }
+  };
+
+  const bulkUpsertPayroll = async (records: any[]) => {
+    if (!records || records.length === 0) return [];
+    const payloads = records.map(r => ({
+      id: r.id,
+      staff_id: r.staffId || r.staff_id,
+      employee_name: r.employeeName || r.employee_name || r.name || '',
+      month: r.month,
+      salary: r.basic !== undefined ? r.basic : (r.salary || 0),
+      bonus: r.bonus || 0,
+      deductions: r.deductions !== undefined ? r.deductions : 0,
+      net_salary: r.netPay !== undefined ? r.netPay : (r.net_salary || 0),
+      status: r.status || 'Pending',
+      account_type: r.paymentAccount === 'Savings' ? 'Savings A/c' : (r.account_type || 'Current A/c'),
+      deduction_reason: r.deductionReason !== undefined ? r.deductionReason : (r.deduction_reason || null),
+      is_manual_deduction: Boolean(r.isManualDeduction !== undefined ? r.isManualDeduction : r.is_manual_deduction),
+    }));
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/payroll/bulk`, { method: 'POST', body: JSON.stringify(payloads) });
+      const normed = Array.isArray(data) ? data.map(normalizePayroll) : [];
+      setPayroll(prev => {
+        let next = [...prev];
+        normed.forEach(nr => {
+          next = [nr, ...next.filter(p => p.id !== nr.id && !(p.staffId === nr.staffId && p.month === nr.month))];
+        });
+        saveCache('cache_payroll', next);
+        return next;
+      });
+      return normed;
+    } catch {
+      const normed = records.map(normalizePayroll);
+      setPayroll(prev => {
+        let next = [...prev];
+        normed.forEach(nr => {
+          next = [nr, ...next.filter(p => p.id !== nr.id && !(p.staffId === nr.staffId && p.month === nr.month))];
+        });
+        saveCache('cache_payroll', next);
+        return next;
+      });
+      return normed;
     }
   };
 
@@ -1804,8 +1884,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Attendance API
   const addAttendance = async (attData: any) => {
+    const staffIdVal = attData.staff_id || attData.staffId;
+    const matchedStaff = staffIdVal ? staffRef.current.find((s: any) => s.id === staffIdVal) : null;
+    const payload: any = {
+      ...attData,
+      staff_id: staffIdVal,
+      staff_name: attData.staff_name || attData.staffName || matchedStaff?.name || 'Staff Member',
+      check_in: attData.check_in !== undefined ? attData.check_in : (attData.checkIn ?? null),
+      check_out: attData.check_out !== undefined ? attData.check_out : (attData.checkOut ?? null),
+    };
     try {
-      const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(attData) });
+      const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(payload) });
       const mapped = {
         ...data,
         staffId: data.staff_id || data.staffId,
@@ -1826,8 +1915,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const updateAttendance = async (id: string, updateData: any) => {
+    const payload: any = { ...updateData };
+    if (updateData.checkIn !== undefined && payload.check_in === undefined) payload.check_in = updateData.checkIn;
+    if (updateData.checkOut !== undefined && payload.check_out === undefined) payload.check_out = updateData.checkOut;
     try {
-      const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       const mapped = {
         ...data,
         staffId: data.staff_id || data.staffId,
@@ -1866,28 +1958,111 @@ export function DataProvider({ children }: { children: ReactNode }) {
         })
       });
       const norm = normalizeLeaveRequest(data);
-      setLeaveRequests(prev => [norm, ...prev]);
+      setLeaveRequests(prev => {
+        const next = [norm, ...prev];
+        saveCache('cache_leave_requests', next);
+        return next;
+      });
       return norm;
     } catch {
       const norm = normalizeLeaveRequest({ ...leaveData, id: leaveData.id || `leave-${Date.now()}` });
-      setLeaveRequests(prev => [norm, ...prev]);
+      setLeaveRequests(prev => {
+        const next = [norm, ...prev];
+        saveCache('cache_leave_requests', next);
+        return next;
+      });
       return norm;
     }
   };
 
   const deleteLeaveRequest = async (id: string) => {
     try { await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'DELETE' }); } catch {}
-    setLeaveRequests(prev => prev.filter(r => r.id !== id));
+    setLeaveRequests(prev => {
+      const next = prev.filter(r => r.id !== id);
+      saveCache('cache_leave_requests', next);
+      return next;
+    });
   };
 
   const updateLeaveRequest = async (id: string, updateData: any) => {
+    const payload: any = {};
+    if (updateData.type !== undefined) payload.type = updateData.type;
+    if (updateData.fromDate !== undefined || updateData.from_date !== undefined) payload.from_date = updateData.fromDate ?? updateData.from_date;
+    if (updateData.toDate !== undefined || updateData.to_date !== undefined) payload.to_date = updateData.toDate ?? updateData.to_date;
+    if (updateData.days !== undefined) payload.days = updateData.days;
+    if (updateData.reason !== undefined) payload.reason = updateData.reason;
+    if (updateData.status !== undefined) payload.status = updateData.status;
+    if (updateData.reviewedBy !== undefined || updateData.reviewed_by !== undefined) payload.reviewed_by = updateData.reviewedBy ?? updateData.reviewed_by;
+    if (updateData.reviewNote !== undefined || updateData.review_note !== undefined) payload.review_note = updateData.reviewNote ?? updateData.review_note;
+    if (updateData.reviewedOn !== undefined || updateData.reviewed_on !== undefined) payload.reviewed_on = updateData.reviewedOn ?? updateData.reviewed_on;
+    if (updateData.isHalfDay !== undefined || updateData.is_half_day !== undefined) payload.is_half_day = updateData.isHalfDay ?? updateData.is_half_day;
+    if (updateData.halfDaySession !== undefined || updateData.half_day_session !== undefined) payload.half_day_session = updateData.halfDaySession ?? updateData.half_day_session;
+
     try {
-      const data = await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
+      const data = await apiFetch(`${API_BASE_URL}/leaves/requests/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       const norm = normalizeLeaveRequest(data);
-      setLeaveRequests(prev => prev.map(r => r.id === id ? norm : r));
+      setLeaveRequests(prev => {
+        const next = prev.map(r => r.id === id ? norm : r);
+        saveCache('cache_leave_requests', next);
+        return next;
+      });
       return norm;
     } catch {
-      setLeaveRequests(prev => prev.map(r => r.id === id ? normalizeLeaveRequest({ ...r, ...updateData }) : r));
+      setLeaveRequests(prev => {
+        const next = prev.map(r => r.id === id ? normalizeLeaveRequest({ ...r, ...updateData }) : r);
+        saveCache('cache_leave_requests', next);
+        return next;
+      });
+    }
+  };
+
+  const updateLeaveBalance = async (staffId: string, updates: Partial<LeaveBalance>) => {
+    setLeaveBalances(prev => {
+      const idx = prev.findIndex(b => b.staffId === staffId);
+      const next = idx >= 0
+        ? prev.map(b => b.staffId === staffId ? { ...b, ...updates } : b)
+        : [...prev, { staffId, casual: 0, sick: 3, earned: 12, ...updates }];
+      saveCache('cache_leave_balances', next);
+      return next;
+    });
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/leaves/balances/${staffId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          casual: updates.casual,
+          sick: updates.sick,
+          earned: updates.earned,
+        }),
+      });
+      const norm = normalizeLeaveBalance(data);
+      setLeaveBalances(prev => {
+        const idx = prev.findIndex(b => b.staffId === staffId);
+        const next = idx >= 0 ? prev.map(b => b.staffId === staffId ? norm : b) : [...prev, norm];
+        saveCache('cache_leave_balances', next);
+        return next;
+      });
+      return norm;
+    } catch (err) {
+      console.warn('Failed to persist leave balance update:', err);
+    }
+  };
+
+  const resetLeaveBalances = async () => {
+    setLeaveBalances(prev => {
+      const next = prev.map(b => ({ ...b, casual: 0, sick: 3, earned: 12 }));
+      saveCache('cache_leave_balances', next);
+      return next;
+    });
+    try {
+      const data = await apiFetch(`${API_BASE_URL}/leaves/balances/reset`, { method: 'POST' });
+      if (Array.isArray(data)) {
+        const normed = data.map(normalizeLeaveBalance);
+        setLeaveBalances(normed);
+        saveCache('cache_leave_balances', normed);
+        return normed;
+      }
+    } catch (err) {
+      console.warn('Failed to reset leave balances:', err);
     }
   };
 
@@ -2325,14 +2500,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     products, setProducts, addProduct, updateProduct, deleteProduct,
     staff, setStaff, addStaff, updateStaff, deleteStaff,
     attendance, setAttendance, addAttendance, updateAttendance,
-    payroll, setPayroll, addPayroll, updatePayroll,
+    payroll, setPayroll, addPayroll, updatePayroll, bulkUpsertPayroll,
     vendors, setVendors, addVendor, updateVendor, deleteVendor,
     jobs, setJobs, addJob, updateJob, deleteJob,
     invoices, setInvoices, addInvoice, updateInvoice, deleteInvoice,
     holidays, setHolidays, addHoliday, deleteHoliday,
     deletedSundayDates, restoreAllSundays,
     leaveRequests, setLeaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest,
-    leaveBalances, setLeaveBalances,
+    leaveBalances, setLeaveBalances, updateLeaveBalance, resetLeaveBalances,
     convertLeadToClient,
     projects,
     setProjects,

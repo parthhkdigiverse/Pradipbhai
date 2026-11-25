@@ -292,11 +292,16 @@ async def init_db():
 
         if "payroll_records" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("payroll_records")]
-            if "deduction_reason" not in columns:
-                try:
-                    sync_conn.execute(text("ALTER TABLE payroll_records ADD COLUMN `deduction_reason` VARCHAR(500) NULL"))
-                except Exception as e:
-                    print(f"⚠️ Column addition notice for payroll_records.deduction_reason: {e}")
+            needed_payroll_cols = [
+                ("deduction_reason", "VARCHAR(500) NULL"),
+                ("is_manual_deduction", "BOOLEAN DEFAULT FALSE")
+            ]
+            for col_name, col_type in needed_payroll_cols:
+                if col_name not in columns:
+                    try:
+                        sync_conn.execute(text(f"ALTER TABLE payroll_records ADD COLUMN `{col_name}` {col_type}"))
+                    except Exception as e:
+                        print(f"⚠️ Column addition notice for payroll_records.{col_name}: {e}")
 
         if "projects" in inspector.get_table_names():
             columns = [c["name"] for c in inspector.get_columns("projects")]

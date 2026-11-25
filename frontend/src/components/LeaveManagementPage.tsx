@@ -5,6 +5,16 @@ import {
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import type { LeaveRequest, LeaveBalance } from '../context/DataContext';
+import {
+  getFYStartYear,
+  getFYBounds,
+  getFYLabel,
+  expandLeaveDates,
+  countEffectiveLeaveDays,
+  buildFYLeaveSegments,
+  calculateStaffLeaveQuotas,
+  isHalfDayLeave,
+} from '../utils/leavePayrollUtils';
 
 type LeaveType = LeaveRequest['type'];
 type LeaveStatus = LeaveRequest['status'];
@@ -36,7 +46,7 @@ function calcDays(from: string, to: string) {
 
 export function getLeaveDays(r: Partial<LeaveRequest> | any): number {
   if (!r) return 1;
-  if (r.isHalfDay || r.is_half_day || r.days === 0.5) return 0.5;
+  if (isHalfDayLeave(r)) return 0.5;
   const d = Number(r.days);
   if (!isNaN(d) && d > 0) return d;
   if (r.fromDate && r.toDate) {
@@ -56,7 +66,23 @@ const emptyForm = () => ({
 });
 
 export function LeaveManagementPage() {
-  const { staff, leaveRequests, addLeaveRequest, updateLeaveRequest, deleteLeaveRequest, leaveBalances, setLeaveBalances, currentUserRole, currentUser, hasPermission, attendance, addAttendance } = useData();
+  const {
+    staff,
+    leaveRequests,
+    addLeaveRequest,
+    updateLeaveRequest,
+    deleteLeaveRequest,
+    leaveBalances,
+    updateLeaveBalance,
+    resetLeaveBalances,
+    holidays,
+    currentUserRole,
+    currentUser,
+    hasPermission,
+    attendance,
+    addAttendance,
+    updateAttendance,
+  } = useData();
 
   const canApply = hasPermission(currentUserRole, 'Apply Leave');
   const canApproveReject = hasPermission(currentUserRole, 'Approve/Reject Leaves');
@@ -117,52 +143,68 @@ export function LeaveManagementPage() {
 
   const pendingCount = leaveRequests.filter(r => r.status === 'Pending').length;
 
+  const holidayDatesSet = useMemo(
+    () => new Set((holidays || []).map((h: any) => h.date).filter(Boolean)),
+    [holidays]
+  );
+
   // My balance
   const myBalance = useMemo(() => {
     return leaveBalances.find(b => b.staffId === currentStaff?.id);
   }, [leaveBalances, currentStaff?.id]);
   const earnedPaidQuota = myBalance?.earned ?? 12;
+  const monthlyEarnedQuota = earnedPaidQuota / 12;
   const sickPaidQuota = myBalance?.sick ?? 3;
 
-  const myUsed = useMemo(() => {
-    const approved = myLeaves.filter(r => r.status === 'Approved');
-    return {
-      Casual: approved.filter(r => r.type === 'Casual').reduce((s, r) => s + getLeaveDays(r), 0),
-      Sick:   approved.filter(r => r.type === 'Sick').reduce((s, r) => s + getLeaveDays(r), 0),
-      Earned: approved.filter(r => r.type === 'Earned').reduce((s, r) => s + getLeaveDays(r), 0),
-    };
-  }, [myLeaves]);
+  const currentMonthStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
 
-  const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const currentFYStart = useMemo(() => getFYStartYear(currentMonthStr), [currentMonthStr]);
+  const currentFYLabel = useMemo(() => getFYLabel(currentFYStart), [currentFYStart]);
+  const currentFYBounds = useMemo(() => getFYBounds(currentFYStart), [currentFYStart]);
 
-  const myThisMonthUsed = useMemo(() => {
-    const approvedThisMonth = myLeaves.filter(r => 
-      r.status === 'Approved' && 
-      ((r.fromDate && r.fromDate.startsWith(currentMonthStr)) || (r.toDate && r.toDate.startsWith(currentMonthStr)))
+  const myCurrentFYQuotas = useMemo(() => {
+    const segs = buildFYLeaveSegments(
+      leaveRequests,
+      currentStaff?.id,
+      holidayDatesSet,
+      currentFYBounds.fyStartDate,
+      currentFYBounds.fyEndDate,
+      ['Approved']
     );
-    return {
-      Casual: approvedThisMonth.filter(r => r.type === 'Casual').reduce((s, r) => s + getLeaveDays(r), 0),
-      Sick:   approvedThisMonth.filter(r => r.type === 'Sick').reduce((s, r) => s + getLeaveDays(r), 0),
-      Earned: approvedThisMonth.filter(r => r.type === 'Earned').reduce((s, r) => s + getLeaveDays(r), 0),
-    };
-  }, [myLeaves, currentMonthStr]);
+    return calculateStaffLeaveQuotas(segs, myBalance, currentMonthStr);
+  }, [leaveRequests, currentStaff?.id, holidayDatesSet, currentFYBounds, myBalance, currentMonthStr]);
 
-  const thisMonthRemainingEarned = Math.max(0, 1 - myThisMonthUsed.Earned);
-  const thisMonthExtraEarned = Math.max(0, myThisMonthUsed.Earned - 1);
+  const myUsed = useMemo(() => ({
+    Casual: myCurrentFYQuotas.usedCasual,
+    Sick: myCurrentFYQuotas.usedSick,
+    Earned: myCurrentFYQuotas.usedEarned,
+  }), [myCurrentFYQuotas]);
+
+  const myThisMonthUsed = useMemo(() => ({
+    Casual: myCurrentFYQuotas.casualInMonth,
+    Sick: myCurrentFYQuotas.sickInMonth,
+    Earned: myCurrentFYQuotas.earnedInMonth,
+  }), [myCurrentFYQuotas]);
+
+  const thisMonthRemainingEarned = Math.max(0, monthlyEarnedQuota - myThisMonthUsed.Earned);
+  const thisMonthExtraEarned = myCurrentFYQuotas.deductibleEarnedInMonth;
 
   const remainingSickPaidDays = Math.max(0, sickPaidQuota - myUsed.Sick);
-  const extraSickDeductibleDays = Math.max(0, myUsed.Sick - sickPaidQuota);
+  const extraSickDeductibleDays = myCurrentFYQuotas.deductibleSick;
 
-  // Active requests (Approved + Pending) for quota validation during application
-  const myActiveRequests = useMemo(() => {
-    return myLeaves.filter(r => r.status === 'Approved' || r.status === 'Pending');
-  }, [myLeaves]);
-
-  // Selected month for date (from form.fromDate or current month)
+  // Selected month & FY for the application form
   const selectedMonthStr = useMemo(() => {
     if (form.fromDate) return form.fromDate.slice(0, 7);
     return currentMonthStr;
   }, [form.fromDate, currentMonthStr]);
+
+  const selectedFYBounds = useMemo(
+    () => getFYBounds(getFYStartYear(selectedMonthStr)),
+    [selectedMonthStr]
+  );
 
   const selectedMonthFormatted = useMemo(() => {
     try {
@@ -174,37 +216,35 @@ export function LeaveManagementPage() {
     }
   }, [selectedMonthStr]);
 
-  // Sick Leave Quota Consumption
-  const totalSickUsed = useMemo(() => {
-    return myActiveRequests
-      .filter(r => r.type === 'Sick')
-      .reduce((s, r) => s + getLeaveDays(r), 0);
-  }, [myActiveRequests]);
+  // Active (Approved + Pending) FY quotas scoped to the selected leave's Financial Year
+  const myActiveFYQuotas = useMemo(() => {
+    const segs = buildFYLeaveSegments(
+      leaveRequests,
+      currentStaff?.id,
+      holidayDatesSet,
+      selectedFYBounds.fyStartDate,
+      selectedFYBounds.fyEndDate,
+      ['Approved', 'Pending']
+    );
+    return calculateStaffLeaveQuotas(segs, myBalance, selectedMonthStr);
+  }, [leaveRequests, currentStaff?.id, holidayDatesSet, selectedFYBounds, myBalance, selectedMonthStr]);
 
+  const totalSickUsed = myActiveFYQuotas.usedSick;
   const remainingSickPaid = Math.max(0, sickPaidQuota - totalSickUsed);
   const isSickConsumed = remainingSickPaid <= 0;
 
-  // Earned Leave Quota Consumption
-  const selectedMonthEarnedUsed = useMemo(() => {
-    return myActiveRequests
-      .filter(r =>
-        r.type === 'Earned' &&
-        ((r.fromDate && r.fromDate.startsWith(selectedMonthStr)) || (r.toDate && r.toDate.startsWith(selectedMonthStr)))
-      )
-      .reduce((s, r) => s + getLeaveDays(r), 0);
-  }, [myActiveRequests, selectedMonthStr]);
+  const selectedMonthEarnedUsed = myActiveFYQuotas.earnedInMonth;
+  const totalEarnedUsed = myActiveFYQuotas.usedEarned;
 
-  const totalEarnedUsed = useMemo(() => {
-    return myActiveRequests
-      .filter(r => r.type === 'Earned')
-      .reduce((s, r) => s + getLeaveDays(r), 0);
-  }, [myActiveRequests]);
-
-  const remainingMonthEarned = Math.max(0, 1 - selectedMonthEarnedUsed);
+  const remainingMonthEarned = Math.max(0, monthlyEarnedQuota - selectedMonthEarnedUsed);
   const remainingAnnualEarned = Math.max(0, earnedPaidQuota - totalEarnedUsed);
   const isEarnedConsumed = remainingMonthEarned <= 0 || remainingAnnualEarned <= 0;
 
-  const requestedDays = form.fromDate ? (form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate)) : 0;
+  const rawRequestedDays = form.fromDate ? (form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate)) : 0;
+  const requestedDays = form.fromDate
+    ? countEffectiveLeaveDays(form.fromDate, form.toDate || form.fromDate, form.isHalfDay, holidayDatesSet, rawRequestedDays)
+    : 0;
+  const isZeroWorkingLeaveDays = Boolean(form.fromDate && (form.isHalfDay || form.toDate) && requestedDays === 0);
   const isEarnedDaysExceeded = form.type === 'Earned' && requestedDays > remainingMonthEarned;
 
   // Check if currently selected category in form.type is consumed or exceeded
@@ -252,38 +292,46 @@ export function LeaveManagementPage() {
 
   const handleApply = async () => {
     if (!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || !currentStaff) return;
+    if (isZeroWorkingLeaveDays || requestedDays <= 0) {
+      setQuotaWarning('Selected date(s) fall entirely on company holidays / weekly offs. No working leave days are needed.');
+      return;
+    }
     if (isCurrentCategoryConsumed) {
       setQuotaWarning(`Cannot submit: Paid quota for ${form.type} Leave is consumed or exceeded. Please switch to Casual Leave.`);
       return;
     }
-    const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
+    const days = requestedDays;
     if (form.type === 'Earned') {
-      if (selectedMonthEarnedUsed >= 1) {
-        setQuotaWarning(`Cannot submit: Paid Earned Leave quota (1 day/month) is already exhausted for ${selectedMonthFormatted}! Additional leaves in the same month must be Casual Leave (payroll-deductible).`);
+      if (selectedMonthEarnedUsed >= monthlyEarnedQuota) {
+        setQuotaWarning(`Cannot submit: Paid Earned Leave quota (${monthlyEarnedQuota} day/month) is already exhausted for ${selectedMonthFormatted}! Additional leaves in the same month must be Casual Leave (payroll-deductible).`);
         return;
       }
       if (days > remainingMonthEarned) {
-        setQuotaWarning(`Cannot submit: Paid Earned Leave is strictly 1 day per month (cannot be carry forwarded). Only ${remainingMonthEarned} day remains for ${selectedMonthFormatted}, but you requested ${days} day(s). Please apply for ${remainingMonthEarned} day under Earned and the rest under Casual Leave.`);
+        setQuotaWarning(`Cannot submit: Paid Earned Leave is strictly ${monthlyEarnedQuota} day(s) per month (cannot be carry forwarded). Only ${remainingMonthEarned} day remains for ${selectedMonthFormatted}, but you requested ${days} day(s). Please apply for ${remainingMonthEarned} day under Earned and the rest under Casual Leave.`);
         return;
       }
     }
     const targetToDate = form.isHalfDay ? form.fromDate : form.toDate;
-    await addLeaveRequest({
-      staffId: currentStaff.id,
-      staffName: currentStaff.name,
-      type: form.type,
-      fromDate: form.fromDate,
-      toDate: targetToDate,
-      days,
-      isHalfDay: form.isHalfDay,
-      halfDaySession: form.isHalfDay ? form.halfDaySession : undefined,
-      reason: form.reason.trim(),
-      status: 'Pending',
-      appliedOn: new Date().toISOString().slice(0, 10),
-    });
-    setForm(emptyForm());
-    setQuotaWarning(null);
-    setShowApply(false);
+    try {
+      await addLeaveRequest({
+        staffId: currentStaff.id,
+        staffName: currentStaff.name,
+        type: form.type,
+        fromDate: form.fromDate,
+        toDate: targetToDate,
+        days,
+        isHalfDay: form.isHalfDay,
+        halfDaySession: form.isHalfDay ? form.halfDaySession : undefined,
+        reason: form.reason.trim(),
+        status: 'Pending',
+        appliedOn: new Date().toISOString().slice(0, 10),
+      });
+      setForm(emptyForm());
+      setQuotaWarning(null);
+      setShowApply(false);
+    } catch (err: any) {
+      setQuotaWarning(err?.message || 'Failed to submit leave application.');
+    }
   };
 
   const handleCancel = async (id: string) => {
@@ -299,19 +347,30 @@ export function LeaveManagementPage() {
       reviewNote: '',
     });
 
-    // 2. Auto-create attendance records for each leave day (skip existing)
-    const leaveDays: string[] = [];
-    const cursor = new Date(req.fromDate + 'T00:00:00');
-    const end = new Date((req.toDate || req.fromDate) + 'T00:00:00');
-    while (cursor <= end) {
-      leaveDays.push(cursor.toISOString().slice(0, 10));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    const existing = new Set(attendance.filter((a: any) => (a.staffId || a.staff_id) === req.staffId).map((a: any) => a.date));
+    // 2. Auto-sync attendance records for each non-holiday leave day
+    const leaveDays = expandLeaveDates(req.fromDate, req.toDate || req.fromDate).filter(d => !holidayDatesSet.has(d));
+    const existingByDate = new Map<string, any>();
+    attendance
+      .filter((a: any) => (a.staffId || a.staff_id) === req.staffId)
+      .forEach((a: any) => existingByDate.set(a.date, a));
+
     const attStatus = req.isHalfDay ? `Half Day (${req.halfDaySession || '1st Half'})` : 'Leave';
     for (const d of leaveDays) {
-      if (!existing.has(d)) {
-        await addAttendance({ staffId: req.staffId, date: d, status: attStatus, checkIn: '', checkOut: '' });
+      const existingRec = existingByDate.get(d);
+      if (!existingRec) {
+        await addAttendance({
+          staffId: req.staffId,
+          staffName: req.staffName,
+          date: d,
+          status: attStatus,
+          checkIn: '',
+          checkOut: '',
+        });
+      } else if (
+        (existingRec.status === 'Absent' || existingRec.status === 'Unmarked') &&
+        (!existingRec.punches || existingRec.punches.length === 0)
+      ) {
+        await updateAttendance(existingRec.id, { status: attStatus });
       }
     }
   };
@@ -347,81 +406,53 @@ export function LeaveManagementPage() {
       deductibleS: number;
     }>();
 
-    // Group approved leaves by employee
-    const empLeavesMap = new Map<string, any[]>();
-    (leaveRequests || []).forEach(r => {
-      if (r.status !== 'Approved') return;
-      const sId = r.staffId || (r as any).staff_id;
-      if (!sId) return;
-      if (!empLeavesMap.has(sId)) empLeavesMap.set(sId, []);
-      empLeavesMap.get(sId)!.push(r);
-    });
-
     staff.forEach(emp => {
-      const reqs = empLeavesMap.get(emp.id) || [];
       const bal = staffBalancesMap.get(emp.id) ?? { casual: 0, sick: 3, earned: 12 };
-      const sickQuota = bal.sick ?? 3;
-      
-      let usedC = 0;
-      let usedS = 0;
-      let usedE = 0;
-      
-      // Group Earned leaves by month (YYYY-MM)
-      const earnedByMonth = new Map<string, number>();
-      
-      reqs.forEach(r => {
-        const days = getLeaveDays(r);
-        if (r.type === 'Casual') {
-          usedC += days;
-        } else if (r.type === 'Sick') {
-          usedS += days;
-        } else if (r.type === 'Earned') {
-          usedE += days;
-          const mo = (r.fromDate || '').slice(0, 7) || 'unknown';
-          earnedByMonth.set(mo, (earnedByMonth.get(mo) || 0) + days);
-        }
+      const segs = buildFYLeaveSegments(
+        leaveRequests,
+        emp.id,
+        holidayDatesSet,
+        currentFYBounds.fyStartDate,
+        currentFYBounds.fyEndDate,
+        ['Approved']
+      );
+      const q = calculateStaffLeaveQuotas(segs, bal);
+      map.set(emp.id, {
+        usedC: q.usedCasual,
+        usedS: q.usedSick,
+        usedE: q.usedEarned,
+        paidE: q.paidEarned,
+        deductibleE: q.deductibleEarned,
+        paidS: q.paidSick,
+        deductibleS: q.deductibleSick,
       });
-
-      // 1 day per month earned leave quota (cannot carry forward)
-      let paidE = 0;
-      let deductibleE = 0;
-      earnedByMonth.forEach(monthTotal => {
-        paidE += Math.min(monthTotal, 1);
-        deductibleE += Math.max(0, monthTotal - 1);
-      });
-
-      // 3 days sick quota per year
-      const paidS = Math.min(usedS, sickQuota);
-      const deductibleS = Math.max(0, usedS - sickQuota);
-
-      map.set(emp.id, { usedC, usedS, usedE, paidE, deductibleE, paidS, deductibleS });
     });
 
     return map;
-  }, [leaveRequests, staff, staffBalancesMap]);
+  }, [leaveRequests, staff, staffBalancesMap, holidayDatesSet, currentFYBounds]);
 
   const balanceCards = useMemo(() => [
     { 
       label: 'Earned (Paid)', 
-      total: 1, 
-      displayTotal: `${earnedPaidQuota} Days (1/Mo)`, 
+      total: monthlyEarnedQuota, 
+      displayTotal: `${earnedPaidQuota} Days (${monthlyEarnedQuota}/Mo)`, 
       usedCount: myThisMonthUsed.Earned, 
       usedDisplay: thisMonthExtraEarned > 0 
-        ? `${myThisMonthUsed.Earned} used this month (1 Paid, ${thisMonthExtraEarned} Deductible)` 
-        : `${myThisMonthUsed.Earned} used this month (${myUsed.Earned} total this year)`, 
+        ? `${myThisMonthUsed.Earned} used this month (${myCurrentFYQuotas.paidEarnedInMonth} Paid, ${thisMonthExtraEarned} Deductible)` 
+        : `${myThisMonthUsed.Earned} used this month (${myUsed.Earned} total in ${currentFYLabel})`, 
       remaining: `${thisMonthRemainingEarned} Left this Month`, 
       color: LEAVE_COLORS.Earned, 
-      note: '1 Day / Month (No Carry Forward)' 
+      note: `${monthlyEarnedQuota} Day / Month (No Carry Forward)` 
     },
     { 
       label: 'Sick Leave', 
       total: sickPaidQuota, 
-      displayTotal: '3 Paid + As Needed', 
+      displayTotal: `${sickPaidQuota} Paid + As Needed`, 
       usedCount: myUsed.Sick, 
-      usedDisplay: extraSickDeductibleDays > 0 ? `${myUsed.Sick} used (${sickPaidQuota} Paid, ${extraSickDeductibleDays} Deductible)` : `${myUsed.Sick} used (${myUsed.Sick} Paid)`, 
+      usedDisplay: extraSickDeductibleDays > 0 ? `${myUsed.Sick} used (${myCurrentFYQuotas.paidSick} Paid, ${extraSickDeductibleDays} Deductible)` : `${myUsed.Sick} used (${myUsed.Sick} Paid)`, 
       remaining: remainingSickPaidDays > 0 ? `${remainingSickPaidDays} Paid Left` : 'As Needed (Salary Deductible)', 
       color: LEAVE_COLORS.Sick, 
-      note: '3 Paid Days / Yr (No Carry Forward)' 
+      note: `${sickPaidQuota} Paid Days / FY (No Carry Forward)` 
     },
     { 
       label: 'Casual', 
@@ -433,7 +464,7 @@ export function LeaveManagementPage() {
       color: LEAVE_COLORS.Casual, 
       note: 'Payroll Deductible' 
     },
-  ], [earnedPaidQuota, myThisMonthUsed, thisMonthExtraEarned, myUsed, thisMonthRemainingEarned, sickPaidQuota, extraSickDeductibleDays, remainingSickPaidDays]);
+  ], [earnedPaidQuota, monthlyEarnedQuota, myThisMonthUsed, thisMonthExtraEarned, myCurrentFYQuotas, myUsed, currentFYLabel, thisMonthRemainingEarned, sickPaidQuota, extraSickDeductibleDays, remainingSickPaidDays]);
 
   return (
     <div className="w-full relative">
@@ -754,15 +785,13 @@ export function LeaveManagementPage() {
       {activeTab === 'balances' && isAdminOrManager && (
         <div className="space-y-5">
           {/* Header row with reset button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-gray-500">
-              Edit each employee's annual Paid Leave allocation (12 Earned Leaves, 1 per month - cannot be carry forwarded) &amp; Paid Sick Leave allocation (3 Sick Leaves - cannot be carry forwarded). Casual leaves and extra leaves are payroll-deductible.
+              Showing <strong className="text-gray-700">{currentFYLabel}</strong> (Apr–Mar) usage synced with Payroll. Edit each employee's annual Paid Leave allocation (12 Earned Leaves, 1 per month - cannot be carry forwarded) &amp; Paid Sick Leave allocation (3 Sick Leaves - cannot be carry forwarded). Casual leaves and extra leaves are payroll-deductible.
             </p>
             <button
-              onClick={() => {
-                setLeaveBalances(prev => prev.map(b => ({ ...b, casual: 0, sick: 3, earned: 12 })));
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all cursor-pointer"
+              onClick={() => { resetLeaveBalances(); }}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-sm font-bold transition-all cursor-pointer shrink-0"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reset All to Default (12 Earned, 3 Sick)
@@ -803,15 +832,7 @@ export function LeaveManagementPage() {
                   const extraSick = Math.max(0, usedS - sickQuota);
 
                   const updateBal = (field: 'casual' | 'sick' | 'earned', value: number) => {
-                    setLeaveBalances(prev => {
-                      const idx = prev.findIndex(b => b.staffId === emp.id);
-                      if (idx >= 0) {
-                        const next = [...prev];
-                        next[idx] = { ...next[idx], [field]: Math.max(0, value) };
-                        return next;
-                      }
-                      return [...prev, { staffId: emp.id, casual: 0, sick: 3, earned: 12, [field]: Math.max(0, value) }];
-                    });
+                    updateLeaveBalance(emp.id, { [field]: Math.max(0, value) });
                   };
 
                   return (
@@ -1085,15 +1106,17 @@ export function LeaveManagementPage() {
               {form.fromDate && (form.isHalfDay || form.toDate) && (
                 <div className="space-y-2">
                   <div className="bg-primary/5 border border-primary/10 rounded-xl px-4 py-2.5 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500">Total Duration</span>
+                    <span className="text-xs font-semibold text-gray-500">Total Working Leave Duration</span>
                     <span className="text-sm font-black text-primary">
-                      {form.isHalfDay ? `0.5 Day (${form.halfDaySession})` : `${calcDays(form.fromDate, form.toDate)} Day${calcDays(form.fromDate, form.toDate) > 1 ? 's' : ''}`}
+                      {form.isHalfDay
+                        ? (requestedDays === 0 ? '0 Days (Holiday)' : `0.5 Day (${form.halfDaySession})`)
+                        : `${requestedDays} Day${requestedDays !== 1 ? 's' : ''}${rawRequestedDays > requestedDays ? ` (${rawRequestedDays - requestedDays} holiday excl.)` : ''}`}
                     </span>
                   </div>
 
                   {/* Informative notice if requested days exceed remaining paid balance */}
                   {!isCurrentCategoryConsumed && (() => {
-                    const days = form.isHalfDay ? 0.5 : calcDays(form.fromDate, form.toDate || form.fromDate);
+                    const days = requestedDays;
                     if (form.type === 'Earned' && days > remainingMonthEarned && remainingMonthEarned > 0) {
                       return (
                         <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-800 text-xs font-medium">
@@ -1137,7 +1160,7 @@ export function LeaveManagementPage() {
               </button>
               <button
                 onClick={handleApply}
-                disabled={!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || isCurrentCategoryConsumed}
+                disabled={!form.fromDate || (!form.isHalfDay && !form.toDate) || !form.reason.trim() || isCurrentCategoryConsumed || isZeroWorkingLeaveDays}
                 className={`px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 ${
                   isCurrentCategoryConsumed 
                     ? 'bg-rose-600/80 text-white cursor-not-allowed opacity-75 shadow-rose-500/20' 

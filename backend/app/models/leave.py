@@ -27,6 +27,6 @@ class LeaveBalance(Base):
     __tablename__ = "leave_balances"
 
     staff_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    casual: Mapped[int] = mapped_column(Integer, default=12)
-    sick: Mapped[int] = mapped_column(Integer, default=10)
-    earned: Mapped[int] = mapped_column(Integer, default=15)
+    casual: Mapped[int] = mapped_column(Integer, default=0)
+    sick: Mapped[int] = mapped_column(Integer, default=3)
+    earned: Mapped[int] = mapped_column(Integer, default=12)
