@@ -53,6 +53,7 @@ export function InvoicesPage() {
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [customItems, setCustomItems] = useState<{ id: string; description: string; quantity: number; rate: number }[]>([]);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [gstSavingId, setGstSavingId] = useState<string | null>(null);
   
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
@@ -216,6 +217,8 @@ export function InvoicesPage() {
       if (filterStatus !== 'All') {
         if (filterStatus === 'Invoice Made') matchStatus = inv.isInvoiceMade;
         else if (filterStatus === 'Not Made') matchStatus = !inv.isInvoiceMade;
+        else if (filterStatus === 'With GST') matchStatus = Boolean(inv.isGst);
+        else if (filterStatus === 'Without GST') matchStatus = !inv.isGst;
         else matchStatus = inv.status === filterStatus;
       }
 
@@ -242,7 +245,7 @@ export function InvoicesPage() {
   }, [allInvoiceItems]);
 
   // Make a single formal invoice from a job
-  const handleMakeFormalInvoice = async (item: any) => {
+  const handleMakeFormalInvoice = async (item: any, isGst: boolean = false) => {
     const nextNum = getNextInvoiceNumber('INV');
     const invoicePayload = {
       invoiceNumber: nextNum,
@@ -256,9 +259,25 @@ export function InvoicesPage() {
       tax: 0,
       total: item.subtotal || item.total || 0,
       status: item.paymentStatus === 'Paid' ? 'Paid' : 'Sent',
-      invoiceType: 'Standard'
+      invoiceType: 'Standard',
+      isGst,
     };
-    await addInvoice(invoicePayload);
+    return await addInvoice(invoicePayload);
+  };
+
+  const toggleInvoiceGst = async (invoice: any) => {
+    if (!canCreateEditInvoices || gstSavingId === invoice.id) return;
+    setGstSavingId(invoice.id);
+    try {
+      const saved = invoice.isJobFallback
+        ? await handleMakeFormalInvoice(invoice, true)
+        : await updateInvoice(invoice.id, { isGst: !invoice.isGst });
+      if (!saved) {
+        alert('Could not save GST status to the server. Make sure the updated backend is deployed/restarted.');
+      }
+    } finally {
+      setGstSavingId(null);
+    }
   };
 
   // One-click batch generate formal invoices for all uninvoiced jobs
@@ -625,6 +644,8 @@ export function InvoicesPage() {
               { value: 'All', label: 'All Status' },
               { value: 'Invoice Made', label: '✅ Invoice Made' },
               { value: 'Not Made', label: '⚠️ Not Made (Pending)' },
+              { value: 'With GST', label: '🧾 With GST' },
+              { value: 'Without GST', label: '📄 Without GST' },
               { value: 'Draft', label: 'Draft' },
               { value: 'Sent', label: 'Sent' },
               { value: 'Paid', label: 'Paid' },
@@ -685,6 +706,7 @@ export function InvoicesPage() {
                 <th className="py-4 px-6 text-right">Amount (₹)</th>
                 <th className="py-4 px-6">Issue Date</th>
                 <th className="py-4 px-6">Due Date</th>
+                <th className="py-4 px-6 text-center">GST (Bill Book)</th>
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6 text-center">Actions</th>
               </tr>
@@ -761,6 +783,40 @@ export function InvoicesPage() {
                     </td>
                     <td className="py-4 px-6 text-gray-600 font-medium">
                       {invoice.dueDate}
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {canCreateEditInvoices ? (
+                        <button
+                          type="button"
+                          disabled={gstSavingId === invoice.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleInvoiceGst(invoice);
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer whitespace-nowrap disabled:opacity-60 ${
+                            invoice.isGst
+                              ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-300 shadow-2xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
+                          }`}
+                          title={
+                            invoice.isJobFallback
+                              ? 'Click to mark With GST in bill book and create formal invoice'
+                              : (invoice.isGst ? 'Made With GST in bill book — click to mark Without GST' : 'Without GST — click to mark With GST in bill book')
+                          }
+                        >
+                          {invoice.isGst ? 'With GST' : 'Without GST'}
+                        </button>
+                      ) : (
+                        <span
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap ${
+                            invoice.isGst
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-slate-100 text-slate-600 border-slate-300'
+                          }`}
+                        >
+                          {invoice.isGst ? 'With GST' : 'Without GST'}
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-center">
                       {invoice.isJobFallback ? (
@@ -853,7 +909,7 @@ export function InvoicesPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                  <td colSpan={9} className="py-12 text-center text-gray-500">
                     <div className="flex flex-col items-center justify-center">
                       <FileCheck className="w-12 h-12 text-gray-300 mb-4" />
                       <p>No invoices found.</p>

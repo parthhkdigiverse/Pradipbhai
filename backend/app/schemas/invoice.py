@@ -14,6 +14,7 @@ class InvoiceBase(BaseModel):
     due_date: Optional[str] = None
     invoice_type: Optional[str] = "Tax"
     tax_rate: Optional[str] = "18"
+    is_gst: Optional[bool] = False
 
 class InvoiceCreate(InvoiceBase):
     id: Optional[str] = None
@@ -31,6 +32,7 @@ class InvoiceUpdate(BaseModel):
     due_date: Optional[str] = None
     invoice_type: Optional[str] = None
     tax_rate: Optional[str] = None
+    is_gst: Optional[bool] = None
 
 class InvoiceOut(InvoiceBase):
     id: str

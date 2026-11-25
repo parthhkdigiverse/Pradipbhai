@@ -1,4 +1,5 @@
-from sqlalchemy import String, Float, ForeignKey, DateTime, JSON, func
+from typing import Optional
+from sqlalchemy import String, Float, Boolean, ForeignKey, DateTime, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -18,6 +19,7 @@ class Invoice(Base):
     due_date: Mapped[str] = mapped_column(String(50), nullable=True)
     invoice_type: Mapped[str] = mapped_column(String(50), default="Tax")
     tax_rate: Mapped[str] = mapped_column(String(10), default="18")
+    is_gst: Mapped[Optional[bool]] = mapped_column(Boolean, default=False, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

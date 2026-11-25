@@ -954,17 +954,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const isSyncingRef = useRef<boolean>(false);
   const currentSyncVersionRef = useRef<number>(0);
   const isCheckingVersionRef = useRef<boolean>(false);
+  const invoicesSyncGuardRef = useRef<number>(0);
 
   const refreshApiData = async () => {
     if (isSyncingRef.current) return;
     isSyncingRef.current = true;
+    const invoicesStartGuard = invoicesSyncGuardRef.current;
     try {
       const headers = getAuthHeaders();
       const token = localStorage.getItem('authToken');
       const isRealToken = token && token !== 'fallback-session-token' && token !== 'session-active-token';
 
       const fetchWithAuth = async (url: string) => {
-        const res = await fetch(url, { headers });
+        const res = await fetch(url, { headers, cache: 'no-store' });
         if (!res.ok) {
           if (res.status === 401 && isRealToken) {
             localStorage.removeItem('authToken');
@@ -1030,7 +1032,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setJobs(normalized);
         saveCache('cache_jobs', normalized);
       }
-      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value)) {
+      if (invoicesRes.status === 'fulfilled' && Array.isArray(invoicesRes.value) && invoicesSyncGuardRef.current === invoicesStartGuard) {
         const normInvoices = invoicesRes.value.map(normalizeInvoice);
         setInvoices(normInvoices);
         saveCache('cache_invoices', normInvoices);
@@ -1453,11 +1455,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     issueDate: inv.date || inv.issueDate || '',
     dueDate: inv.due_date || inv.dueDate || '',
     invoiceType: inv.invoice_type || inv.invoiceType || 'Standard',
-    taxRate: inv.tax_rate || inv.taxRate || '0'
+    taxRate: inv.tax_rate || inv.taxRate || '0',
+    isGst: Boolean(inv.is_gst !== undefined ? inv.is_gst : inv.isGst),
+    is_gst: Boolean(inv.is_gst !== undefined ? inv.is_gst : inv.isGst),
   });
 
   // Invoices API
   const addInvoice = async (invoiceData: any) => {
+    invoicesSyncGuardRef.current += 1;
     try {
       const payload = {
         ...invoiceData,
@@ -1468,22 +1473,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: invoiceData.issueDate,
         due_date: invoiceData.dueDate,
         invoice_type: invoiceData.invoiceType,
-        tax_rate: invoiceData.taxRate
+        tax_rate: invoiceData.taxRate,
+        is_gst: Boolean(invoiceData.isGst !== undefined ? invoiceData.isGst : invoiceData.is_gst),
       };
       const data = await apiFetch(`${API_BASE_URL}/invoices`, { method: 'POST', body: JSON.stringify(payload) });
       const norm = normalizeInvoice(data);
-      setInvoices(prev => [norm, ...prev]);
+      setInvoices(prev => {
+        const next = [norm, ...prev];
+        try { localStorage.setItem('cache_invoices', JSON.stringify(next)); } catch {}
+        return next;
+      });
       return norm;
-    } catch {
-      const norm = normalizeInvoice(invoiceData);
-      setInvoices(prev => [norm, ...prev]);
-      return norm;
+    } catch (err) {
+      console.error('Failed to create invoice on server:', err);
+      return null;
     }
   };
 
   const updateInvoice = async (id: string, updateData: any) => {
+    invoicesSyncGuardRef.current += 1;
     try {
-      const payload = {
+      const payload: any = {
         ...updateData,
         invoice_number: updateData.invoiceNumber,
         client_id: updateData.clientId,
@@ -1492,20 +1502,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
         date: updateData.issueDate,
         due_date: updateData.dueDate,
         invoice_type: updateData.invoiceType,
-        tax_rate: updateData.taxRate
+        tax_rate: updateData.taxRate,
       };
+      if (updateData.isGst !== undefined || updateData.is_gst !== undefined) {
+        payload.is_gst = Boolean(updateData.isGst !== undefined ? updateData.isGst : updateData.is_gst);
+      }
       const data = await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      if (payload.is_gst !== undefined && data && data.is_gst === undefined && data.isGst === undefined) {
+        console.error('Server response did not include is_gst — backend needs update/restart.');
+        return null;
+      }
       const norm = normalizeInvoice(data);
-      setInvoices(prev => prev.map(inv => inv.id === id ? norm : inv));
+      setInvoices(prev => {
+        const next = prev.map(inv => inv.id === id ? norm : inv);
+        try { localStorage.setItem('cache_invoices', JSON.stringify(next)); } catch {}
+        return next;
+      });
       return norm;
-    } catch {
-      setInvoices(prev => prev.map(inv => inv.id === id ? normalizeInvoice({ ...inv, ...updateData }) : inv));
+    } catch (err) {
+      console.error('Failed to update invoice on server:', err);
+      return null;
     }
   };
 
   const deleteInvoice = async (id: string) => {
+    invoicesSyncGuardRef.current += 1;
     try { await apiFetch(`${API_BASE_URL}/invoices/${id}`, { method: 'DELETE' }); } catch {}
-    setInvoices(prev => prev.filter(inv => inv.id !== id));
+    setInvoices(prev => {
+      const next = prev.filter(inv => inv.id !== id);
+      try { localStorage.setItem('cache_invoices', JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   // Payroll API

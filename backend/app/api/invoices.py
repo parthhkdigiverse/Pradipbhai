@@ -6,24 +6,16 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.invoice import Invoice
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate, InvoiceOut
-from app.cache import get_cache, set_cache, invalidate_cache
+from app.cache import invalidate_cache
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 CACHE_KEY = "cache:invoices:all"
 
 @router.get("", response_model=List[InvoiceOut])
-async def get_invoices(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    cached = await get_cache(f"{CACHE_KEY}:{skip}:{limit}")
-    if cached is not None:
-        return cached
-
+async def get_invoices(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Invoice).offset(skip).limit(limit))
     invoices = result.scalars().all()
-    
-    inv_dict = [InvoiceOut.model_validate(inv).model_dump() for inv in invoices]
-    await set_cache(f"{CACHE_KEY}:{skip}:{limit}", inv_dict, expire_seconds=300)
-    
-    return inv_dict
+    return [InvoiceOut.model_validate(inv).model_dump() for inv in invoices]
 
 @router.post("", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
 async def create_invoice(invoice_in: InvoiceCreate, db: AsyncSession = Depends(get_db)):
@@ -41,7 +33,8 @@ async def create_invoice(invoice_in: InvoiceCreate, db: AsyncSession = Depends(g
         date=invoice_in.date,
         due_date=invoice_in.due_date,
         invoice_type=invoice_in.invoice_type,
-        tax_rate=invoice_in.tax_rate
+        tax_rate=invoice_in.tax_rate,
+        is_gst=bool(invoice_in.is_gst)
     )
     db.add(invoice)
     await db.commit()

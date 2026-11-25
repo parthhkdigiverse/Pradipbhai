@@ -250,7 +250,8 @@ async def init_db():
             columns = [c["name"] for c in inspector.get_columns("invoices")]
             needed_inv_cols = [
                 ("invoice_type", "VARCHAR(50) DEFAULT 'Tax'"),
-                ("tax_rate", "VARCHAR(10) DEFAULT '18'")
+                ("tax_rate", "VARCHAR(10) DEFAULT '18'"),
+                ("is_gst", "BOOLEAN DEFAULT FALSE")
             ]
             for col_name, col_type in needed_inv_cols:
                 if col_name not in columns:
