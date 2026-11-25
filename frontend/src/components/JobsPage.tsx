@@ -320,6 +320,13 @@ export const getHierarchyLevel = (roleStr?: string): number => {
   return 1;
 };
 
+/** Admins and Managers can assign work to any rank (including Admins); Employees cannot assign upward. */
+export const canAssignToRole = (assignerRole?: string, targetRole?: string): boolean => {
+  const myLevel = getHierarchyLevel(assignerRole);
+  if (myLevel >= 2) return true;
+  return myLevel >= getHierarchyLevel(targetRole);
+};
+
 export const getRoleBadge = (roleStr?: string): string => {
   const level = getHierarchyLevel(roleStr);
   if (level === 3) return '👑';
@@ -421,15 +428,12 @@ export function JobsPage() {
 
   const getAssignableStaff = (currentAssignedId?: string) => {
     const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
-    const myLevel = getHierarchyLevel(effectiveRole);
 
     return staff
       .filter(s => {
         // Retain existing assignee so it does not get cleared or hidden
         if (currentAssignedId && s.id === currentAssignedId) return true;
-        const targetLevel = getHierarchyLevel(s.role);
-        // Hierarchy rule: An assigner can assign to their rank and lower
-        return myLevel >= targetLevel;
+        return canAssignToRole(effectiveRole, s.role);
       })
       .sort((a, b) => {
         const diff = getHierarchyLevel(b.role) - getHierarchyLevel(a.role);
@@ -446,9 +450,7 @@ export function JobsPage() {
       const targetStaff = staff.find(s => s.id === val);
       if (targetStaff) {
         const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
-        const myLevel = getHierarchyLevel(effectiveRole);
-        const targetLevel = getHierarchyLevel(targetStaff.role);
-        if (myLevel < targetLevel && job.teamId !== val) {
+        if (!canAssignToRole(effectiveRole, targetStaff.role) && job.teamId !== val) {
           alert(`Hierarchy restriction: As a ${effectiveRole}, you cannot assign jobs upward to a ${targetStaff.role || 'higher rank'}.`);
           setInlineCell(null);
           return;
@@ -977,10 +979,8 @@ export function JobsPage() {
       const targetStaff = staff.find(s => s.id === formData.teamId);
       if (targetStaff) {
         const effectiveRole = currentUser?.role || currentUserRole || 'Employee';
-        const myLevel = getHierarchyLevel(effectiveRole);
-        const targetLevel = getHierarchyLevel(targetStaff.role);
         const existingJob = editingJobId ? jobs.find(j => j.id === editingJobId) : null;
-        if (myLevel < targetLevel && (!existingJob || existingJob.teamId !== formData.teamId)) {
+        if (!canAssignToRole(effectiveRole, targetStaff.role) && (!existingJob || existingJob.teamId !== formData.teamId)) {
           alert(`Hierarchy restriction: As a ${effectiveRole}, you cannot assign jobs upward to a ${targetStaff.role || 'higher rank'}.`);
           return;
         }
