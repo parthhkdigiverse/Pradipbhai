@@ -6,7 +6,19 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { localDateStr } from '../utils/dateUtils';
 
-export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCurrentPage?: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean) => void }) {
+export function Header({
+  setCurrentPage,
+  isCollapsed,
+  setIsCollapsed,
+  isMobileOpen,
+  setIsMobileOpen,
+}: {
+  setCurrentPage?: (page: string) => void;
+  isCollapsed?: boolean;
+  setIsCollapsed?: (val: boolean) => void;
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (val: boolean | ((prev: boolean) => boolean)) => void;
+}) {
   const { isPunchedIn, setIsPunchedIn, punchInTime, setPunchInTime, activeJobTracker, setActiveJobTracker, jobs, updateJob, addWorkLog, addAttendance, updateAttendance, attendance, currentUserRole, currentUser, staff, hasPermission, leaveRequests, dailyProgressRecords, addDailyProgress, updateDailyProgress, isPunchInModalOpen, setIsPunchInModalOpen, fieldDuties } = useData();
   const { officeStartTime, lateBufferMinutes, enableLatePenalty, latePenaltyAction, latePenaltyAmount } = useSettings();
   const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
@@ -776,11 +788,19 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
   };
 
   return (
-    <header className="h-20 glass-header flex items-center justify-between px-6 py-4 sticky top-0 z-40">
+    <header className="h-20 glass-header flex items-center justify-between px-4 sm:px-6 py-4 sticky top-0 z-40">
       <div className="flex items-center gap-4">
         <button 
-          onClick={() => setIsCollapsed?.(!isCollapsed)}
-          className="text-gray-600 hover:text-gray-900 transition-colors"
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches) {
+              setIsMobileOpen?.(!isMobileOpen);
+            } else {
+              setIsCollapsed?.(!isCollapsed);
+            }
+          }}
+          aria-label="Toggle navigation menu"
+          className="text-gray-600 hover:text-gray-900 transition-colors p-1.5 rounded-lg hover:bg-white/50 cursor-pointer"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -977,7 +997,7 @@ export function Header({ setCurrentPage, isCollapsed, setIsCollapsed }: { setCur
 
       {/* Job Selection / Switch Modal */}
       {isEmployee && (showJobModal || isPunchInModalOpen) && createPortal(
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+        <div data-custom-esc="true" className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50/50">
               <h3 className="font-bold text-base text-gray-800 flex items-center gap-2">

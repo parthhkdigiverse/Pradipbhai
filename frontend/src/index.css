@@ -55,6 +55,23 @@ html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Clear keyboard focus visibility for Tab navigation across Electron & Web */
+  button:focus-visible,
+  a:focus-visible,
+  select:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-primary, #6366f1);
+    outline-offset: 1px;
+  }
+
+  /* Show keyboard focus ring on custom sr-only toggle switches */
+  input[type="checkbox"].sr-only:focus-visible + div {
+    outline: 2px solid var(--color-primary, #6366f1);
+    outline-offset: 2px;
+  }
 }
 
 /* Animations for fluid blobs */

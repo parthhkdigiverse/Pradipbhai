@@ -265,7 +265,6 @@ export function SmartDatePicker({
     if (e.key === 'Enter') {
       e.preventDefault();
       handleCommit();
-      (e.target as HTMLInputElement).blur();
     }
   };
 

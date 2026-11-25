@@ -26,6 +26,7 @@ import { HolidaysPage } from './components/HolidaysPage';
 import { LeaveManagementPage } from './components/LeaveManagementPage';
 import { EmployeeOfMonthPage } from './components/EmployeeOfMonthPage';
 import { InactivityTimeoutGuard } from './components/InactivityTimeoutGuard';
+import { ModalFocusGuard } from './components/ModalFocusGuard';
 import { ThemeProvider } from './context/ThemeProvider';
 import { SettingsProvider } from './context/SettingsContext';
 import { DataProvider, useData } from './context/DataContext';
@@ -88,6 +89,7 @@ function AppContent() {
   return (
     <DashboardLayout currentPage={currentPath} setCurrentPage={handlePageChange}>
       <InactivityTimeoutGuard />
+      <ModalFocusGuard />
       <Routes>
         <Route path="/" element={<AdminDashboard setCurrentPage={handlePageChange} />} />
         <Route path="/dashboard" element={<AdminDashboard setCurrentPage={handlePageChange} />} />

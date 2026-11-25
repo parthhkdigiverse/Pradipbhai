@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, X, Plus } from 'lucide-react';
+import { moveFocusRelative } from '../utils/keyboardNav';
 
 export interface SearchableSelectOption {
   value: string;
@@ -42,6 +43,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const optionsContainerRef = useRef<HTMLDivElement>(null);
+  const initialQueryRef = useRef<string>('');
 
   const updateCoords = () => {
     if (buttonRef.current) {
@@ -76,6 +78,21 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close on Escape anywhere while dropdown is open without closing parent modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onEsc, true);
+    return () => document.removeEventListener('keydown', onEsc, true);
+  }, [isOpen]);
+
   // Recalculate position on scroll or resize
   useEffect(() => {
     if (isOpen) {
@@ -93,11 +110,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   // Focus search input when dropdown opens
   useEffect(() => {
     if (isOpen) {
-      setSearchQuery('');
+      setSearchQuery(initialQueryRef.current);
+      initialQueryRef.current = '';
       setHighlightedIndex(0);
       setTimeout(() => {
         searchInputRef.current?.focus();
-      }, 50);
+      }, 20);
     }
   }, [isOpen]);
 
@@ -135,15 +153,23 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const totalOptions = filteredOptions.length + (onCreateOption ? 1 : 0);
-    
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      setIsOpen(false);
+      moveFocusRelative(buttonRef.current, e.shiftKey ? -1 : 1);
+      return;
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       setIsOpen(false);
+      buttonRef.current?.focus();
       return;
     }
 
     if (totalOptions === 0) return;
-    
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setHighlightedIndex((prev) => (prev + 1) % totalOptions);
@@ -163,9 +189,11 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   const handleSelect = (val: string) => {
-
     onChange(val);
     setIsOpen(false);
+    requestAnimationFrame(() => {
+      buttonRef.current?.focus();
+    });
   };
 
   const handleCreate = () => {
@@ -192,7 +220,22 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); if (!isOpen) handleToggle(); } }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (!isOpen) handleToggle();
+          } else if ((e.key === 'Backspace' || e.key === 'Delete') && value && options.some(o => o.value === '')) {
+            e.preventDefault();
+            onChange('');
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            initialQueryRef.current = e.key;
+            if (!isOpen) {
+              updateCoords();
+              setIsOpen(true);
+            }
+          }
+        }}
         className={`w-full px-2.5 h-[38px] bg-white/50 hover:bg-white/70 border border-white/60 rounded-xl text-xs font-medium transition-all text-left flex items-center justify-between gap-1 focus:outline-none focus:ring-2 focus:ring-primary/50 text-gray-800 ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         }`}
@@ -220,6 +263,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         createPortal(
           <div
             ref={dropdownRef}
+            data-searchable-select-dropdown="true"
             style={{
               top: `${coords.top}px`,
               left: `${coords.left}px`,
@@ -242,6 +286,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               {searchQuery && (
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => setSearchQuery('')}
                   className="text-gray-400 hover:text-gray-600 p-0.5"
                 >
@@ -260,6 +305,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                       <button
                         key={opt.value}
                         type="button"
+                        tabIndex={-1}
                         onClick={() => handleSelect(opt.value)}
                         className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center justify-between ${
                           highlightedIndex === index
@@ -277,6 +323,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   {onCreateOption && (
                     <button
                       type="button"
+                      tabIndex={-1}
                       onClick={handleCreate}
                       className={`w-full text-left px-3 py-2 text-xs font-bold text-indigo-700 transition-colors border-t border-indigo-100 flex items-center gap-1.5 mt-1 ${highlightedIndex === filteredOptions.length ? 'bg-indigo-100' : 'bg-indigo-50/80 hover:bg-indigo-100'}`}
                     >
@@ -291,6 +338,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                   {onCreateOption && (
                     <button
                       type="button"
+                      tabIndex={-1}
                       onClick={handleCreate}
                       className="w-full text-center px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-100/90 hover:bg-indigo-200 border border-indigo-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
                     >

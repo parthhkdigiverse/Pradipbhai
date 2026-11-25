@@ -270,7 +270,7 @@ export function InactivityTimeoutGuard() {
   return (
     <>
       {showWarning && !isAdmin && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+        <div data-no-esc-close="true" className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
           <div className="relative glass-panel bg-white/95 border border-white shadow-2xl rounded-3xl p-6 sm:p-8 max-w-md w-full text-center overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Top Warning Icon Badge */}

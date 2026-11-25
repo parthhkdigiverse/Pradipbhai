@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Briefcase,
@@ -17,11 +17,41 @@ import {
 
 import { useData } from '../context/DataContext';
 
-export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollapsed }: { currentPage: string, setCurrentPage: (page: string) => void, isCollapsed?: boolean, setIsCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void }) {
+export function Sidebar({
+  currentPage,
+  setCurrentPage,
+  isCollapsed,
+  setIsCollapsed,
+  isMobileOpen = false,
+  setIsMobileOpen,
+}: {
+  currentPage: string;
+  setCurrentPage: (page: string) => void;
+  isCollapsed?: boolean;
+  setIsCollapsed?: (val: boolean | ((prev: boolean) => boolean)) => void;
+  isMobileOpen?: boolean;
+  setIsMobileOpen?: (val: boolean | ((prev: boolean) => boolean)) => void;
+}) {
   const { currentUserRole, hasTabPermission, unreadChatCount } = useData();
 
   const [isHovered, setIsHovered] = useState(false);
-  const effectiveIsCollapsed = isCollapsed && !isHovered;
+  const effectiveIsCollapsed = Boolean(isCollapsed && !isHovered && !isMobileOpen);
+
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileOpen?.(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isMobileOpen, setIsMobileOpen]);
+
+  const navigateTo = (pageKey: string) => {
+    setCurrentPage(pageKey);
+    setIsMobileOpen?.(false);
+  };
   
   // State for collapsible menus
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
@@ -86,27 +116,51 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
     : [];
 
   return (
-    <aside onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)} className={`flex-shrink-0 glass-panel border-r border-white/40 flex flex-col h-screen fixed top-0 left-0 overflow-y-auto z-50 hidden md:flex custom-scrollbar shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 ${effectiveIsCollapsed ? 'w-20' : 'w-64'}`}>
-      {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/40 z-10 overflow-hidden">
-        {effectiveIsCollapsed ? (
-          <div className="w-full flex items-center justify-center">
-            <img 
-              src="/alpha-icon.png" 
-              alt="Alpha Creative" 
-              className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-110" 
-            />
-          </div>
-        ) : (
-          <div className="flex items-center px-2 py-1">
-            <img 
-              src="/alpha-logo.png" 
-              alt="Alpha Creative Hub" 
-              className="h-10 w-auto max-w-[200px] object-contain transition-all duration-300" 
-            />
-          </div>
-        )}
-      </div>
+    <>
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-150"
+          onClick={() => setIsMobileOpen?.(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`flex-shrink-0 glass-panel border-r border-white/40 flex flex-col h-screen fixed top-0 left-0 overflow-y-auto z-50 custom-scrollbar shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 w-64 ${
+          effectiveIsCollapsed ? 'md:w-20' : 'md:w-64'
+        } ${isMobileOpen ? 'translate-x-0 bg-white/95' : '-translate-x-full md:translate-x-0'}`}
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center justify-between px-4 border-b border-white/40 flex-shrink-0 sticky top-0 backdrop-blur-xl bg-white/40 z-10 overflow-hidden">
+          {effectiveIsCollapsed ? (
+            <div className="w-full flex items-center justify-center">
+              <img 
+                src="/alpha-icon.png" 
+                alt="Alpha Creative" 
+                className="w-8 h-8 object-contain transition-transform duration-300 hover:scale-110" 
+              />
+            </div>
+          ) : (
+            <div className="flex items-center px-2 py-1">
+              <img 
+                src="/alpha-logo.png" 
+                alt="Alpha Creative Hub" 
+                className="h-10 w-auto max-w-[180px] object-contain transition-all duration-300" 
+              />
+            </div>
+          )}
+          {isMobileOpen && (
+            <button
+              type="button"
+              onClick={() => setIsMobileOpen?.(false)}
+              className="md:hidden p-1.5 text-gray-500 hover:text-gray-800 hover:bg-white/60 rounded-lg transition-colors"
+              aria-label="Close navigation menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
 
       <div className="p-4 flex-1 flex flex-col overflow-y-auto custom-scrollbar">
         
@@ -144,7 +198,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                         <button 
                           key={idx} 
                           onClick={() => {
-                            setCurrentPage(pageKey);
+                            navigateTo(pageKey);
                             setSearchQuery('');
                           }} 
                           className="flex flex-col px-3 py-2 hover:bg-gray-100 transition-colors text-left w-full"
@@ -168,7 +222,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
           {/* Dashboard */}
           {hasTabPermission(currentUserRole, 'dashboard') && (
             <button 
-              onClick={() => setCurrentPage('dashboard')}
+              onClick={() => navigateTo('dashboard')}
               title={effectiveIsCollapsed ? 'Dashboard' : undefined}
               className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all ${
                 currentPage === 'dashboard' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'
@@ -202,22 +256,22 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.jobs ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'projects') && (
-                    <button onClick={() => setCurrentPage('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('projects')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'projects' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Projects
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'jobs') && (
-                    <button onClick={() => setCurrentPage('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('jobs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'jobs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Jobs
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'catalog') && (
-                    <button onClick={() => setCurrentPage('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('catalog')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'catalog' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Product
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'vendors') && (
-                    <button onClick={() => setCurrentPage('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('vendors')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'vendors' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Vendors
                     </button>
                   )}
@@ -248,43 +302,43 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.hr ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'staff') && (
-                    <button onClick={() => setCurrentPage('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('staff')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'staff' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Staff
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'attendance') && (
-                    <button onClick={() => setCurrentPage('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('attendance')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'attendance' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Attendance
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'worklogs') && (
-                    <button onClick={() => setCurrentPage('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('worklogs')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'worklogs' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Work Logs
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'daily-progress') && (
-                    <button onClick={() => setCurrentPage('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('daily-progress')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'daily-progress' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Daily Progress
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'employee-of-month') && (
-                    <button onClick={() => setCurrentPage('employee-of-month')} className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'employee-of-month' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('employee-of-month')} className={`w-full text-left flex items-center justify-between px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'employee-of-month' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       <span className="truncate">Employee of the Month</span>
                       <span className="text-xs">🏆</span>
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'payroll') && (
-                    <button onClick={() => setCurrentPage('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('payroll')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'payroll' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Payroll
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'leaves') && (
-                    <button onClick={() => setCurrentPage('leaves')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leaves' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('leaves')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leaves' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Leaves
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'holidays') && (
-                    <button onClick={() => setCurrentPage('holidays')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'holidays' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('holidays')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'holidays' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Holidays
                     </button>
                   )}
@@ -315,12 +369,12 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.sales ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
                   {hasTabPermission(currentUserRole, 'clients') && (
-                    <button onClick={() => setCurrentPage('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('clients')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'clients' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Clients
                     </button>
                   )}
                   {hasTabPermission(currentUserRole, 'leads') && (
-                    <button onClick={() => setCurrentPage('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                    <button onClick={() => navigateTo('leads')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'leads' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                       Leads
                     </button>
                   )}
@@ -330,7 +384,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
 
           {/* Social Media Management */}
           {hasTabPermission(currentUserRole, 'social') && (
-            <button onClick={() => setCurrentPage('social')} title={effectiveIsCollapsed ? 'Social Media' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+            <button onClick={() => navigateTo('social')} title={effectiveIsCollapsed ? 'Social Media' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'social' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
               <Megaphone className="w-5 h-5 flex-shrink-0" />
               <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Social Media</span>
             </button>
@@ -358,7 +412,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                 <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.finance ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.finance ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <button onClick={() => setCurrentPage('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <button onClick={() => navigateTo('invoices')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'invoices' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                     Invoices
                   </button>
                 </div>
@@ -368,7 +422,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
           {/* Independent Items */}
           {hasTabPermission(currentUserRole, 'chat') && (
             <button 
-              onClick={() => setCurrentPage('chat')} 
+              onClick={() => navigateTo('chat')} 
               title={effectiveIsCollapsed ? (unreadChatCount > 0 ? `Chat (${unreadChatCount} new)` : 'Chat') : undefined} 
               className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 relative ${currentPage === 'chat' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}
             >
@@ -388,7 +442,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
           )}
 
           {hasTabPermission(currentUserRole, 'reports') && (
-            <button onClick={() => setCurrentPage('reports')} title={effectiveIsCollapsed ? 'Reports' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+            <button onClick={() => navigateTo('reports')} title={effectiveIsCollapsed ? 'Reports' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'reports' ? 'bg-white/60 text-primary font-semibold shadow-[0_2px_10px_rgba(0,0,0,0.05)] border border-white/80' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
               <LineChart className="w-5 h-5 flex-shrink-0" />
               <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Reports</span>
             </button>
@@ -416,10 +470,10 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
                 <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.security ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.security ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <button onClick={() => setCurrentPage('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <button onClick={() => navigateTo('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                     Roles & Permissions
                   </button>
-                  <button onClick={() => setCurrentPage('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                  <button onClick={() => navigateTo('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
                     Restrictions
                   </button>
                 </div>
@@ -427,7 +481,7 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
           )}
 
           {hasTabPermission(currentUserRole, 'settings') && (
-            <button onClick={() => setCurrentPage('settings')} title={effectiveIsCollapsed ? 'Settings' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
+            <button onClick={() => navigateTo('settings')} title={effectiveIsCollapsed ? 'Settings' : undefined} className={`w-full flex items-center ${effectiveIsCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'} rounded-xl text-sm transition-all mt-2 ${currentPage === 'settings' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-600 hover:bg-white/40 hover:text-gray-900'}`}>
               <Settings className="w-5 h-5 flex-shrink-0" />
               <span className={`truncate transition-all duration-300 overflow-hidden ${effectiveIsCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100'}`}>Settings</span>
             </button>
@@ -437,5 +491,6 @@ export function Sidebar({ currentPage, setCurrentPage, isCollapsed, setIsCollaps
         
       </div>
     </aside>
+    </>
   );
 }

@@ -2681,6 +2681,7 @@ export function JobsPage() {
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Select Client <span className="text-rose-500">*</span></label>
                     <button
                       type="button"
+                      tabIndex={-1}
                       onClick={() => { setQuickClientName(''); setIsQuickClientModalOpen(true); }}
                       className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
                     >
@@ -2724,6 +2725,7 @@ export function JobsPage() {
                     {formData.teamId && (
                       <button
                         type="button"
+                        tabIndex={-1}
                         onClick={() => setFormData({ ...formData, teamId: '' })}
                         className="text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline flex items-center gap-0.5 cursor-pointer"
                         title="Turn back to unassigned"
@@ -2759,6 +2761,7 @@ export function JobsPage() {
                     <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block">Product</label>
                     <button
                       type="button"
+                      tabIndex={-1}
                       onClick={() => { setQuickProductName(''); setIsQuickProductModalOpen(true); }}
                       className="text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 px-2 py-0.5 rounded-lg transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
