@@ -1084,7 +1084,7 @@ export function JobsPage() {
     if (duration <= 0) return;
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
     const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
-    const todayStr = new Date(endTime).toISOString().split('T')[0];
+    const todayStr = localDateStr(endTime);
     try {
       await addWorkLog({
         staff_id: loggedStaffId,
@@ -1105,7 +1105,7 @@ export function JobsPage() {
   const ensurePunchedIn = async (startingJobId?: string, startTime?: number) => {
     if (currentUserRole === 'Admin') return;
     const now = startTime || Date.now();
-    const todayStr = new Date(now).toISOString().split('T')[0];
+    const todayStr = localDateStr(now);
     const checkInStr = new Date(now).toTimeString().slice(0, 5);
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
     const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
@@ -1478,7 +1478,7 @@ export function JobsPage() {
 
     // 2. Clear active punch jobId in attendance
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
-    const todayStr = new Date(now).toISOString().split('T')[0];
+    const todayStr = localDateStr(now);
     const existingAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
     if (existingAtt && existingAtt.punches) {
       const updatedPunches = existingAtt.punches.map((p: any) => {

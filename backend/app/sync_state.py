@@ -13,6 +13,7 @@ _SYNC_STATE: Dict[str, Any] = {
         "staff": 1,
         "leaves": 1,
         "payroll": 1,
+        "worklogs": 1,
         "daily_progress": 1
     }
 }

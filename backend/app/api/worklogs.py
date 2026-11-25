@@ -10,8 +10,13 @@ from app.schemas.worklog import WorkLogCreate, WorkLogUpdate, WorkLogOut
 router = APIRouter(prefix="/worklogs", tags=["Work Logs"])
 
 @router.get("", response_model=List[WorkLogOut])
-async def get_worklogs(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(WorkLog).offset(skip).limit(limit))
+async def get_worklogs(skip: int = 0, limit: int = 2000, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(WorkLog)
+        .order_by(WorkLog.date.desc(), WorkLog.start_time.desc(), WorkLog.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return result.scalars().all()
 
 @router.post("", response_model=WorkLogOut, status_code=status.HTTP_201_CREATED)
