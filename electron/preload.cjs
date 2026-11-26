@@ -10,7 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.send('open-external', url),
   getSystemIdleTime: () => ipcRenderer.invoke('get-system-idle-time'),
   onSystemIdle: (callback) => {
-    ipcRenderer.on('system-idle-update', (_event, idleSec) => callback(idleSec));
+    const listener = (_event, idleSec) => callback(idleSec);
+    ipcRenderer.on('system-idle-update', listener);
+    return () => ipcRenderer.removeListener('system-idle-update', listener);
   },
   inactivityWarningShown: () => ipcRenderer.send('inactivity-warning-shown'),
   inactivityWarningCleared: () => ipcRenderer.send('inactivity-warning-cleared'),

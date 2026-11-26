@@ -15,36 +15,56 @@ export function InactivityTimeoutGuard() {
   const lastActiveRef = useRef<number>(Date.now());
   const warningActiveRef = useRef<boolean>(false);
   const isAutoLoggingOutRef = useRef<boolean>(false);
+  const isAutoPunchingOutRef = useRef<boolean>(false);
   const latestSystemIdleSecRef = useRef<number | null>(null);
+  const wasFieldDutyRef = useRef<boolean>(false);
 
   const role = (currentUserRole || localStorage.getItem('userRole') || '').trim().toLowerCase();
   const isAdmin = role === 'admin';
 
   const isFieldDutyActive = isPunchedIn && (activeJobTracker?.jobId?.startsWith('activity-') || activeJobTracker?.jobId?.startsWith('fd-'));
 
-  const handleAutoPunchOut = useCallback(async () => {
+  const handleAutoPunchOut = useCallback(async (useCurrentTime: boolean = false) => {
+    if (isAutoPunchingOutRef.current) return;
+    isAutoPunchingOutRef.current = true;
     try {
-      (window as any).electronAPI?.inactivityWarningCleared?.();
-    } catch {}
-    setShowWarning(false);
-    warningActiveRef.current = false;
-    setShowPunchOutNotice(true);
-
-    try {
-      (window as any).electronAPI?.showNotification?.({
-        title: '⏰ Inactivity Punch-Out',
-        body: `You were automatically punched out due to ${inactivityTimeoutMinutes}m of inactivity. Your login session is still active.`
-      });
-    } catch {}
-
-    if (isPunchedIn || activeJobTracker) {
       try {
-        await performAutoPunchOut();
-      } catch (e) {
-        console.error('Failed auto punch out on inactivity timeout:', e);
+        (window as any).electronAPI?.inactivityWarningCleared?.();
+      } catch {}
+      setShowWarning(false);
+      warningActiveRef.current = false;
+      setShowPunchOutNotice(true);
+
+      try {
+        (window as any).electronAPI?.showNotification?.({
+          title: '⏰ Inactivity Punch-Out',
+          body: `You were automatically punched out due to ${inactivityTimeoutMinutes}m of inactivity. Your login session is still active.`
+        });
+      } catch {}
+
+      if (isPunchedIn || activeJobTracker) {
+        const now = Date.now();
+        const idleSec = latestSystemIdleSecRef.current;
+        const effectiveEndTime = useCurrentTime
+          ? now
+          : (typeof idleSec === 'number' && idleSec > 0
+              ? Math.min(now, now - idleSec * 1000)
+              : Math.min(now, lastActiveRef.current));
+        try {
+          await performAutoPunchOut(effectiveEndTime);
+        } catch (e) {
+          console.error('Failed auto punch out on inactivity timeout:', e);
+        }
       }
+    } finally {
+      isAutoPunchingOutRef.current = false;
     }
   }, [inactivityTimeoutMinutes, isPunchedIn, activeJobTracker, performAutoPunchOut]);
+
+  const handleAutoPunchOutRef = useRef(handleAutoPunchOut);
+  useEffect(() => {
+    handleAutoPunchOutRef.current = handleAutoPunchOut;
+  }, [handleAutoPunchOut]);
 
   const handleLogout = useCallback(() => {
     try {
@@ -72,14 +92,24 @@ export function InactivityTimeoutGuard() {
     }
   }, []);
 
-  // Continuously refresh activity timestamp if user is on field duty / courier duty
+  // Continuously refresh activity timestamp when entering or exiting field/courier duty
   useEffect(() => {
     if (isFieldDutyActive) {
+      wasFieldDutyRef.current = true;
       lastActiveRef.current = Date.now();
+      latestSystemIdleSecRef.current = 0;
       if (warningActiveRef.current) {
         warningActiveRef.current = false;
         setShowWarning(false);
+        setSecondsRemaining(WARNING_COUNTDOWN_SECONDS);
+        try {
+          (window as any).electronAPI?.inactivityWarningCleared?.();
+        } catch {}
       }
+    } else if (wasFieldDutyRef.current) {
+      wasFieldDutyRef.current = false;
+      lastActiveRef.current = Date.now();
+      latestSystemIdleSecRef.current = 0;
     }
   }, [isFieldDutyActive]);
 
@@ -108,7 +138,7 @@ export function InactivityTimeoutGuard() {
     const electronAPI = (window as any).electronAPI;
     if (!electronAPI || typeof electronAPI.onSystemIdle !== 'function') return;
 
-    electronAPI.onSystemIdle((idleSec: number) => {
+    const unsubscribe = electronAPI.onSystemIdle((idleSec: number) => {
       if (typeof idleSec === 'number' && !isNaN(idleSec) && idleSec >= 0) {
         latestSystemIdleSecRef.current = idleSec;
         // If user was active recently on the OS (keyboard or mouse input within 2 seconds)
@@ -125,6 +155,12 @@ export function InactivityTimeoutGuard() {
         }
       }
     });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
   }, []);
 
   // Allowed End Time check loop (Only for Courier / Field Duty activities when Time Restrictions are enabled)
@@ -247,7 +283,7 @@ export function InactivityTimeoutGuard() {
     return () => clearInterval(interval);
   }, [inactivityTimeoutEnabled, inactivityTimeoutMinutes, isFieldDutyActive, isAdmin, currentUserRole, isPunchedIn, activeJobTracker, showWarning]);
 
-  // Warning countdown timer
+  // Warning countdown timer (uses stable ref so DataContext updates never reset the 1s tick)
   useEffect(() => {
     if (!showWarning || isAdmin) return;
 
@@ -255,7 +291,7 @@ export function InactivityTimeoutGuard() {
       setSecondsRemaining(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleAutoPunchOut();
+          void handleAutoPunchOutRef.current(false);
           return 0;
         }
         return prev - 1;
@@ -263,7 +299,7 @@ export function InactivityTimeoutGuard() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [showWarning, isAdmin, handleAutoPunchOut]);
+  }, [showWarning, isAdmin]);
 
   const progressPercent = (secondsRemaining / WARNING_COUNTDOWN_SECONDS) * 100;
 
@@ -314,7 +350,7 @@ export function InactivityTimeoutGuard() {
               </button>
               
               <button
-                onClick={handleAutoPunchOut}
+                onClick={() => void handleAutoPunchOut(true)}
                 className="px-4 py-3 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Clock className="w-4 h-4" />

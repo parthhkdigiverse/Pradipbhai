@@ -2455,8 +2455,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const performAutoPunchOut = async (overrideEndTime?: number) => {
     if (!isPunchedIn) return;
-    const endTime = overrideEndTime || Date.now();
-    const sessionStartTime = activeJobTracker?.startTime || punchInTime || endTime;
+    const nowMs = Date.now();
+    const sessionStartTime = activeJobTracker?.startTime || punchInTime || nowMs;
+    const endTime = overrideEndTime
+      ? Math.max(sessionStartTime, Math.min(nowMs, overrideEndTime))
+      : nowMs;
     const sessionDuration = Math.max(0, Math.floor((endTime - sessionStartTime) / 1000));
 
     let finalJobId = 'N/A';
