@@ -53,7 +53,7 @@ export function InvoicesPage() {
   const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
   const [customItems, setCustomItems] = useState<{ id: string; description: string; quantity: number; rate: number }[]>([]);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
-  const [gstSavingId, setGstSavingId] = useState<string | null>(null);
+    const [gstSavingId, setGstSavingId] = useState<string | null>(null);
   
   useEffect(() => {
     if (activeFilterIntent && activeFilterIntent.page === 'invoices') {
