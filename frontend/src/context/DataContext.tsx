@@ -1282,22 +1282,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setPunchInTime(prev => prev === calculatedTime ? prev : calculatedTime);
         }
 
-        // Auto-restore activeJobTracker if null but there is an active punch with an explicit jobId (only for non-managers)
+        // Auto-restore activeJobTracker if null but there is an active punch with an explicit in-progress jobId (only for non-managers)
         if (!activeJobTrackerState && activePunch.jobId && currentUserRole !== 'Manager') {
+          const isActivity = activePunch.jobId.startsWith('activity-') || activePunch.jobId.startsWith('fd-') || activePunch.jobId === 'manager-shift';
           const targetJob = jobs.find(j => j.id === activePunch.jobId);
-          let jobStartTime = activePunch.jobStartedAt;
-          if (!jobStartTime && targetJob?.startedAt) {
-            const ms = parseJobStartTimeMs(targetJob.startedAt);
-            if (ms) jobStartTime = ms;
-          }
-          if (!jobStartTime && activePunch.in) {
-            const [h, m] = activePunch.in.split(':');
-            const pDate = new Date();
-            pDate.setHours(parseInt(h) || 0, parseInt(m) || 0, 0, 0);
-            jobStartTime = pDate.getTime();
-          }
-          if (jobStartTime) {
-            setActiveJobTracker({ jobId: activePunch.jobId, startTime: jobStartTime });
+          const isTargetInProgress = targetJob && (targetJob.status === 'Progress' || targetJob.status === 'In Progress');
+          if (isActivity || isTargetInProgress) {
+            let jobStartTime = activePunch.jobStartedAt;
+            if (!jobStartTime && targetJob?.startedAt) {
+              const ms = parseJobStartTimeMs(targetJob.startedAt);
+              if (ms) jobStartTime = ms;
+            }
+            if (!jobStartTime && activePunch.in) {
+              const [h, m] = activePunch.in.split(':');
+              const pDate = new Date();
+              pDate.setHours(parseInt(h) || 0, parseInt(m) || 0, 0, 0);
+              jobStartTime = pDate.getTime();
+            }
+            if (jobStartTime) {
+              setActiveJobTracker({ jobId: activePunch.jobId, startTime: jobStartTime });
+            }
           }
         }
       } else {
@@ -2452,7 +2456,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const performAutoPunchOut = async (overrideEndTime?: number) => {
     if (!isPunchedIn) return;
     const endTime = overrideEndTime || Date.now();
-    const duration = punchInTime ? Math.max(0, Math.floor((endTime - punchInTime) / 1000)) : 0;
+    const sessionStartTime = activeJobTracker?.startTime || punchInTime || endTime;
+    const sessionDuration = Math.max(0, Math.floor((endTime - sessionStartTime) / 1000));
 
     let finalJobId = 'N/A';
     let finalJobTitle = 'N/A';
@@ -2462,8 +2467,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const job = jobs.find(j => j.id === finalJobId);
       if (job) {
         finalJobTitle = job.title;
-        const jobDuration = Math.max(0, Math.floor((endTime - activeJobTracker.startTime) / 1000));
-        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending', startedAt: null });
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + sessionDuration, status: 'Pending', startedAt: null });
       } else if (finalJobId.startsWith('activity-')) {
         if (finalJobId === 'activity-courier-drop') finalJobTitle = '📦 Courier Drop-off';
         else if (finalJobId === 'activity-courier-collect') finalJobTitle = '📦 Courier Collection / Pickup';
@@ -2491,13 +2495,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       job_id: finalJobId,
       job_title: finalJobTitle,
       date: todayStr,
-      start_time: punchInTime || endTime,
+      start_time: sessionStartTime,
       end_time: endTime,
-      duration,
-      hours: duration / 3600
+      duration: sessionDuration,
+      hours: sessionDuration / 3600
     });
 
-    const newPunchSession = { in: checkInStr, out: checkOutStr };
+    const newPunchSession = { in: checkInStr, out: checkOutStr, jobId: null, jobStartedAt: null };
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
     if (existingRecord) {
@@ -2506,7 +2510,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const newPunches = existingPunches.map((p: any) => {
         if (!p.out) {
           hasClosedActive = true;
-          return { ...p, out: checkOutStr };
+          return { ...p, out: checkOutStr, jobId: null, jobStartedAt: null };
         }
         return p;
       });

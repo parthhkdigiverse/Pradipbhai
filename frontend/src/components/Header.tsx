@@ -367,7 +367,8 @@ export function Header({
     if (!isPunchedInOrActive) return;
     setIsPunchedIn(false);
     const endTime = Date.now();
-    const duration = punchInTime ? Math.floor((endTime - punchInTime) / 1000) : 0;
+    const sessionStartTime = activeJobTracker?.startTime || punchInTime || endTime;
+    const sessionDuration = Math.max(0, Math.floor((endTime - sessionStartTime) / 1000));
     
     let finalJobId = 'N/A';
     let finalJobTitle = 'N/A';
@@ -377,8 +378,7 @@ export function Header({
       const job = jobs.find(j => j.id === finalJobId);
       if (job) {
         finalJobTitle = job.title;
-        const jobDuration = Math.floor((endTime - activeJobTracker.startTime) / 1000);
-        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + jobDuration, status: 'Pending', startedAt: null });
+        await updateJob(finalJobId, { trackedTime: (job.trackedTime || 0) + sessionDuration, status: 'Pending', startedAt: null });
       } else if (finalJobId.startsWith('activity-') || finalJobId.startsWith('fd-')) {
         const duty = (fieldDuties || []).find(d => d.id === finalJobId);
         if (duty) finalJobTitle = duty.name;
@@ -396,8 +396,8 @@ export function Header({
     const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
     const loggedStaffName = currentUser?.name || staff.find(s => s.id === loggedStaffId)?.name || 'Unknown';
 
-    // Save work log to DB via API
-    const todayStr = localDateStr();
+    // Save only the current job/shift session to Work Logs (switched jobs were already logged on switch)
+    const todayStr = localDateStr(endTime);
     const checkOutStr = new Date(endTime).toTimeString().slice(0, 5);
     const checkInStr = punchInTime ? new Date(punchInTime).toTimeString().slice(0, 5) : checkOutStr;
 
@@ -407,14 +407,14 @@ export function Header({
       job_id: finalJobId,
       job_title: finalJobTitle,
       date: todayStr,
-      start_time: punchInTime || endTime,
+      start_time: sessionStartTime,
       end_time: endTime,
-      duration,
-      hours: duration / 3600
+      duration: sessionDuration,
+      hours: sessionDuration / 3600
     });
 
-    // Save attendance check-out to DB via API
-    const newPunchSession = { in: checkInStr, out: checkOutStr };
+    // Save attendance check-out to DB via API and clear job binding from closed punch
+    const newPunchSession = { in: checkInStr, out: checkOutStr, jobId: null, jobStartedAt: null };
     const existingRecord = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
 
     if (existingRecord) {
@@ -423,7 +423,7 @@ export function Header({
       const newPunches = existingPunches.map((p: any) => {
         if (!p.out) {
           hasClosedActive = true;
-          return { ...p, out: checkOutStr };
+          return { ...p, out: checkOutStr, jobId: null, jobStartedAt: null };
         }
         return p;
       });
@@ -450,7 +450,7 @@ export function Header({
 
     // Auto-sync Daily Progress report for today
     try {
-      const addedHours = Number((duration / 3600).toFixed(1)) || 0.1;
+      const addedHours = sessionDuration > 0 ? (Number((sessionDuration / 3600).toFixed(1)) || 0.1) : 0;
       const existingProg = (dailyProgressRecords || []).find((p: any) => 
         ((p.employeeName || p.employee_name)?.toLowerCase() === loggedStaffName.toLowerCase()) && p.date === todayStr
       );
@@ -708,7 +708,7 @@ export function Header({
 
     // Save time for previous tracked job / activity
     if (activeJobTracker) {
-      const elapsed = Math.floor((now - activeJobTracker.startTime) / 1000);
+      const elapsed = Math.max(0, Math.floor((now - activeJobTracker.startTime) / 1000));
       const prevJob = jobs.find(j => j.id === activeJobTracker.jobId);
       if (prevJob) {
         await updateJob(activeJobTracker.jobId, {

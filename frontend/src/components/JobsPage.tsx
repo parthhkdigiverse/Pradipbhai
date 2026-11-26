@@ -1020,10 +1020,9 @@ export function JobsPage() {
       if (isProgressNow && !wasProgress) {
         updatedStartedAt = new Date().toISOString();
       } else if (!isProgressNow && wasProgress) {
-        if (existingJob?.startedAt) {
-          const el = Math.floor((Date.now() - new Date(existingJob.startedAt).getTime()) / 1000);
-          finalTracked += Math.max(0, el);
-        }
+        const now = Date.now();
+        const { elapsed } = await finalizeRunningSession(existingJob, now);
+        finalTracked += elapsed;
         updatedStartedAt = null;
       }
 
@@ -1260,6 +1259,55 @@ export function JobsPage() {
     }
   };
 
+  const clearPunchJobFromAttendance = async (targetJobId: string, now: number) => {
+    const loggedStaffId = currentUser?.id || staff[0]?.id || '1';
+    const todayStr = localDateStr(now);
+    const existingAtt = attendance.find(a => (a.staffId || a.staff_id) === loggedStaffId && a.date === todayStr);
+    if (existingAtt && Array.isArray(existingAtt.punches)) {
+      const hasMatchingPunch = existingAtt.punches.some((p: any) => !p.out && p.jobId === targetJobId);
+      if (hasMatchingPunch) {
+        const updatedPunches = existingAtt.punches.map((p: any) =>
+          !p.out && p.jobId === targetJobId ? { ...p, jobId: null, jobStartedAt: null } : p
+        );
+        await updateAttendance(existingAtt.id, { punches: updatedPunches });
+      }
+    }
+  };
+
+  /**
+   * Finalizes an active/in-progress job tracking session once:
+   * clears any matching attendance punch and activeJobTracker, logs the work session, and returns elapsed seconds.
+   */
+  const finalizeRunningSession = async (targetJob: any, now: number = Date.now()): Promise<{ elapsed: number }> => {
+    if (!targetJob) return { elapsed: 0 };
+    const isRunning = targetJob.status === 'Progress' || targetJob.status === 'In Progress' || activeJobTracker?.jobId === targetJob.id;
+    if (!isRunning) return { elapsed: 0 };
+
+    let elapsed = 0;
+    let sessionStart = now;
+    if (activeJobTracker && activeJobTracker.jobId === targetJob.id) {
+      sessionStart = activeJobTracker.startTime;
+      elapsed = Math.floor((now - sessionStart) / 1000);
+    } else if (targetJob.startedAt) {
+      const parsedStart = parseJobStartTimeMs(targetJob.startedAt);
+      if (parsedStart) {
+        sessionStart = parsedStart;
+        elapsed = Math.floor((now - sessionStart) / 1000);
+      }
+    }
+    elapsed = Math.max(0, elapsed);
+
+    await clearPunchJobFromAttendance(targetJob.id, now);
+    if (activeJobTracker?.jobId === targetJob.id) {
+      setActiveJobTracker(null);
+    }
+
+    if (elapsed > 0) {
+      await logWorkSession(targetJob.id, targetJob.title || 'Job', sessionStart, now);
+    }
+    return { elapsed };
+  };
+
   const handleApproveJobByAdmin = async (jobId: string) => {
     const job = jobs.find(j => j.id === jobId);
     if (!job) return;
@@ -1274,21 +1322,8 @@ export function JobsPage() {
       return;
     }
 
-    let extraElapsed = 0;
-    let sessionStart = Date.now();
-    if (activeJobTracker && activeJobTracker.jobId === jobId) {
-      sessionStart = activeJobTracker.startTime;
-      extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
-      setActiveJobTracker(null);
-    } else if (job?.startedAt) {
-      sessionStart = parseJobStartTimeMs(job.startedAt) || Date.now();
-      extraElapsed = Math.floor((Date.now() - sessionStart) / 1000);
-    }
-    const finalTracked = (job?.trackedTime || 0) + Math.max(0, extraElapsed);
-
-    if (extraElapsed > 0) {
-      await logWorkSession(job.id, job.title || 'Job', sessionStart, Date.now());
-    }
+    const { elapsed: extraElapsed } = await finalizeRunningSession(job, Date.now());
+    const finalTracked = (job?.trackedTime || 0) + extraElapsed;
 
     await updateJob(jobId, { status: 'Completed', trackedTime: finalTracked, startedAt: null });
     if (currentUserRole !== 'Admin' && currentUserRole !== 'Manager') {
@@ -1350,6 +1385,7 @@ export function JobsPage() {
     if (feedback !== null) {
       await updateJob(jobId, {
         status: 'Progress',
+        startedAt: new Date().toISOString(),
         delayReason: feedback.trim() ? `Revision Requested: ${feedback.trim()}` : 'Revision Requested by Manager/Admin'
       });
     }
@@ -1377,24 +1413,6 @@ export function JobsPage() {
       return;
     }
 
-    if (status !== 'Progress' && status !== 'In Progress' && (job.status === 'Progress' || job.status === 'In Progress')) {
-      let elapsed = 0;
-      let sessionStart = Date.now();
-      if (activeJobTracker?.jobId === id) {
-        sessionStart = activeJobTracker.startTime;
-        elapsed = Math.floor((Date.now() - sessionStart) / 1000);
-        setActiveJobTracker(null);
-      } else if (job.startedAt) {
-        sessionStart = parseJobStartTimeMs(job.startedAt) || Date.now();
-        elapsed = Math.floor((Date.now() - sessionStart) / 1000);
-      }
-      elapsed = Math.max(0, elapsed);
-      await updateJob(id, { trackedTime: (job.trackedTime || 0) + elapsed, startedAt: null });
-      if (elapsed > 0) {
-        await logWorkSession(id, job.title || 'Job', sessionStart, Date.now());
-      }
-    }
-
     if (status === 'Done' || status === 'Completed' || status === 'Under Review') {
       if (status === 'Done' || status === 'Completed') {
         if (currentUserRole === 'Admin' || currentUserRole === 'Manager') {
@@ -1411,6 +1429,12 @@ export function JobsPage() {
       return;
     }
 
+    if (job.status === 'Progress' || job.status === 'In Progress') {
+      const { elapsed } = await finalizeRunningSession(job, Date.now());
+      await updateJob(id, { status, trackedTime: (job.trackedTime || 0) + elapsed, startedAt: null });
+      return;
+    }
+
     await updateJob(id, { status });
   };
 
@@ -1423,22 +1447,7 @@ export function JobsPage() {
     if (completionModalJobId) {
       const targetId = completionModalJobId;
       const targetJob = jobs.find(j => j.id === targetId);
-      const now = Date.now();
-      let elapsed = 0;
-      let sessionStart = now;
-      if (activeJobTracker && activeJobTracker.jobId === targetId) {
-        sessionStart = activeJobTracker.startTime;
-        elapsed = Math.floor((now - sessionStart) / 1000);
-        setActiveJobTracker(null);
-      } else if (targetJob?.startedAt) {
-        sessionStart = parseJobStartTimeMs(targetJob.startedAt) || Date.now();
-        elapsed = Math.floor((now - sessionStart) / 1000);
-      }
-      elapsed = Math.max(0, elapsed);
-
-      if (elapsed > 0 && targetJob) {
-        await logWorkSession(targetId, targetJob.title || 'Job', sessionStart, now);
-      }
+      const { elapsed } = await finalizeRunningSession(targetJob, Date.now());
 
       await updateJob(targetId, {
         status: 'Under Review',
