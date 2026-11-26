@@ -148,16 +148,21 @@ export function AttendancePage() {
   }, [attendance, displayStaff, searchTerm, historyStaffId, filterStatus, historyDateFrom, historyDateTo]);
 
   const handleUpdateAttendance = async (staffId: string, updates: any) => {
-    const existing = attendance.find(a => a.staffId === staffId && a.date === selectedDate);
+    const existing = attendance.find(a => (a.staffId || a.staff_id) === staffId && a.date === selectedDate);
+    const staffMember = displayStaff.find(s => s.id === staffId) || staff.find(s => s.id === staffId);
     if (existing) {
       await updateAttendance(existing.id, updates);
     } else {
       await addAttendance({
         staffId,
+        staff_id: staffId,
+        staffName: staffMember?.name || 'Employee',
+        staff_name: staffMember?.name || 'Employee',
         date: selectedDate,
         status: 'Present',
         checkIn: '',
         checkOut: '',
+        punches: [],
         ...updates
       });
     }
@@ -172,23 +177,57 @@ export function AttendancePage() {
     checkIn: string;
     checkOut: string;
     punches: { in: string; out: string }[];
+    isLate: boolean;
+    lateMinutes: number;
+    penaltyAmount: number;
+    warningNote: string;
+    allowSelectEmployeeAndDate?: boolean;
   } | null>(null);
 
-  const handleOpenEditModal = (rec: any, defaultStaffId?: string, defaultStaffName?: string) => {
-    const staffId = rec.staffId || rec.staff_id || defaultStaffId || '';
-    const staffName = rec.staffName || rec.staff_name || defaultStaffName || 'Employee';
-    const rawPunches = rec.punches || (rec.checkIn || rec.check_in ? [{ in: rec.checkIn || rec.check_in || '', out: rec.checkOut || rec.check_out || '' }] : []);
+  const buildEditingState = (rec: any, defaultStaffId?: string, defaultStaffName?: string, defaultDate?: string, allowSelectEmployeeAndDate = false) => {
+    const staffId = rec?.staffId || rec?.staff_id || defaultStaffId || '';
+    const staffMember = staff.find(s => s.id === staffId) || displayStaff.find(s => s.id === staffId);
+    const staffName = rec?.staffName || rec?.staff_name || defaultStaffName || staffMember?.name || 'Employee';
+    const dateVal = rec?.date || defaultDate || selectedDate;
+    const checkInVal = rec?.checkIn ?? rec?.check_in ?? '';
+    const checkOutVal = rec?.checkOut ?? rec?.check_out ?? '';
+    const rawPunches = Array.isArray(rec?.punches) && rec.punches.length > 0
+      ? rec.punches
+      : (checkInVal ? [{ in: checkInVal, out: checkOutVal }] : []);
+    const resolvedStatus = rec?.status && rec.status !== 'Unmarked' ? rec.status : 'Present';
 
-    setEditingRecord({
-      id: rec.id,
-      staffId: staffId,
-      staffName: staffName,
-      date: rec.date,
-      status: rec.status || 'Present',
-      checkIn: rec.checkIn || rec.check_in || '',
-      checkOut: rec.checkOut || rec.check_out || '',
-      punches: Array.isArray(rawPunches) ? JSON.parse(JSON.stringify(rawPunches)) : []
-    });
+    return {
+      id: rec?.id,
+      staffId,
+      staffName,
+      date: dateVal,
+      status: resolvedStatus,
+      checkIn: checkInVal,
+      checkOut: checkOutVal,
+      punches: JSON.parse(JSON.stringify(rawPunches)),
+      isLate: Boolean(rec?.isLate ?? rec?.is_late ?? false),
+      lateMinutes: Number(rec?.lateMinutes ?? rec?.late_minutes ?? 0) || 0,
+      penaltyAmount: Number(rec?.penaltyAmount ?? rec?.penalty_amount ?? 0) || 0,
+      warningNote: rec?.warningNote ?? rec?.warning_note ?? '',
+      allowSelectEmployeeAndDate,
+    };
+  };
+
+  const handleOpenEditModal = (rec: any, defaultStaffId?: string, defaultStaffName?: string, defaultDate?: string) => {
+    setEditingRecord(buildEditingState(rec, defaultStaffId, defaultStaffName, defaultDate, false));
+  };
+
+  const handleOpenOverrideNewModal = (presetStaffId?: string, presetDate?: string) => {
+    const targetStaffId = presetStaffId || (activeTab === 'employee' && selectedStaffId ? selectedStaffId : displayStaff[0]?.id || '');
+    const targetDate = presetDate || selectedDate;
+    const existing = attendance.find(a => (a.staffId || a.staff_id) === targetStaffId && a.date === targetDate);
+    setEditingRecord(buildEditingState(existing || null, targetStaffId, undefined, targetDate, true));
+  };
+
+  const handleOverrideTargetChange = (nextStaffId: string, nextDate: string) => {
+    if (!editingRecord) return;
+    const existing = attendance.find(a => (a.staffId || a.staff_id) === nextStaffId && a.date === nextDate);
+    setEditingRecord(buildEditingState(existing || null, nextStaffId, undefined, nextDate, true));
   };
 
   const handleSessionChange = (index: number, field: 'in' | 'out', value: string) => {
@@ -233,11 +272,15 @@ export function AttendancePage() {
   };
 
   const handleSaveEditModal = async () => {
-    if (!editingRecord) return;
-    
-    const updatedPunches = editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? [] : editingRecord.punches;
-    const firstIn = updatedPunches[0]?.in || (editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? '' : editingRecord.checkIn);
-    const lastOut = updatedPunches[updatedPunches.length - 1]?.out || (editingRecord.status === 'Absent' || editingRecord.status === 'Leave' ? '' : editingRecord.checkOut);
+    if (!editingRecord || !editingRecord.staffId || !editingRecord.date) return;
+
+    const clearsWorkTimes = editingRecord.status === 'Absent' || editingRecord.status === 'Leave' || editingRecord.status === 'Holiday' || editingRecord.status === 'Unmarked';
+    const updatedPunches = clearsWorkTimes ? [] : editingRecord.punches;
+    const firstIn = clearsWorkTimes ? '' : (updatedPunches[0]?.in || editingRecord.checkIn);
+    const lastOut = clearsWorkTimes ? '' : (updatedPunches[updatedPunches.length - 1]?.out || editingRecord.checkOut);
+    const isLateFlag = clearsWorkTimes ? false : Boolean(editingRecord.isLate);
+    const lateMins = isLateFlag ? Math.max(0, Number(editingRecord.lateMinutes) || 0) : 0;
+    const penaltyAmt = isLateFlag ? Math.max(0, Number(editingRecord.penaltyAmount) || 0) : 0;
 
     const payload = {
       status: editingRecord.status,
@@ -245,14 +288,29 @@ export function AttendancePage() {
       check_out: lastOut,
       checkIn: firstIn,
       checkOut: lastOut,
-      punches: updatedPunches
+      punches: updatedPunches,
+      isLate: isLateFlag,
+      is_late: isLateFlag,
+      lateMinutes: lateMins,
+      late_minutes: lateMins,
+      penaltyAmount: penaltyAmt,
+      penalty_amount: penaltyAmt,
+      warningNote: editingRecord.warningNote.trim(),
+      warning_note: editingRecord.warningNote.trim(),
     };
 
-    if (editingRecord.id) {
-      await updateAttendance(editingRecord.id, payload);
+    const existingMatch = editingRecord.id
+      ? { id: editingRecord.id }
+      : attendance.find(a => (a.staffId || a.staff_id) === editingRecord.staffId && a.date === editingRecord.date);
+
+    if (existingMatch?.id) {
+      await updateAttendance(existingMatch.id, payload);
     } else {
       await addAttendance({
         staffId: editingRecord.staffId,
+        staff_id: editingRecord.staffId,
+        staffName: editingRecord.staffName,
+        staff_name: editingRecord.staffName,
         date: editingRecord.date,
         ...payload
       });
@@ -279,7 +337,12 @@ export function AttendancePage() {
       await handleUpdateAttendance(m.id, {
         status: 'Present',
         checkIn: '09:00',
-        checkOut: '18:00'
+        checkOut: '18:00',
+        punches: [{ in: '09:00', out: '18:00' }],
+        isLate: false,
+        lateMinutes: 0,
+        penaltyAmount: 0,
+        warningNote: ''
       });
     }
   };
@@ -295,8 +358,20 @@ export function AttendancePage() {
           </p>
         </div>
         
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-white/60 shadow-sm backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-3">
+          {isAdminOrManager && (
+            <button
+              type="button"
+              onClick={() => handleOpenOverrideNewModal()}
+              className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-xs font-bold shadow-md shadow-primary/20 transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Override / Add Attendance
+            </button>
+          )}
+
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-2xl border border-white/60 shadow-sm backdrop-blur-md">
           <button
             onClick={() => setActiveTab('daily')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
@@ -332,6 +407,7 @@ export function AttendancePage() {
             <History className="w-4 h-4" />
             Date-Wise Log
           </button>
+        </div>
         </div>
       </div>
 
@@ -472,8 +548,18 @@ export function AttendancePage() {
                           <input 
                             type="time"
                             value={record.checkIn}
-                            onChange={(e) => updateAttendance(record.id, { checkIn: e.target.value })}
-                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave'}
+                            onChange={(e) => {
+                              const nextIn = e.target.value;
+                              const nextPunches = record.punches && record.punches.length > 0
+                                ? record.punches.map((p: any, idx: number) => idx === 0 ? { ...p, in: nextIn } : p)
+                                : (nextIn ? [{ in: nextIn, out: record.checkOut || '' }] : []);
+                              handleUpdateAttendance(record.id, {
+                                status: record.status === 'Unmarked' ? 'Present' : record.status,
+                                checkIn: nextIn,
+                                punches: nextPunches,
+                              });
+                            }}
+                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave' || record.status === 'Holiday'}
                             className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                           />
                         </td>
@@ -481,8 +567,18 @@ export function AttendancePage() {
                           <input 
                             type="time"
                             value={record.checkOut}
-                            onChange={(e) => updateAttendance(record.id, { checkOut: e.target.value })}
-                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave'}
+                            onChange={(e) => {
+                              const nextOut = e.target.value;
+                              const nextPunches = record.punches && record.punches.length > 0
+                                ? record.punches.map((p: any, idx: number) => idx === record.punches.length - 1 ? { ...p, out: nextOut } : p)
+                                : (record.checkIn || nextOut ? [{ in: record.checkIn || '', out: nextOut }] : []);
+                              handleUpdateAttendance(record.id, {
+                                status: record.status === 'Unmarked' ? 'Present' : record.status,
+                                checkOut: nextOut,
+                                punches: nextPunches,
+                              });
+                            }}
+                            disabled={!isAdminOrManager || record.status === 'Absent' || record.status === 'Leave' || record.status === 'Holiday'}
                             className="px-2 py-1 bg-white/50 border border-white/60 rounded text-xs focus:ring-1 focus:ring-primary/50 w-24 text-center disabled:opacity-50"
                           />
                         </td>
@@ -525,10 +621,14 @@ export function AttendancePage() {
                           <div className="flex flex-col items-center justify-center gap-1">
                             <select 
                               value={record.status}
-                              onChange={(e) => updateAttendance(record.id, { 
-                                status: e.target.value,
-                                ...(e.target.value === 'Absent' || e.target.value === 'Leave' ? { checkIn: '', checkOut: '' } : {})
-                              })}
+                              onChange={(e) => {
+                                const nextStatus = e.target.value;
+                                const clearTimes = nextStatus === 'Absent' || nextStatus === 'Leave' || nextStatus === 'Holiday' || nextStatus === 'Unmarked';
+                                handleUpdateAttendance(record.id, { 
+                                  status: nextStatus,
+                                  ...(clearTimes ? { checkIn: '', checkOut: '', punches: [], isLate: false, lateMinutes: 0, penaltyAmount: 0 } : {})
+                                });
+                              }}
                               disabled={!isAdminOrManager}
                               className={`px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wide cursor-pointer appearance-none text-center outline-none ${getStatusBadge(record.status)} disabled:opacity-75 disabled:cursor-not-allowed`}
                             >
@@ -550,25 +650,48 @@ export function AttendancePage() {
                         </td>
                         <td className="py-4 px-6 text-center">
                           {isAdminOrManager && (
-                            <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                               <button 
-                                onClick={() => updateAttendance(record.id, { status: 'Present', checkIn: '09:00', checkOut: '18:00' })}
-                                className="w-7 h-7 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100"
-                                title="Mark Present"
+                                onClick={() => handleUpdateAttendance(record.id, {
+                                  status: 'Present',
+                                  checkIn: record.checkIn || '09:00',
+                                  checkOut: record.checkOut || '18:00',
+                                  punches: record.punches && record.punches.length > 0 ? record.punches : [{ in: record.checkIn || '09:00', out: record.checkOut || '18:00' }],
+                                  isLate: false,
+                                  lateMinutes: 0,
+                                  penaltyAmount: 0,
+                                  warningNote: ''
+                                })}
+                                className="w-7 h-7 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 cursor-pointer"
+                                title="Mark Present (On Time)"
                               >
                                 <Check className="w-4 h-4" />
                               </button>
                               <button 
-                                onClick={() => updateAttendance(record.id, { status: 'Absent', checkIn: '', checkOut: '' })}
-                                className="w-7 h-7 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100"
+                                onClick={() => handleUpdateAttendance(record.id, {
+                                  status: 'Absent',
+                                  checkIn: '',
+                                  checkOut: '',
+                                  punches: [],
+                                  isLate: false,
+                                  lateMinutes: 0,
+                                  penaltyAmount: 0,
+                                  warningNote: ''
+                                })}
+                                className="w-7 h-7 rounded bg-rose-50 text-rose-600 flex items-center justify-center hover:bg-rose-100 cursor-pointer"
                                 title="Mark Absent"
                               >
                                 <X className="w-4 h-4" />
                               </button>
                               <button 
-                                onClick={() => handleOpenEditModal(record, record.id, record.name)}
-                                className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20"
-                                title="Edit Record & Sessions"
+                                onClick={() => handleOpenEditModal(
+                                  { ...record, id: record.attendanceId || undefined, staffId: record.id, staffName: record.name, date: selectedDate },
+                                  record.id,
+                                  record.name,
+                                  selectedDate
+                                )}
+                                className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 cursor-pointer"
+                                title="Override / Edit Record & Sessions"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
@@ -909,39 +1032,63 @@ export function AttendancePage() {
           </div>
         </div>
       )}
-      {/* EDIT ATTENDANCE MODAL */}
+      {/* EDIT / OVERRIDE ATTENDANCE MODAL */}
       {editingRecord && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/95 backdrop-blur-xl border border-white/80 rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div className="bg-white/95 backdrop-blur-xl border border-white/80 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-gray-100 p-5 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-primary/10 rounded-xl text-primary">
                   <Edit2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-800 text-lg">Edit Attendance Record</h3>
-                  <p className="text-xs text-gray-500 font-medium">Update status, overall times & punch sessions</p>
+                  <h3 className="font-bold text-gray-800 text-lg">Override / Edit Attendance</h3>
+                  <p className="text-xs text-gray-500 font-medium">Update status, times, punch sessions & late penalties</p>
                 </div>
               </div>
               <button
+                type="button"
+                title="Close"
                 onClick={() => setEditingRecord(null)}
-                className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
+                className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">Employee</span>
-                  <p className="font-bold text-gray-800 text-sm">{editingRecord.staffName}</p>
+            <div className="space-y-4 text-xs p-5 overflow-y-auto flex-1">
+              {editingRecord.allowSelectEmployeeAndDate ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Employee</label>
+                    <SearchableSelect
+                      value={editingRecord.staffId}
+                      onChange={(val) => handleOverrideTargetChange(val, editingRecord.date)}
+                      options={displayStaff.map(s => ({ value: s.id, label: `${s.name} (${s.role})` }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={editingRecord.date}
+                      onChange={(e) => handleOverrideTargetChange(editingRecord.staffId, e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">Date</span>
-                  <p className="font-bold text-gray-800 text-sm">{editingRecord.date}</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 bg-gray-50/80 p-3 rounded-2xl border border-gray-100">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Employee</span>
+                    <p className="font-bold text-gray-800 text-sm">{editingRecord.staffName}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">Date</span>
+                    <p className="font-bold text-gray-800 text-sm">{editingRecord.date}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-1">
@@ -949,18 +1096,27 @@ export function AttendancePage() {
                 </label>
                 <select
                   value={editingRecord.status}
-                  onChange={(e) => setEditingRecord({ ...editingRecord, status: e.target.value })}
+                  onChange={(e) => {
+                    const nextStatus = e.target.value;
+                    const clearsTimes = nextStatus === 'Absent' || nextStatus === 'Leave' || nextStatus === 'Holiday' || nextStatus === 'Unmarked';
+                    setEditingRecord({
+                      ...editingRecord,
+                      status: nextStatus,
+                      ...(clearsTimes ? { isLate: false, lateMinutes: 0, penaltyAmount: 0 } : {})
+                    });
+                  }}
                   className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800 shadow-sm"
                 >
                   <option value="Present">Present</option>
                   <option value="Absent">Absent</option>
                   <option value="Half Day">Half Day</option>
                   <option value="Leave">Leave</option>
+                  <option value="Holiday">Holiday</option>
                   <option value="Unmarked">Unmarked</option>
                 </select>
               </div>
 
-              {editingRecord.status !== 'Absent' && editingRecord.status !== 'Leave' && (
+              {editingRecord.status !== 'Absent' && editingRecord.status !== 'Leave' && editingRecord.status !== 'Holiday' && editingRecord.status !== 'Unmarked' && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -983,6 +1139,76 @@ export function AttendancePage() {
                         value={editingRecord.checkOut}
                         onChange={(e) => setEditingRecord({ ...editingRecord, checkOut: e.target.value })}
                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 text-gray-800 shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Late / Penalty Admin Override */}
+                  <div className="p-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 font-bold text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editingRecord.isLate}
+                          onChange={(e) => setEditingRecord({
+                            ...editingRecord,
+                            isLate: e.target.checked,
+                            ...(e.target.checked ? {} : { lateMinutes: 0, penaltyAmount: 0 })
+                          })}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary/40"
+                        />
+                        <span>Mark as Late Punch-In</span>
+                      </label>
+                      {(editingRecord.isLate || editingRecord.penaltyAmount > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingRecord({
+                            ...editingRecord,
+                            isLate: false,
+                            lateMinutes: 0,
+                            penaltyAmount: 0,
+                            warningNote: ''
+                          })}
+                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                        >
+                          Waive Late & Penalty
+                        </button>
+                      )}
+                    </div>
+
+                    {editingRecord.isLate && (
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-600 uppercase block mb-1">Late Minutes</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editingRecord.lateMinutes}
+                            onChange={(e) => setEditingRecord({ ...editingRecord, lateMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-600 uppercase block mb-1">Penalty (₹)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editingRecord.penaltyAmount}
+                            onChange={(e) => setEditingRecord({ ...editingRecord, penaltyAmount: Math.max(0, parseFloat(e.target.value) || 0) })}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold text-gray-800 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-600 uppercase block mb-1">Override / Remark Note</label>
+                      <input
+                        type="text"
+                        value={editingRecord.warningNote}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, warningNote: e.target.value })}
+                        placeholder="Optional note (e.g. Approved late arrival by Admin)"
+                        className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-primary/50"
                       />
                     </div>
                   </div>
@@ -1051,18 +1277,20 @@ export function AttendancePage() {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-2 p-5 pt-3 border-t border-gray-100 shrink-0">
               <button
+                type="button"
                 onClick={() => setEditingRecord(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSaveEditModal}
                 className="px-4 py-2 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl text-xs shadow-md shadow-primary/20 transition-all cursor-pointer"
               >
-                Save Changes
+                Save Override
               </button>
             </div>
           </div>

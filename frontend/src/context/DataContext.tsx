@@ -1938,18 +1938,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       check_in: attData.check_in !== undefined ? attData.check_in : (attData.checkIn ?? null),
       check_out: attData.check_out !== undefined ? attData.check_out : (attData.checkOut ?? null),
     };
+    if (attData.isLate !== undefined && payload.is_late === undefined) payload.is_late = Boolean(attData.isLate);
+    if (attData.lateMinutes !== undefined && payload.late_minutes === undefined) payload.late_minutes = Number(attData.lateMinutes) || 0;
+    if (attData.penaltyAmount !== undefined && payload.penalty_amount === undefined) payload.penalty_amount = Number(attData.penaltyAmount) || 0;
+    if (attData.warningNote !== undefined && payload.warning_note === undefined) payload.warning_note = attData.warningNote;
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance`, { method: 'POST', body: JSON.stringify(payload) });
       const mapped = {
         ...data,
         staffId: data.staff_id || data.staffId,
         staffName: data.staff_name || data.staffName,
-        checkIn: data.check_in || data.checkIn,
-        checkOut: data.check_out || data.checkOut,
-        isLate: data.is_late !== undefined ? data.is_late : (data.isLate || attData.isLate),
-        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes || attData.lateMinutes),
-        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount || attData.penaltyAmount),
-        warningNote: data.warning_note || data.warningNote || attData.warningNote
+        checkIn: data.check_in ?? data.checkIn ?? '',
+        checkOut: data.check_out ?? data.checkOut ?? '',
+        isLate: data.is_late !== undefined ? data.is_late : (data.isLate ?? attData.isLate ?? false),
+        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes ?? attData.lateMinutes ?? 0),
+        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount ?? attData.penaltyAmount ?? 0),
+        warningNote: data.warning_note !== undefined ? (data.warning_note || '') : (data.warningNote || attData.warningNote || '')
       };
       setAttendance(prev => [mapped, ...prev]);
       return mapped;
@@ -1963,18 +1967,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const payload: any = { ...updateData };
     if (updateData.checkIn !== undefined && payload.check_in === undefined) payload.check_in = updateData.checkIn;
     if (updateData.checkOut !== undefined && payload.check_out === undefined) payload.check_out = updateData.checkOut;
+    if (updateData.isLate !== undefined && payload.is_late === undefined) payload.is_late = Boolean(updateData.isLate);
+    if (updateData.lateMinutes !== undefined && payload.late_minutes === undefined) payload.late_minutes = Number(updateData.lateMinutes) || 0;
+    if (updateData.penaltyAmount !== undefined && payload.penalty_amount === undefined) payload.penalty_amount = Number(updateData.penaltyAmount) || 0;
+    if (updateData.warningNote !== undefined && payload.warning_note === undefined) payload.warning_note = updateData.warningNote;
     try {
       const data = await apiFetch(`${API_BASE_URL}/attendance/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
       const mapped = {
         ...data,
         staffId: data.staff_id || data.staffId,
         staffName: data.staff_name || data.staffName,
-        checkIn: data.check_in || data.checkIn,
-        checkOut: data.check_out || data.checkOut,
-        isLate: data.is_late !== undefined ? data.is_late : (data.isLate || updateData.isLate),
-        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes || updateData.lateMinutes),
-        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount || updateData.penaltyAmount),
-        warningNote: data.warning_note || data.warningNote || updateData.warningNote
+        checkIn: data.check_in ?? data.checkIn ?? '',
+        checkOut: data.check_out ?? data.checkOut ?? '',
+        isLate: data.is_late !== undefined ? data.is_late : (data.isLate ?? updateData.isLate ?? false),
+        lateMinutes: data.late_minutes !== undefined ? data.late_minutes : (data.lateMinutes ?? updateData.lateMinutes ?? 0),
+        penaltyAmount: data.penalty_amount !== undefined ? data.penalty_amount : (data.penaltyAmount ?? updateData.penaltyAmount ?? 0),
+        warningNote: data.warning_note !== undefined ? (data.warning_note || '') : (data.warningNote || updateData.warningNote || '')
       };
       setAttendance(prev => prev.map(a => a.id === id ? mapped : a));
       return mapped;
