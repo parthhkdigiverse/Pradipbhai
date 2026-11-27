@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.project import Project
+from app.models.staff import Staff
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectOut
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -15,7 +17,11 @@ async def get_projects(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
-async def create_project(project_in: ProjectCreate, db: AsyncSession = Depends(get_db)):
+async def create_project(
+    project_in: ProjectCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Projects", "Manage Social Posts")),
+):
     project_id = project_in.id or f"proj-{uuid.uuid4().hex[:8]}"
     client_id = project_in.client_id or project_in.clientId
     if not client_id:
@@ -44,7 +50,12 @@ async def create_project(project_in: ProjectCreate, db: AsyncSession = Depends(g
     return project
 
 @router.put("/{project_id}", response_model=ProjectOut)
-async def update_project(project_id: str, project_in: ProjectUpdate, db: AsyncSession = Depends(get_db)):
+async def update_project(
+    project_id: str,
+    project_in: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Projects", "Manage Social Posts")),
+):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -77,7 +88,11 @@ async def update_project(project_id: str, project_in: ProjectUpdate, db: AsyncSe
     return project
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_project(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Projects")),
+):
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:

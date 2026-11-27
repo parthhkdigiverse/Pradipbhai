@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.permission import RolePermission
+from app.models.staff import Staff
+from app.api.deps import require_permission
 
 router = APIRouter()
 
@@ -105,7 +107,11 @@ async def get_permissions(db: AsyncSession = Depends(get_db)):
     return output
 
 @router.post("/toggle")
-async def toggle_permission(payload: TogglePermissionRequest, db: AsyncSession = Depends(get_db)):
+async def toggle_permission(
+    payload: TogglePermissionRequest,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Edit Permissions"))
+):
     perm_id = f"perm-{payload.role}-{payload.action.replace(' ', '-').replace('/', '-')}"
     
     result = await db.execute(select(RolePermission).where(RolePermission.id == perm_id))

@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.database import get_db
 from app.models.vendor import Vendor
+from app.models.staff import Staff
 from app.schemas.vendor import VendorCreate, VendorUpdate, VendorOut
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 
@@ -15,7 +17,11 @@ async def get_vendors(db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 @router.post("", response_model=VendorOut, status_code=status.HTTP_201_CREATED)
-async def create_vendor(vendor_in: VendorCreate, db: AsyncSession = Depends(get_db)):
+async def create_vendor(
+    vendor_in: VendorCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Vendors")),
+):
     trimmed_name = vendor_in.name.strip()
     category = vendor_in.category or "Printer"
 
@@ -45,7 +51,12 @@ async def create_vendor(vendor_in: VendorCreate, db: AsyncSession = Depends(get_
     return vendor
 
 @router.put("/{vendor_id}", response_model=VendorOut)
-async def update_vendor(vendor_id: str, vendor_in: VendorUpdate, db: AsyncSession = Depends(get_db)):
+async def update_vendor(
+    vendor_id: str,
+    vendor_in: VendorUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Vendors")),
+):
     result = await db.execute(select(Vendor).where(Vendor.id == vendor_id))
     db_vendor = result.scalar_one_or_none()
     if not db_vendor:
@@ -80,7 +91,11 @@ async def update_vendor(vendor_id: str, vendor_in: VendorUpdate, db: AsyncSessio
     return db_vendor
 
 @router.delete("/{vendor_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_vendor(vendor_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_vendor(
+    vendor_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Vendors")),
+):
     result = await db.execute(select(Vendor).where(Vendor.id == vendor_id))
     vendor = result.scalar_one_or_none()
     if not vendor:

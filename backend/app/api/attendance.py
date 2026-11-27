@@ -8,7 +8,7 @@ from app.models.attendance import Attendance
 from app.schemas.attendance import AttendanceCreate, AttendanceUpdate, AttendanceOut
 
 from app.cache import get_cache, set_cache, invalidate_cache
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, check_any_permission, is_admin_or_manager
 from app.models.staff import Staff
 
 router = APIRouter(prefix="/attendance", tags=["Attendance"])
@@ -39,12 +39,25 @@ async def get_attendance_records(
     return records
 
 @router.post("", response_model=AttendanceOut, status_code=status.HTTP_201_CREATED)
-async def create_attendance(att_in: AttendanceCreate, db: AsyncSession = Depends(get_db)):
+async def create_attendance(
+    att_in: AttendanceCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    can_manage_all = is_admin_or_manager(current_user) or await check_any_permission(
+        current_user, ("Manage Payroll", "Approve/Reject Leaves"), db
+    )
+    if not can_manage_all:
+        if not await check_any_permission(current_user, ("Punch In/Out",), db):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied: Punch In/Out required")
+        if att_in.staff_id and att_in.staff_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot record attendance for another user")
+
     att_id = att_in.id or f"att-{uuid.uuid4().hex[:8]}"
     att = Attendance(
         id=att_id,
-        staff_id=att_in.staff_id,
-        staff_name=att_in.staff_name,
+        staff_id=att_in.staff_id if can_manage_all else current_user.id,
+        staff_name=att_in.staff_name if can_manage_all else current_user.name,
         date=att_in.date,
         check_in=att_in.check_in,
         check_out=att_in.check_out,
@@ -65,14 +78,36 @@ async def create_attendance(att_in: AttendanceCreate, db: AsyncSession = Depends
     return att
 
 @router.put("/{att_id}", response_model=AttendanceOut)
-async def update_attendance(att_id: str, att_in: AttendanceUpdate, db: AsyncSession = Depends(get_db)):
+async def update_attendance(
+    att_id: str,
+    att_in: AttendanceUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
     result = await db.execute(select(Attendance).where(Attendance.id == att_id))
     att = result.scalar_one_or_none()
     if not att:
         raise HTTPException(status_code=404, detail="Attendance record not found")
-    
-    for field, val in att_in.model_dump(exclude_unset=True).items():
-        setattr(att, field, val)
+
+    can_manage_all = is_admin_or_manager(current_user) or await check_any_permission(
+        current_user, ("Manage Payroll", "Approve/Reject Leaves"), db
+    )
+    if not can_manage_all:
+        if att.staff_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot modify another user's attendance")
+        if not await check_any_permission(current_user, ("Punch In/Out",), db):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        # Employees cannot waive their own late flag/penalty or overwrite status to Holiday/Leave
+        allowed_emp_fields = {"check_in", "check_out", "work_hours", "overtime_hours", "punches", "status"}
+        for field, val in att_in.model_dump(exclude_unset=True).items():
+            if field not in allowed_emp_fields:
+                continue
+            if field == "status" and val in ("Holiday", "Leave"):
+                continue
+            setattr(att, field, val)
+    else:
+        for field, val in att_in.model_dump(exclude_unset=True).items():
+            setattr(att, field, val)
         
     await db.commit()
     await db.refresh(att)
@@ -80,7 +115,13 @@ async def update_attendance(att_id: str, att_in: AttendanceUpdate, db: AsyncSess
     return att
 
 @router.delete("/{att_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_attendance(att_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_attendance(
+    att_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    if not is_admin_or_manager(current_user) and not await check_any_permission(current_user, ("Manage Payroll",), db):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Managers can delete attendance records")
     result = await db.execute(select(Attendance).where(Attendance.id == att_id))
     att = result.scalar_one_or_none()
     if not att:

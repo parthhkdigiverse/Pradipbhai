@@ -1197,16 +1197,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let isCleanedUp = false;
     let ws: WebSocket | null = null;
     let reconnectTimeout: any = null;
+    let wsFailCount = 0;
 
     const connectGlobalWS = () => {
       if (isCleanedUp) return;
       const uid = currentUser?.id || localStorage.getItem('userId');
-      if (!uid) return;
+      const liveToken = localStorage.getItem('authToken');
+      if (!uid || !liveToken) return;
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/api/chat/ws/${uid}`;
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/chat/ws/${encodeURIComponent(uid)}?token=${encodeURIComponent(liveToken)}`;
 
+      let wasOpened = false;
       try {
         ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          wasOpened = true;
+          wsFailCount = 0;
+        };
 
         ws.onmessage = (event) => {
           try {
@@ -1256,9 +1264,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         };
 
-        ws.onclose = () => {
+        ws.onclose = async (event) => {
+          if (isCleanedUp || event?.code === 1008) return;
+          if (!wasOpened) {
+            wsFailCount += 1;
+            try {
+              const probe = await fetch('/api/staff?skip=0&limit=1', {
+                headers: { 'Authorization': `Bearer ${liveToken}` },
+              });
+              if (probe.status === 401) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('isAuthenticated');
+                window.dispatchEvent(new CustomEvent('auth_expired'));
+                return;
+              }
+            } catch {
+              // Ignore network errors while backend is restarting
+            }
+          }
           if (!isCleanedUp) {
-            reconnectTimeout = setTimeout(connectGlobalWS, 4000);
+            const delay = wasOpened ? 4000 : Math.min(60000, 4000 * Math.pow(2, Math.max(0, wsFailCount - 1)));
+            reconnectTimeout = setTimeout(connectGlobalWS, delay);
           }
         };
       } catch (err) {

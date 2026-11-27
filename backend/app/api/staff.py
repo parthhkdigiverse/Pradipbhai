@@ -8,12 +8,30 @@ from app.models.staff import Staff
 from app.schemas.staff import StaffCreate, StaffUpdate, StaffOut
 from app.cache import invalidate_cache
 from app.security import hash_password, encrypt_password_for_admin, decrypt_password_for_admin, PBKDF2_PREFIX
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_permission, check_any_permission, is_admin_user, is_admin_or_manager
 
 router = APIRouter(prefix="/staff", tags=["Staff"])
 CACHE_KEY = "cache:staff:all"
 
-def _serialize_staff(s: Staff) -> dict:
+def _serialize_staff(s: Staff, redact_sensitive: bool = False) -> dict:
+    if redact_sensitive:
+        return {
+            "id": s.id,
+            "name": s.name,
+            "role": s.role,
+            "email": s.email,
+            "phone": s.phone,
+            "status": s.status,
+            "joinDate": s.join_date,
+            "baseSalary": 0.0,
+            "hasPassword": False,
+            "canRevealPassword": False,
+            "permissions": None,
+            "officeStartTime": s.office_start_time,
+            "office_start_time": s.office_start_time,
+            "officeEndTime": s.office_end_time,
+            "office_end_time": s.office_end_time
+        }
     has_pw = bool(s.password and s.password.strip())
     has_encrypted = bool(getattr(s, "encrypted_password", None) and str(s.encrypted_password).strip())
     is_legacy_plain = has_pw and not str(s.password).strip().startswith(PBKDF2_PREFIX)
@@ -36,13 +54,37 @@ def _serialize_staff(s: Staff) -> dict:
     }
 
 @router.get("", response_model=List[StaffOut])
-async def get_staff(skip: int = 0, limit: int = 1000, db: AsyncSession = Depends(get_db)):
+async def get_staff(
+    skip: int = 0,
+    limit: int = 1000,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    can_view_sensitive = is_admin_or_manager(current_user) or await check_any_permission(
+        current_user,
+        ("View Staff", "Create/Edit Staff", "View Payroll", "Manage Payroll", "Evaluate Employee of the Month"),
+        db,
+    )
     result = await db.execute(select(Staff).offset(skip).limit(limit))
     staff_members = result.scalars().all()
-    return [_serialize_staff(s) for s in staff_members]
+    return [
+        _serialize_staff(s, redact_sensitive=(not can_view_sensitive and s.id != current_user.id))
+        for s in staff_members
+    ]
 
 @router.post("", response_model=StaffOut, status_code=status.HTTP_201_CREATED)
-async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)):
+async def create_staff(
+    staff_in: StaffCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(require_permission("Create/Edit Staff"))
+):
+    target_role = (staff_in.role or "Employee").strip() or "Employee"
+    if target_role.lower() == "admin" and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins can create Admin accounts")
+    if staff_in.permissions is not None and not is_admin_user(current_user):
+        if not await check_any_permission(current_user, ("Edit Permissions",), db):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Edit Permissions holders can set custom permissions")
+
     staff_id = staff_in.id or f"emp-{uuid.uuid4().hex[:8]}"
     start_time_val = staff_in.officeStartTime or staff_in.office_start_time
     end_time_val = staff_in.officeEndTime or staff_in.office_end_time
@@ -52,7 +94,7 @@ async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)
     staff_member = Staff(
         id=staff_id,
         name=staff_in.name,
-        role=staff_in.role or "Employee",
+        role=target_role,
         email=staff_in.email,
         phone=staff_in.phone,
         status=staff_in.status or "Active",
@@ -73,11 +115,24 @@ async def create_staff(staff_in: StaffCreate, db: AsyncSession = Depends(get_db)
     return _serialize_staff(staff_member)
 
 @router.put("/{staff_id}", response_model=StaffOut)
-async def update_staff(staff_id: str, staff_in: StaffUpdate, db: AsyncSession = Depends(get_db)):
+async def update_staff(
+    staff_id: str,
+    staff_in: StaffUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(require_permission("Create/Edit Staff"))
+):
     result = await db.execute(select(Staff).where(Staff.id == staff_id))
     staff_member = result.scalar_one_or_none()
     if not staff_member:
         raise HTTPException(status_code=404, detail="Staff member not found")
+
+    if (staff_member.role or "").strip().lower() == "admin" and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins can modify Admin accounts")
+    if staff_in.role is not None and staff_in.role.strip().lower() == "admin" and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins can assign Admin role")
+    if staff_in.permissions is not None and not is_admin_user(current_user):
+        if not await check_any_permission(current_user, ("Edit Permissions",), db):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Edit Permissions holders can modify custom permissions")
     
     update_data = staff_in.model_dump(exclude_unset=True)
     if "password" in update_data:
@@ -134,11 +189,19 @@ async def reveal_staff_password(
     }
 
 @router.delete("/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_staff(staff_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_staff(
+    staff_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(require_permission("Delete Staff"))
+):
+    if staff_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
     result = await db.execute(select(Staff).where(Staff.id == staff_id))
     staff_member = result.scalar_one_or_none()
     if not staff_member:
         raise HTTPException(status_code=404, detail="Staff member not found")
+    if (staff_member.role or "").strip().lower() == "admin" and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins can delete Admin accounts")
     await db.delete(staff_member)
     await db.commit()
     await invalidate_cache(CACHE_KEY)

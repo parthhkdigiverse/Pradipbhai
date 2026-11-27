@@ -1,13 +1,13 @@
 import uuid
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Response, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, and_, or_, update, func
 
 from app.database import get_db
 from app.models.chat import ChatMessage
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, resolve_user_from_token
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -31,18 +31,18 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, List[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, user_id: str):
+    async def connect(self, websocket: WebSocket, user_id: str, aliases: Optional[set[str]] = None):
         await websocket.accept()
-        aliases = expand_identifiers(user_id)
-        for uid in aliases:
+        resolved_aliases = aliases or expand_identifiers(user_id)
+        for uid in resolved_aliases:
             if uid not in self.active_connections:
                 self.active_connections[uid] = []
             if websocket not in self.active_connections[uid]:
                 self.active_connections[uid].append(websocket)
 
-    def disconnect(self, websocket: WebSocket, user_id: str):
-        aliases = expand_identifiers(user_id)
-        for uid in aliases:
+    def disconnect(self, websocket: WebSocket, user_id: str, aliases: Optional[set[str]] = None):
+        resolved_aliases = aliases or expand_identifiers(user_id)
+        for uid in resolved_aliases:
             if uid in self.active_connections:
                 if websocket in self.active_connections[uid]:
                     self.active_connections[uid].remove(websocket)
@@ -86,16 +86,45 @@ manager = ConnectionManager()
 ws_router = APIRouter(prefix="/chat/ws", tags=["Chat WebSockets"])
 
 @ws_router.websocket("/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(websocket, user_id)
+async def websocket_endpoint(
+    websocket: WebSocket,
+    user_id: str,
+    token: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    raw_token = (token or "").strip()
+    if not raw_token:
+        auth_header = websocket.headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            raw_token = auth_header[7:].strip()
+
+    try:
+        current_user = await resolve_user_from_token(raw_token, db)
+    except HTTPException:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Unauthorized")
+        return
+
+    user_aliases = expand_identifiers(
+        str(getattr(current_user, "id", "")),
+        getattr(current_user, "email", None),
+        getattr(current_user, "role", None),
+    )
+    requested_id = str(user_id).strip()
+    normalized_aliases = {a.lower() for a in user_aliases}
+    if not requested_id or requested_id.lower() not in normalized_aliases:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Forbidden: user mismatch")
+        return
+
+    canon_id = str(getattr(current_user, "id", requested_id))
+    await manager.connect(websocket, canon_id, aliases=user_aliases)
     try:
         while True:
             # We just keep the connection alive, the client doesn't need to send messages via WS
             # They use the POST API to send, which triggers push
-            data = await websocket.receive_text()
+            await websocket.receive_text()
             # Could process typing indicators here in the future
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+        manager.disconnect(websocket, canon_id, aliases=user_aliases)
 
 class AttachmentSchema(BaseModel):
     name: str

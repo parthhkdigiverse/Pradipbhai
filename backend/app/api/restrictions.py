@@ -6,6 +6,8 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.restriction import AccessRestriction
+from app.models.staff import Staff
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/restrictions", tags=["Access Restrictions"])
 
@@ -36,7 +38,11 @@ async def get_restrictions(db: AsyncSession = Depends(get_db)):
     return restriction.to_dict()
 
 @router.post("")
-async def save_restrictions(payload: RestrictionUpdate, db: AsyncSession = Depends(get_db)):
+async def save_restrictions(
+    payload: RestrictionUpdate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Edit Permissions"))
+):
     result = await db.execute(select(AccessRestriction).where(AccessRestriction.id == "default"))
     restriction = result.scalar_one_or_none()
     

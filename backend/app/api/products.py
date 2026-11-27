@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.product import Product
+from app.models.staff import Staff
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -46,7 +48,11 @@ async def get_products(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=ProductOut, status_code=201)
-async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_db)):
+async def create_product(
+    product: ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Products")),
+):
     existing = await db.execute(select(Product).where(Product.id == product.id))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Product ID already exists")
@@ -77,7 +83,12 @@ async def create_product(product: ProductCreate, db: AsyncSession = Depends(get_
     return db_product
 
 @router.put("/{product_id}", response_model=ProductOut)
-async def update_product(product_id: str, product_data: ProductUpdate, db: AsyncSession = Depends(get_db)):
+async def update_product(
+    product_id: str,
+    product_data: ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Products")),
+):
     result = await db.execute(select(Product).where(Product.id == product_id))
     db_product = result.scalar_one_or_none()
     if not db_product:
@@ -119,7 +130,11 @@ async def update_product(product_id: str, product_data: ProductUpdate, db: Async
     return db_product
 
 @router.delete("/{product_id}")
-async def delete_product(product_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Manage Products")),
+):
     result = await db.execute(select(Product).where(Product.id == product_id))
     db_product = result.scalar_one_or_none()
     if not db_product:

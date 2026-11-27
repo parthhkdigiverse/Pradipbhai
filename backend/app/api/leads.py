@@ -5,17 +5,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.lead import Lead
+from app.models.staff import Staff
 from app.schemas.lead import LeadCreate, LeadUpdate, LeadOut
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
 @router.get("", response_model=List[LeadOut])
-async def get_leads(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def get_leads(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("View Leads", "Create/Edit Leads")),
+):
     result = await db.execute(select(Lead).offset(skip).limit(limit))
     return result.scalars().all()
 
 @router.post("", response_model=LeadOut, status_code=status.HTTP_201_CREATED)
-async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
+async def create_lead(
+    lead_in: LeadCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Leads")),
+):
     lead_id = lead_in.id or f"lead-{uuid.uuid4().hex[:8]}"
     lead = Lead(
         id=lead_id,
@@ -39,7 +50,12 @@ async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
     return lead
 
 @router.put("/{lead_id}", response_model=LeadOut)
-async def update_lead(lead_id: str, lead_in: LeadUpdate, db: AsyncSession = Depends(get_db)):
+async def update_lead(
+    lead_id: str,
+    lead_in: LeadUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Leads")),
+):
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()
     if not lead:
@@ -53,7 +69,11 @@ async def update_lead(lead_id: str, lead_in: LeadUpdate, db: AsyncSession = Depe
     return lead
 
 @router.delete("/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_lead(lead_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_lead(
+    lead_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Delete Leads")),
+):
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = result.scalar_one_or_none()
     if not lead:

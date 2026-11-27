@@ -5,12 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.database import get_db
 from app.models.employee_of_month import EmployeeEvaluation
+from app.models.staff import Staff
 from app.schemas.employee_of_month import (
     EmployeeEvaluationCreate,
     EmployeeEvaluationUpdate,
     EmployeeEvaluationOut,
 )
 from app.cache import get_cache, set_cache, invalidate_cache
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/employee-of-month", tags=["Employee of the Month"])
 CACHE_KEY_EOM = "cache:employee_of_month:all"
@@ -39,7 +41,8 @@ async def get_evaluations(
 @router.post("", response_model=EmployeeEvaluationOut, status_code=status.HTTP_201_CREATED)
 async def create_or_upsert_evaluation(
     eval_in: EmployeeEvaluationCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Evaluate Employee of the Month"))
 ):
     # Check if an evaluation already exists for this employee in this month
     existing_res = await db.execute(
@@ -93,7 +96,8 @@ async def create_or_upsert_evaluation(
 async def update_evaluation(
     eval_id: str,
     eval_in: EmployeeEvaluationUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Evaluate Employee of the Month"))
 ):
     result = await db.execute(select(EmployeeEvaluation).where(EmployeeEvaluation.id == eval_id))
     eval_obj = result.scalar_one_or_none()
@@ -114,7 +118,8 @@ async def update_evaluation(
 @router.post("/{eval_id}/crown", response_model=EmployeeEvaluationOut)
 async def crown_winner(
     eval_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Evaluate Employee of the Month"))
 ):
     result = await db.execute(select(EmployeeEvaluation).where(EmployeeEvaluation.id == eval_id))
     target = result.scalar_one_or_none()
@@ -140,7 +145,8 @@ async def crown_winner(
 @router.delete("/{eval_id}")
 async def delete_evaluation(
     eval_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Evaluate Employee of the Month"))
 ):
     result = await db.execute(select(EmployeeEvaluation).where(EmployeeEvaluation.id == eval_id))
     eval_obj = result.scalar_one_or_none()

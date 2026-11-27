@@ -10,6 +10,7 @@ from app.models.attendance import Attendance
 from app.models.staff import Staff
 from app.models.holiday import Holiday
 from app.cache import invalidate_cache
+from app.api.deps import get_current_user, require_permission, check_any_permission, is_admin_user, is_admin_or_manager
 from app.schemas.leave import (
     LeaveRequestCreate,
     LeaveRequestUpdate,
@@ -88,13 +89,31 @@ async def _cleanup_leave_attendance(db: AsyncSession, staff_id: str, from_date: 
 
 
 @router.get("/requests", response_model=List[LeaveRequestOut])
-async def get_leave_requests(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(LeaveRequest))
+async def get_leave_requests(
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    can_view_all = is_admin_or_manager(current_user) or await check_any_permission(
+        current_user, ("Approve/Reject Leaves", "View Payroll", "Manage Payroll"), db
+    )
+    if can_view_all:
+        result = await db.execute(select(LeaveRequest))
+    else:
+        result = await db.execute(select(LeaveRequest).where(LeaveRequest.staff_id == current_user.id))
     return result.scalars().all()
 
 
 @router.post("/requests", response_model=LeaveRequestOut, status_code=status.HTTP_201_CREATED)
-async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = Depends(get_db)):
+async def create_leave_request(
+    req_in: LeaveRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(require_permission("Apply Leave", "Approve/Reject Leaves"))
+):
+    can_approve = is_admin_or_manager(current_user) or await check_any_permission(current_user, ("Approve/Reject Leaves",), db)
+    effective_staff_id = req_in.staff_id if can_approve else current_user.id
+    effective_staff_name = req_in.staff_name if can_approve else current_user.name
+    effective_status = (req_in.status or "Pending") if can_approve else "Pending"
+
     req_type = req_in.type or "Casual"
 
     # Enforce Paid Earned Leave monthly quota (1 day/month by default, scaled by LeaveBalance.earned, no carry forward)
@@ -102,7 +121,7 @@ async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = De
         hol_res = await db.execute(select(Holiday.date))
         holiday_dates = {row[0] for row in hol_res.all() if row[0]}
 
-        bal_res = await db.execute(select(LeaveBalance).where(LeaveBalance.staff_id == req_in.staff_id))
+        bal_res = await db.execute(select(LeaveBalance).where(LeaveBalance.staff_id == effective_staff_id))
         bal = bal_res.scalar_one_or_none()
         earned_quota = float(bal.earned if bal is not None else 12)
         monthly_quota = earned_quota / 12.0
@@ -115,7 +134,7 @@ async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = De
 
         existing_earned = await db.execute(
             select(LeaveRequest).where(
-                LeaveRequest.staff_id == req_in.staff_id,
+                LeaveRequest.staff_id == effective_staff_id,
                 LeaveRequest.type == "Earned",
                 LeaveRequest.status != "Rejected",
             )
@@ -142,8 +161,8 @@ async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = De
     req_id = req_in.id or f"leave-{uuid.uuid4().hex[:8]}"
     leave_req = LeaveRequest(
         id=req_id,
-        staff_id=req_in.staff_id,
-        staff_name=req_in.staff_name,
+        staff_id=effective_staff_id,
+        staff_name=effective_staff_name,
         type=req_type,
         from_date=req_in.from_date,
         to_date=req_in.to_date,
@@ -151,11 +170,11 @@ async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = De
         is_half_day=req_in.is_half_day,
         half_day_session=req_in.half_day_session,
         reason=req_in.reason,
-        status=req_in.status or "Pending",
+        status=effective_status,
         applied_on=req_in.applied_on,
-        reviewed_by=req_in.reviewed_by,
-        review_note=req_in.review_note,
-        reviewed_on=req_in.reviewed_on,
+        reviewed_by=req_in.reviewed_by if can_approve else None,
+        review_note=req_in.review_note if can_approve else None,
+        reviewed_on=req_in.reviewed_on if can_approve else None,
     )
     db.add(leave_req)
     await db.commit()
@@ -164,11 +183,19 @@ async def create_leave_request(req_in: LeaveRequestCreate, db: AsyncSession = De
 
 
 @router.put("/requests/{req_id}", response_model=LeaveRequestOut)
-async def update_leave_request(req_id: str, req_in: LeaveRequestUpdate, db: AsyncSession = Depends(get_db)):
+async def update_leave_request(
+    req_id: str,
+    req_in: LeaveRequestUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(require_permission("Approve/Reject Leaves"))
+):
     result = await db.execute(select(LeaveRequest).where(LeaveRequest.id == req_id))
     leave_req = result.scalar_one_or_none()
     if not leave_req:
         raise HTTPException(status_code=404, detail="Leave request not found")
+
+    if leave_req.staff_id == current_user.id and not is_admin_user(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot approve or modify your own leave status")
 
     prev_status = leave_req.status
     updates = req_in.model_dump(exclude_unset=True)
@@ -184,11 +211,20 @@ async def update_leave_request(req_id: str, req_in: LeaveRequestUpdate, db: Asyn
 
 
 @router.delete("/requests/{req_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_leave_request(req_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_leave_request(
+    req_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
     result = await db.execute(select(LeaveRequest).where(LeaveRequest.id == req_id))
     leave_req = result.scalar_one_or_none()
     if not leave_req:
         raise HTTPException(status_code=404, detail="Leave request not found")
+
+    can_manage = is_admin_or_manager(current_user) or await check_any_permission(current_user, ("Approve/Reject Leaves",), db)
+    if not can_manage:
+        if leave_req.staff_id != current_user.id or leave_req.status != "Pending":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only your own pending leave requests can be cancelled")
 
     if leave_req.status == "Approved":
         await _cleanup_leave_attendance(db, leave_req.staff_id, leave_req.from_date, leave_req.to_date)
@@ -198,13 +234,27 @@ async def delete_leave_request(req_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/balances", response_model=List[LeaveBalanceOut])
-async def get_leave_balances(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(LeaveBalance))
+async def get_leave_balances(
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    can_view_all = is_admin_or_manager(current_user) or await check_any_permission(
+        current_user, ("Approve/Reject Leaves", "View Payroll", "Manage Payroll"), db
+    )
+    if can_view_all:
+        result = await db.execute(select(LeaveBalance))
+    else:
+        result = await db.execute(select(LeaveBalance).where(LeaveBalance.staff_id == current_user.id))
     return result.scalars().all()
 
 
 @router.put("/balances/{staff_id}", response_model=LeaveBalanceOut)
-async def upsert_leave_balance(staff_id: str, bal_in: LeaveBalanceUpdate, db: AsyncSession = Depends(get_db)):
+async def upsert_leave_balance(
+    staff_id: str,
+    bal_in: LeaveBalanceUpdate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Approve/Reject Leaves", "Manage Payroll"))
+):
     result = await db.execute(select(LeaveBalance).where(LeaveBalance.staff_id == staff_id))
     bal = result.scalar_one_or_none()
     if not bal:
@@ -228,7 +278,10 @@ async def upsert_leave_balance(staff_id: str, bal_in: LeaveBalanceUpdate, db: As
 
 
 @router.post("/balances/reset", response_model=List[LeaveBalanceOut])
-async def reset_leave_balances(db: AsyncSession = Depends(get_db)):
+async def reset_leave_balances(
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Approve/Reject Leaves", "Manage Payroll"))
+):
     staff_res = await db.execute(select(Staff.id))
     staff_ids = {row[0] for row in staff_res.all()}
 

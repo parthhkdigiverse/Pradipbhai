@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.client import Client
+from app.models.staff import Staff
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
 from app.cache import get_cache, set_cache, invalidate_cache
+from app.api.deps import require_permission
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 CACHE_KEY = "cache:clients:all"
@@ -26,7 +28,11 @@ async def get_clients(skip: int = 0, limit: int = 100, db: AsyncSession = Depend
     return clients
 
 @router.post("", response_model=ClientOut, status_code=status.HTTP_201_CREATED)
-async def create_client(client_in: ClientCreate, db: AsyncSession = Depends(get_db)):
+async def create_client(
+    client_in: ClientCreate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Clients")),
+):
     client_id = client_in.id or f"client-{uuid.uuid4().hex[:8]}"
     client_data = client_in.model_dump(exclude={"id"})
     if not client_data.get("name"):
@@ -44,7 +50,12 @@ async def create_client(client_in: ClientCreate, db: AsyncSession = Depends(get_
     return client
 
 @router.put("/{client_id}", response_model=ClientOut)
-async def update_client(client_id: str, client_in: ClientUpdate, db: AsyncSession = Depends(get_db)):
+async def update_client(
+    client_id: str,
+    client_in: ClientUpdate,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Create/Edit Clients")),
+):
     result = await db.execute(select(Client).where(Client.id == client_id))
     client = result.scalar_one_or_none()
     if not client:
@@ -59,7 +70,11 @@ async def update_client(client_id: str, client_in: ClientUpdate, db: AsyncSessio
     return client
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_client(client_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_client(
+    client_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("Delete Clients")),
+):
     result = await db.execute(select(Client).where(Client.id == client_id))
     client = result.scalar_one_or_none()
     if not client:

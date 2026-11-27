@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.payroll import PayrollRecord
+from app.models.staff import Staff
 from app.schemas.payroll import PayrollCreate, PayrollUpdate, PayrollOut
+from app.api.deps import get_current_user, require_permission, check_any_permission
 
 router = APIRouter(prefix="/payroll", tags=["Payroll"])
 
@@ -53,13 +55,23 @@ async def _upsert_payroll_record(payroll_in: PayrollCreate, db: AsyncSession) ->
 
 
 @router.get("", response_model=List[PayrollOut])
-async def get_payroll_records(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(PayrollRecord))
+async def get_payroll_records(
+    db: AsyncSession = Depends(get_db),
+    current_user: Staff = Depends(get_current_user)
+):
+    if await check_any_permission(current_user, ("View Payroll", "Manage Payroll"), db):
+        result = await db.execute(select(PayrollRecord))
+    else:
+        result = await db.execute(select(PayrollRecord).where(PayrollRecord.staff_id == current_user.id))
     return result.scalars().all()
 
 
 @router.post("", response_model=PayrollOut, status_code=status.HTTP_201_CREATED)
-async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(get_db)):
+async def create_payroll(
+    payroll_in: PayrollCreate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Manage Payroll"))
+):
     payroll = await _upsert_payroll_record(payroll_in, db)
     await db.commit()
     await db.refresh(payroll)
@@ -67,7 +79,11 @@ async def create_payroll(payroll_in: PayrollCreate, db: AsyncSession = Depends(g
 
 
 @router.post("/bulk", response_model=List[PayrollOut])
-async def bulk_upsert_payroll(items: List[PayrollCreate], db: AsyncSession = Depends(get_db)):
+async def bulk_upsert_payroll(
+    items: List[PayrollCreate],
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Manage Payroll"))
+):
     records: List[PayrollRecord] = []
     for item in items:
         rec = await _upsert_payroll_record(item, db)
@@ -79,7 +95,12 @@ async def bulk_upsert_payroll(items: List[PayrollCreate], db: AsyncSession = Dep
 
 
 @router.put("/{payroll_id}", response_model=PayrollOut)
-async def update_payroll(payroll_id: str, payroll_in: PayrollUpdate, db: AsyncSession = Depends(get_db)):
+async def update_payroll(
+    payroll_id: str,
+    payroll_in: PayrollUpdate,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Manage Payroll"))
+):
     result = await db.execute(select(PayrollRecord).where(PayrollRecord.id == payroll_id))
     payroll = result.scalar_one_or_none()
     if not payroll:
@@ -94,7 +115,11 @@ async def update_payroll(payroll_id: str, payroll_in: PayrollUpdate, db: AsyncSe
 
 
 @router.delete("/{payroll_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_payroll(payroll_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_payroll(
+    payroll_id: str,
+    db: AsyncSession = Depends(get_db),
+    _current_user: Staff = Depends(require_permission("Manage Payroll"))
+):
     result = await db.execute(select(PayrollRecord).where(PayrollRecord.id == payroll_id))
     payroll = result.scalar_one_or_none()
     if not payroll:
