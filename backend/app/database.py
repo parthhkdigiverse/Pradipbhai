@@ -121,6 +121,8 @@ async def init_db():
             columns = [c["name"] for c in inspector.get_columns("staff")]
             if "password" not in columns:
                 sync_conn.execute(text("ALTER TABLE staff ADD COLUMN password VARCHAR(255) NULL"))
+            if "encrypted_password" not in columns:
+                sync_conn.execute(text("ALTER TABLE staff ADD COLUMN encrypted_password VARCHAR(500) NULL"))
             if "permissions" not in columns:
                 sync_conn.execute(text("ALTER TABLE staff ADD COLUMN permissions JSON NULL"))
         if "jobs" in inspector.get_table_names():
@@ -329,6 +331,7 @@ async def init_db():
             result = await session.execute(select(models.Staff))
             staff_list = result.scalars().all()
             if not staff_list:
+                from app.security import hash_password, encrypt_password_for_admin
                 admin_staff = models.Staff(
                     id="emp-admin",
                     name="Admin",
@@ -338,7 +341,8 @@ async def init_db():
                     status="Active",
                     join_date="2024-01-01",
                     base_salary=120000.0,
-                    password="password"
+                    password=hash_password("password"),
+                    encrypted_password=encrypt_password_for_admin("password")
                 )
                 session.add(admin_staff)
 

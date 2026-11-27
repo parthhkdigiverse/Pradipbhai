@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.staff import Staff
 from app.models.restriction import AccessRestriction
 from app.config import settings
+from app.security import hash_password, verify_password, encrypt_password_for_admin
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -72,13 +73,23 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
             detail="Account is inactive. Please contact system administrator."
         )
 
-    # Validate password if staff has a password configured
-    if staff_member.password and staff_member.password.strip():
-        if req.password.strip() != staff_member.password.strip():
+    # Validate password strictly (blank/NULL stored passwords cannot log in)
+    is_valid, needs_rehash = verify_password(req.password, staff_member.password)
+    if not is_valid:
+        if not staff_member.password or not staff_member.password.strip():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password."
+                detail="Account has no password configured. Please contact an administrator."
             )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password."
+        )
+
+    if needs_rehash:
+        staff_member.password = hash_password(req.password)
+        staff_member.encrypted_password = encrypt_password_for_admin(req.password)
+        await db.commit()
 
     # Access Restrictions enforcement for non-admin users
     user_role = (staff_member.role or "Employee").lower()

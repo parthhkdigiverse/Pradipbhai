@@ -33,34 +33,36 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     if not credentials or not credentials.credentials:
-        return SuperAdminUser()
+        raise credentials_exception
 
-    token = credentials.credentials
-    if token in ["fallback-session-token", "session-active-token", "admin", "super-admin"]:
-        return SuperAdminUser()
+    token = credentials.credentials.strip()
+    if not token:
+        raise credentials_exception
 
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: str = payload.get("sub")
-        if user_id is None:
-            return SuperAdminUser()
+        if not user_id:
+            raise credentials_exception
     except JWTError:
-        return SuperAdminUser()
+        raise credentials_exception
 
-    # ── Super Admin bypass: no DB lookup needed ──────────────────────────
+    # ── Super Admin bypass: only when backed by a validly signed JWT with sub="super-admin" ──
     if user_id == "super-admin":
         return SuperAdminUser()
-    # ─────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────────────────────────
 
     result = await db.execute(select(Staff).where(Staff.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        return SuperAdminUser()
+        raise credentials_exception
 
     if user.status and user.status.lower() == "inactive":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive.",
         )
+
+    return user
 
     return user

@@ -19,7 +19,6 @@ class StaffBase(BaseModel):
     status: Optional[str] = "Active"
     joinDate: Optional[str] = None
     baseSalary: Optional[float] = 0.0
-    password: Optional[str] = None
     permissions: Optional[dict] = None
     officeStartTime: Optional[str] = None
     office_start_time: Optional[str] = None
@@ -28,6 +27,7 @@ class StaffBase(BaseModel):
 
 class StaffCreate(StaffBase):
     id: Optional[str] = None
+    password: Optional[str] = None
 
 class StaffUpdate(BaseModel):
     name: Optional[str] = None
@@ -46,4 +46,6 @@ class StaffUpdate(BaseModel):
 
 class StaffOut(StaffBase):
     id: str
+    hasPassword: Optional[bool] = False
+    canRevealPassword: Optional[bool] = False
     model_config = ConfigDict(from_attributes=True)

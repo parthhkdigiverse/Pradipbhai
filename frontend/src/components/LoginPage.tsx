@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
-import { useData } from '../context/DataContext';
 
 const API_BASE_URL = '/api';
 
@@ -10,7 +9,6 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const { staff } = useData();
   const [rememberMe, setRememberMe] = useState<boolean>(() => {
     return localStorage.getItem('rememberMe') === 'true';
   });
@@ -48,6 +46,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       if (res.ok) {
         const data = await res.json();
         const user = data.user;
+        if (!data?.token) {
+          setErrorMsg('Authentication failed: Server did not issue a valid session token.');
+          return;
+        }
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('userId', user.id);
         localStorage.setItem('userName', user.name);
@@ -62,28 +64,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         setErrorMsg(msg);
       }
     } catch (err) {
-      console.warn("Backend auth notice, checking local staff store:", err);
-      // Fallback check against staff list loaded in context or create offline session
-      const matchedStaff = staff.find(s => s.email?.toLowerCase() === cleanEmail);
-      if (matchedStaff) {
-        if (matchedStaff.status && matchedStaff.status.toLowerCase() === 'inactive') {
-          setErrorMsg('Account is inactive. Please contact system administrator.');
-        } else if (matchedStaff.password && matchedStaff.password.trim() && matchedStaff.password.trim() !== password.trim()) {
-          setErrorMsg('Invalid email or password.');
-        } else {
-          const role = matchedStaff.role || 'Employee';
-          localStorage.setItem('authToken', 'fallback-session-token');
-          localStorage.setItem('userId', matchedStaff.id);
-          localStorage.setItem('userName', matchedStaff.name);
-          localStorage.setItem('userEmail', matchedStaff.email);
-          localStorage.setItem('userRole', role);
-          onLogin(role, matchedStaff.email, matchedStaff);
-          return;
-        }
-      } else {
-        setErrorMsg('Invalid email or password, or server is unreachable.');
-        return;
-      }
+      console.warn("Backend authentication unreachable:", err);
+      setErrorMsg('Unable to reach authentication server. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }

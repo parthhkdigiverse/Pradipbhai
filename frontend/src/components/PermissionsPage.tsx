@@ -13,6 +13,7 @@ const SYSTEM_PERMISSIONS = [
   { module: 'ATTENDANCE', actions: ['View Attendance', 'Punch In/Out'] },
   { module: 'WORK LOGS', actions: ['View Work Logs', 'Add Work Log'] },
   { module: 'DAILY PROGRESS', actions: ['View Daily Progress', 'Verify & Rate Reports'] },
+  { module: 'EMPLOYEE OF THE MONTH', actions: ['View Employee of the Month', 'Evaluate Employee of the Month'] },
   { module: 'PAYROLL', actions: ['View Payroll', 'Manage Payroll'] },
   { module: 'LEAVES', actions: ['View Leaves', 'Apply Leave', 'Approve/Reject Leaves'] },
   { module: 'HOLIDAYS', actions: ['View Holidays', 'Manage Holidays'] },

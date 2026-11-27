@@ -16,6 +16,7 @@ const SYSTEM_PERMISSIONS_MODULES = [
   { module: 'ATTENDANCE', actions: ['View Attendance', 'Punch In/Out'] },
   { module: 'WORK LOGS', actions: ['View Work Logs', 'Add Work Log'] },
   { module: 'DAILY PROGRESS', actions: ['View Daily Progress', 'Verify & Rate Reports'] },
+  { module: 'EMPLOYEE OF THE MONTH', actions: ['View Employee of the Month', 'Evaluate Employee of the Month'] },
   { module: 'PAYROLL', actions: ['View Payroll', 'Manage Payroll'] },
   { module: 'LEAVES', actions: ['View Leaves', 'Apply Leave', 'Approve/Reject Leaves'] },
   { module: 'HOLIDAYS', actions: ['View Holidays', 'Manage Holidays'] },
@@ -31,9 +32,17 @@ const SYSTEM_PERMISSIONS_MODULES = [
 
 export function StaffPage() {
   const { confirm } = useConfirm();
-  const { staff, addStaff, updateStaff, deleteStaff, currentUserRole, hasPermission } = useData();
+  const { staff, addStaff, updateStaff, deleteStaff, currentUserRole, hasPermission, rolePermissions } = useData();
+  const isAdmin = currentUserRole === 'Admin';
   const canCreateEditStaff = hasPermission(currentUserRole, 'Create/Edit Staff');
   const canDeleteStaff = hasPermission(currentUserRole, 'Delete Staff');
+
+  // Read target role's matrix default directly so the logged-in user's personal overrides never leak into another staff member's defaults
+  const getRoleDefaultPermission = (role: string, action: string): boolean => {
+    const roleMap = rolePermissions?.[role] || {};
+    if (roleMap[action] !== undefined) return !!roleMap[action];
+    return role === 'Admin';
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterRole, setFilterRole] = useState('All');
@@ -51,10 +60,41 @@ export function StaffPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
+  const [loadingRevealId, setLoadingRevealId] = useState<string | null>(null);
 
-  const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleRevealPassword = async (id: string) => {
+    if (!isAdmin) return;
+    if (revealedPasswords[id] !== undefined) {
+      setRevealedPasswords(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+
+    setLoadingRevealId(id);
+    try {
+      const token = localStorage.getItem('authToken');
+      const res = await fetch(`/api/staff/${id}/reveal-password`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert(data?.detail || 'Unable to view password.');
+        return;
+      }
+      if (data?.password) {
+        setRevealedPasswords(prev => ({ ...prev, [id]: data.password }));
+      } else {
+        alert('This password was already hashed before Admin Reveal was enabled. Click Edit to set a new viewable password.');
+      }
+    } catch {
+      alert('Failed to fetch password from server.');
+    } finally {
+      setLoadingRevealId(null);
+    }
   };
 
   const [formData, setFormData] = useState<{
@@ -111,6 +151,13 @@ export function StaffPage() {
     if (staffId) {
       const emp = staff.find(s => s.id === staffId);
       if (emp) {
+        let parsedPerms: Record<string, boolean> = {};
+        const rawPerms = (emp as any).permissions;
+        if (typeof rawPerms === 'string') {
+          try { parsedPerms = JSON.parse(rawPerms) || {}; } catch { parsedPerms = {}; }
+        } else if (rawPerms && typeof rawPerms === 'object') {
+          parsedPerms = rawPerms;
+        }
         setFormData({
           name: emp.name,
           role: emp.role || 'Employee',
@@ -119,10 +166,10 @@ export function StaffPage() {
           status: emp.status,
           joinDate: emp.joinDate,
           baseSalary: emp.baseSalary?.toString() || '',
-          password: (emp as any).password || '',
+          password: '',
           officeStartTime: emp.officeStartTime || (emp as any).office_start_time || '',
           officeEndTime: (emp as any).officeEndTime || (emp as any).office_end_time || '',
-          permissions: (emp as any).permissions || {}
+          permissions: parsedPerms
         });
         setEditingStaffId(staffId);
       }
@@ -152,13 +199,29 @@ export function StaffPage() {
 
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    const staffData = {
-      ...formData,
-      baseSalary: parseFloat(formData.baseSalary) || 0
+    const { password: rawPassword, ...rest } = formData;
+    const trimmedPassword = rawPassword.trim();
+
+    if (!editingStaffId && !trimmedPassword) {
+      alert('Please set a login password for the new staff member.');
+      return;
+    }
+
+    const staffData: any = {
+      ...rest,
+      baseSalary: parseFloat(formData.baseSalary) || 0,
+      ...(trimmedPassword ? { password: trimmedPassword } : {})
     };
 
     if (editingStaffId) {
       await updateStaff(editingStaffId, staffData);
+      if (trimmedPassword) {
+        setRevealedPasswords(prev => {
+          const next = { ...prev };
+          delete next[editingStaffId];
+          return next;
+        });
+      }
     } else {
       await addStaff(staffData);
     }
@@ -332,19 +395,30 @@ export function StaffPage() {
                       </span>
                     </td>
                     <td className="py-4 px-6">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-gray-800 font-bold tracking-wider">
-                          {visiblePasswords[emp.id] ? (emp.password || '••••••••') : '••••••••'}
+                      {(emp as any).hasPassword === false ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          Not Set
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => togglePasswordVisibility(emp.id)}
-                          className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-md hover:bg-white/80"
-                          title={visiblePasswords[emp.id] ? "Hide Password" : "Show Password"}
-                        >
-                          {visiblePasswords[emp.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      ) : isAdmin ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-gray-800 font-bold tracking-wider">
+                            {revealedPasswords[emp.id] !== undefined ? revealedPasswords[emp.id] : '••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={loadingRevealId === emp.id}
+                            onClick={() => toggleRevealPassword(emp.id)}
+                            className="text-gray-400 hover:text-gray-700 transition-colors p-1 rounded-md hover:bg-white/80 cursor-pointer disabled:opacity-50"
+                            title={revealedPasswords[emp.id] !== undefined ? "Hide Password" : "View Password (Admin Only)"}
+                          >
+                            {revealedPasswords[emp.id] !== undefined ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          •••••••• Protected
+                        </span>
+                      )}
                     </td>
                     <td className="py-4 px-6 text-center">
                       {getStatusBadge(emp)}
@@ -486,11 +560,14 @@ export function StaffPage() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">Password / Access Key</label>
+                    <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1 block">
+                      {editingStaffId ? 'Reset Password (Optional)' : 'Password / Access Key'} {!editingStaffId && <span className="text-rose-500">*</span>}
+                    </label>
                     <div className="relative">
                       <input 
                         type={showPassword ? "text" : "password"} 
-                        placeholder="Set login password..." 
+                        required={!editingStaffId}
+                        placeholder={editingStaffId ? "Leave blank to keep existing password..." : "Set login password..."} 
                         value={formData.password} 
                         onChange={e => setFormData({...formData, password: e.target.value})} 
                         className="w-full pl-3 pr-10 py-2 bg-white/50 border border-white/60 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-gray-800" 
@@ -548,7 +625,7 @@ export function StaffPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                           {group.actions.map(action => {
-                            const roleDefault = hasPermission(formData.role, action);
+                            const roleDefault = getRoleDefaultPermission(formData.role, action);
                             const isOverridden = formData.permissions?.[action] !== undefined;
                             const effectiveVal = isOverridden ? !!formData.permissions[action] : roleDefault;
 

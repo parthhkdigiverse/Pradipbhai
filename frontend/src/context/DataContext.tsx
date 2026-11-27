@@ -474,10 +474,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Only fetch permissions if user is authenticated
+    // Only fetch permissions if user has a real JWT session token
     const token = localStorage.getItem('authToken');
-    const isAuth = localStorage.getItem('isAuthenticated') === 'true';
-    if (!token && !isAuth) return;
+    const isRealToken = Boolean(
+      token &&
+      token !== 'fallback-session-token' &&
+      token !== 'session-active-token' &&
+      token !== 'admin' &&
+      token !== 'super-admin'
+    );
+    if (!isRealToken) return;
 
     const fetchPerms = async () => {
       try {
@@ -543,15 +549,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resolveCurrentStaffObj = () => {
+    const userId = (localStorage.getItem('userId') || '').trim();
+    if (userId) {
+      const byId = staff.find(s => String(s.id).trim() === userId);
+      if (byId) return byId;
+    }
+    const email = (localStorage.getItem('userEmail') || '').trim().toLowerCase();
+    if (email) {
+      return staff.find(s => s.email?.trim().toLowerCase() === email);
+    }
+    return undefined;
+  };
+
   const hasPermission = (role: string, action: string): boolean => {
     // 1. Check if logged-in staff member has a specific individual permission override
-    const email = localStorage.getItem('userEmail') || '';
-    const currentStaffObj = staff.find(s => s.email?.toLowerCase() === email.trim().toLowerCase());
-    
-    if (currentStaffObj && currentStaffObj.permissions && typeof currentStaffObj.permissions === 'object') {
-      if (currentStaffObj.permissions[action] !== undefined) {
-        return !!currentStaffObj.permissions[action];
+    const currentStaffObj = resolveCurrentStaffObj();
+    let customPerms: any = currentStaffObj?.permissions;
+    if (typeof customPerms === 'string') {
+      try {
+        customPerms = JSON.parse(customPerms);
+      } catch {
+        customPerms = null;
       }
+    }
+
+    if (customPerms && typeof customPerms === 'object' && customPerms[action] !== undefined) {
+      return !!customPerms[action];
     }
 
     // 2. Fallback to system role permission matrix
@@ -563,7 +587,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const hasTabPermission = (role: string, tabKey: string): boolean => {
-    const roleMap = getRoleMap(role);
+    const normalizedTab = tabKey.toLowerCase();
+    if (normalizedTab === 'security') {
+      return hasPermission(role, 'View Security') || hasPermission(role, 'Edit Permissions');
+    }
 
     const tabPermissionKeys: Record<string, string> = {
       'dashboard': 'View Dashboard',
@@ -588,13 +615,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       'reports': 'View Reports',
       'permissions': 'Edit Permissions',
       'restrictions': 'View Security',
-      'security': 'View Security',
       'settings': 'View Settings'
     };
 
-    const key = tabPermissionKeys[tabKey.toLowerCase()];
-    if (key && roleMap[key] !== undefined) {
-      return !!roleMap[key];
+    const key = tabPermissionKeys[normalizedTab];
+    if (key) {
+      return hasPermission(role, key);
     }
     return role === 'Admin';
   };
@@ -772,6 +798,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     });
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('isAuthenticated');
+        window.dispatchEvent(new Event('auth_expired'));
+      }
       const errBody = await res.json().catch(() => ({}));
       const msg = errBody?.detail || `HTTP ${res.status}`;
       console.error(`[apiFetch] ${options.method || 'GET'} ${url} → ${res.status}:`, msg);
@@ -957,19 +988,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const invoicesSyncGuardRef = useRef<number>(0);
 
   const refreshApiData = async () => {
+    const token = localStorage.getItem('authToken');
+    const isRealToken = Boolean(
+      token &&
+      token !== 'fallback-session-token' &&
+      token !== 'session-active-token' &&
+      token !== 'admin' &&
+      token !== 'super-admin'
+    );
+    if (!isRealToken) return;
     if (isSyncingRef.current) return;
     isSyncingRef.current = true;
     const invoicesStartGuard = invoicesSyncGuardRef.current;
     try {
       const headers = getAuthHeaders();
-      const token = localStorage.getItem('authToken');
-      const isRealToken = token && token !== 'fallback-session-token' && token !== 'session-active-token';
 
       const fetchWithAuth = async (url: string) => {
         const res = await fetch(url, { headers, cache: 'no-store' });
         if (!res.ok) {
-          if (res.status === 401 && isRealToken) {
+          if (res.status === 401) {
             localStorage.removeItem('authToken');
+            localStorage.removeItem('isAuthenticated');
+            window.dispatchEvent(new Event('auth_expired'));
           }
           throw new Error(`HTTP ${res.status}`);
         }
@@ -1139,6 +1179,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    const isRealToken = Boolean(
+      token &&
+      token !== 'fallback-session-token' &&
+      token !== 'session-active-token' &&
+      token !== 'admin' &&
+      token !== 'super-admin'
+    );
+    if (!isRealToken) return;
+
     // 1. Initial data & chat summaries fetch on mount
     refreshApiData();
     fetchUnreadSummaries();
@@ -1832,7 +1882,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addStaff = async (staffData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/staff`, { method: 'POST', body: JSON.stringify(staffData) });
-      setStaff(prev => [data, ...prev]);
+      setStaff(prev => {
+        const next = [data, ...prev];
+        saveCache('cache_staff', next);
+        return next;
+      });
       return data;
     } catch {
       setStaff(prev => [staffData, ...prev]);
@@ -1843,7 +1897,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const updateStaff = async (id: string, updateData: any) => {
     try {
       const data = await apiFetch(`${API_BASE_URL}/staff/${id}`, { method: 'PUT', body: JSON.stringify(updateData) });
-      setStaff(prev => prev.map(s => s.id === id ? data : s));
+      setStaff(prev => {
+        const next = prev.map(s => s.id === id ? data : s);
+        saveCache('cache_staff', next);
+        return next;
+      });
       return data;
     } catch {
       setStaff(prev => prev.map(s => s.id === id ? { ...s, ...updateData } : s));
@@ -1852,7 +1910,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const deleteStaff = async (id: string) => {
     try { await apiFetch(`${API_BASE_URL}/staff/${id}`, { method: 'DELETE' }); } catch {}
-    setStaff(prev => prev.filter(s => s.id !== id));
+    setStaff(prev => {
+      const next = prev.filter(s => s.id !== id);
+      saveCache('cache_staff', next);
+      return next;
+    });
   };
 
   // Leads API

@@ -14,6 +14,7 @@ class Staff(Base):
     join_date: Mapped[str] = mapped_column(String(50), nullable=True)
     base_salary: Mapped[float] = mapped_column(Float, default=0.0)
     password: Mapped[str] = mapped_column(String(255), nullable=True)
+    encrypted_password: Mapped[str] = mapped_column(String(500), nullable=True)
     permissions: Mapped[dict] = mapped_column(JSON, nullable=True)
     office_start_time: Mapped[str] = mapped_column(String(50), nullable=True)
     office_end_time: Mapped[str] = mapped_column(String(50), nullable=True)

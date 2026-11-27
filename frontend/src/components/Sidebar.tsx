@@ -470,12 +470,16 @@ export function Sidebar({
                 <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-all duration-300 ${openMenus.security ? 'rotate-180' : ''} ${effectiveIsCollapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[16px] opacity-100'}`} />
               </button>
               <div className={`pl-9 space-y-1 mt-1 overflow-hidden transition-all duration-300 ${!effectiveIsCollapsed && openMenus.security ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <button onClick={() => navigateTo('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                    Roles & Permissions
-                  </button>
-                  <button onClick={() => navigateTo('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
-                    Restrictions
-                  </button>
+                  {hasTabPermission(currentUserRole, 'permissions') && (
+                    <button onClick={() => navigateTo('permissions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'permissions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                      Roles & Permissions
+                    </button>
+                  )}
+                  {hasTabPermission(currentUserRole, 'restrictions') && (
+                    <button onClick={() => navigateTo('restrictions')} className={`w-full text-left block px-3 py-2 text-sm relative truncate rounded-lg transition-colors ${currentPage === 'restrictions' ? 'bg-white/60 text-primary font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-white/30'}`}>
+                      Restrictions
+                    </button>
+                  )}
                 </div>
             </div>
           )}
