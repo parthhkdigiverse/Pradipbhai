@@ -295,6 +295,13 @@ export function ClientsPage() {
     return filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   }, [filteredClients, currentPage, itemsPerPage]);
 
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredClients.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [filteredClients.length, itemsPerPage, currentPage]);
+
   const getClientRevenueStats = (client: any) => {
     if (!client) return { totalRevenue: 0, paidRevenue: 0, pendingRevenue: 0, jobsCount: 0, hasJobs: false };
     const unifiedJobs = unifyDesPrintJobs(jobs);

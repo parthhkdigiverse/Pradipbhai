@@ -1,8 +1,9 @@
+import math
 import uuid
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any, Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from app.database import get_db
 from app.models.lead import Lead
 from app.models.staff import Staff
@@ -13,13 +14,72 @@ router = APIRouter(prefix="/leads", tags=["Leads"])
 
 @router.get("", response_model=List[LeadOut])
 async def get_leads(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: Optional[int] = Query(None, ge=1, le=10000),
     db: AsyncSession = Depends(get_db),
     _: Staff = Depends(require_permission("View Leads", "Create/Edit Leads")),
 ):
-    result = await db.execute(select(Lead).offset(skip).limit(limit))
+    stmt = select(Lead).order_by(Lead.created_at.desc(), Lead.id).offset(skip)
+    if limit is not None:
+        stmt = stmt.limit(limit)
+    result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/paginated")
+async def get_leads_paginated(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=200),
+    search: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    category: Optional[str] = None,
+    hot_only: bool = False,
+    db: AsyncSession = Depends(get_db),
+    _: Staff = Depends(require_permission("View Leads", "Create/Edit Leads")),
+) -> Dict[str, Any]:
+    filters = []
+    norm_search = (search or "").strip().lower()
+    if norm_search:
+        pattern = f"%{norm_search}%"
+        filters.append(
+            or_(
+                func.lower(func.coalesce(Lead.company, "")).like(pattern),
+                func.lower(func.coalesce(Lead.contact, "")).like(pattern),
+                func.lower(func.coalesce(Lead.email, "")).like(pattern),
+                func.lower(func.coalesce(Lead.phone, "")).like(pattern),
+                func.lower(func.coalesce(Lead.source, "")).like(pattern),
+                func.lower(func.coalesce(Lead.category, "")).like(pattern),
+            )
+        )
+    if status_filter and status_filter.strip().lower() != "all":
+        filters.append(Lead.status == status_filter.strip())
+    if category and category.strip().lower() != "all":
+        filters.append(Lead.category == category.strip())
+    if hot_only:
+        filters.append(Lead.is_hot.is_(True))
+
+    count_stmt = select(func.count(Lead.id))
+    data_stmt = select(Lead).order_by(Lead.created_at.desc(), Lead.id)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+        data_stmt = data_stmt.where(*filters)
+
+    total_res = await db.execute(count_stmt)
+    total = int(total_res.scalar_one_or_none() or 0)
+    total_pages = max(1, math.ceil(total / page_size))
+    safe_page = min(page, total_pages)
+    offset = (safe_page - 1) * page_size
+
+    rows_res = await db.execute(data_stmt.offset(offset).limit(page_size))
+    items = [LeadOut.model_validate(l).model_dump() for l in rows_res.scalars().all()]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": safe_page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
 
 @router.post("", response_model=LeadOut, status_code=status.HTTP_201_CREATED)
 async def create_lead(

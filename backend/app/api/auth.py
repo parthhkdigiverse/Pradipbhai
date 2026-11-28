@@ -1,9 +1,10 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from jose import jwt
 
 from app.database import get_db
@@ -56,8 +57,14 @@ async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(
         }
     # ────────────────────────────────────────────────────────────────────
 
-    result = await db.execute(select(Staff).where(Staff.email == clean_email))
-    staff_member = result.scalar_one_or_none()
+    result = await db.execute(select(Staff).where(func.lower(func.trim(Staff.email)) == clean_email))
+    matches = result.scalars().all()
+    if len(matches) > 1:
+        logging.getLogger(__name__).warning("Duplicate staff rows detected for email '%s' (%d matches)", clean_email, len(matches))
+        active_matches = [m for m in matches if not (m.status and m.status.lower() == "inactive")]
+        staff_member = active_matches[0] if active_matches else matches[0]
+    else:
+        staff_member = matches[0] if matches else None
 
     # Only registered staff members in the DB can log in
     if not staff_member:

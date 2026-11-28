@@ -8,6 +8,7 @@ import { useSettings } from '../context/SettingsContext';
 import { useData } from '../context/DataContext';
 import { formatDate } from '../utils/dateFormatter';
 import { SearchableSelect } from './SearchableSelect';
+import { Pagination } from './Pagination';
 
 const DEFAULT_CATEGORIES = ['Hot Lead', 'Warm Lead', 'Cold Lead'];
 
@@ -26,6 +27,12 @@ export function LeadsPage() {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterHot, setFilterHot] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus, filterCategory, filterSource, filterPriority, filterDateFrom, filterDateTo, filterHot]);
 
   // Dynamic Lead Categories
   const [leadCategories, setLeadCategories] = useState<string[]>(() => {
@@ -295,9 +302,20 @@ export function LeadsPage() {
     });
   }, [leads, searchTerm, filterStatus, filterCategory, filterSource, filterPriority, filterDateFrom, filterDateTo, filterHot]);
 
+  const paginatedLeads = useMemo(() => {
+    return filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredLeads, currentPage, itemsPerPage]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredLeads.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [filteredLeads.length, itemsPerPage, currentPage]);
+
   const groupedLeads = useMemo(() => {
     const groups: Record<string, any[]> = {};
-    filteredLeads.forEach(lead => {
+    paginatedLeads.forEach(lead => {
       if (!groups[lead.category]) groups[lead.category] = [];
       groups[lead.category].push(lead);
     });
@@ -307,7 +325,7 @@ export function LeadsPage() {
        const idxB = leadCategories.indexOf(b[0]);
        return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
     });
-  }, [filteredLeads, leadCategories]);
+  }, [paginatedLeads, leadCategories]);
 
   const toggleCategory = (category: string) => {
     setExpandedCategories(prev => ({ ...prev, [category]: prev[category] === false ? true : false }));
@@ -832,6 +850,16 @@ export function LeadsPage() {
             </div>
           )}
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredLeads.length}
+          itemsPerPage={itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={setItemsPerPage}
+          itemsPerPageOptions={[10, 25, 50, 100]}
+          itemName="leads"
+        />
       </div>
 
       {/* Add / Edit Modal */}

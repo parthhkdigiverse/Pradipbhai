@@ -91,23 +91,16 @@ class Base(DeclarativeBase):
     pass
 
 # Dependency for FastAPI endpoints
-# Retries once on disconnect errors (stale pool connections on Hostinger).
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    from sqlalchemy.exc import OperationalError, DBAPIError
-    for attempt in range(2):
-        session = AsyncSessionLocal()
+    async with AsyncSessionLocal() as session:
         try:
             yield session
-            return
-        except (OperationalError, DBAPIError) as exc:
-            await session.rollback()
-            await session.close()
-            if attempt == 0 and getattr(exc, "connection_invalidated", False):
-                logger.warning("Stale DB connection – retrying with fresh connection (attempt %d)", attempt + 1)
-                continue
+        except Exception:
+            try:
+                await session.rollback()
+            except Exception:
+                pass
             raise
-        finally:
-            await session.close()
 
 
 # Safe database initialization (Creates missing tables, columns & initial seed data)

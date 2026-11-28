@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, Fragment } from 'react';
 import { useData } from '../context/DataContext';
+import { useSettings } from '../context/SettingsContext';
+import { formatDate } from '../utils/dateFormatter';
 import { 
   Search, MessageSquare, Paperclip, Smile, Send, Check, CheckCheck, 
   Reply, Copy, Download, Trash2, Edit3, Star, MoreVertical, 
@@ -39,7 +41,57 @@ const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏", "🔥",
 
 export function ChatPage() {
   const { staff, currentUser, fetchUnreadSummaries: refreshGlobalUnread } = useData();
+  const { dateFormat } = useSettings();
   const currentUserId = currentUser?.id || localStorage.getItem('userId') || '';
+
+  const parseTimestampDate = (createdAt?: string | null, fallbackId?: string | number): Date | null => {
+    if (createdAt) {
+      const d = new Date(createdAt);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (typeof fallbackId === 'number' && fallbackId > 1600000000000) {
+      const d = new Date(fallbackId);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  };
+
+  const getLocalDayKey = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const formatChatDividerLabel = (d: Date): string => {
+    const dayKey = getLocalDayKey(d);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+    const formatted = formatDate(dayKey, dateFormat);
+    if (dayKey === getLocalDayKey(today)) return `Today · ${weekday}, ${formatted}`;
+    if (dayKey === getLocalDayKey(yesterday)) return `Yesterday · ${weekday}, ${formatted}`;
+    return `${weekday}, ${formatted}`;
+  };
+
+  const formatContactSidebarTime = (createdAt?: string | null, fallbackTime?: string, lastMsg?: Message): string => {
+    const d = parseTimestampDate(createdAt || lastMsg?.createdAt, lastMsg?.id);
+    if (!d) return fallbackTime || '';
+    const dayKey = getLocalDayKey(d);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    if (dayKey === getLocalDayKey(today)) {
+      return fallbackTime || d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    if (dayKey === getLocalDayKey(yesterday)) {
+      return 'Yesterday';
+    }
+    return formatDate(dayKey, dateFormat);
+  };
   const currentUserEmail = (currentUser?.email || localStorage.getItem('userEmail') || '').toLowerCase().trim();
   const isRootAdmin = currentUserId === 'super-admin' || currentUserId === 'emp-admin' || 
     currentUserEmail === 'admin@alphacreative.com' || currentUserEmail === 'admin@alpha.com';
@@ -100,6 +152,7 @@ export function ChatPage() {
           status: 'online',
           lastMessage: summary?.lastMessage || 'No messages yet',
           time: summary?.time || '',
+          createdAt: summary?.createdAt || null,
           unread: summary?.unread || 0,
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=random`
         };
@@ -213,6 +266,7 @@ export function ChatPage() {
         m1.text !== m2.text ||
         m1.sender !== m2.sender ||
         m1.status !== m2.status ||
+        (m1.createdAt || '') !== (m2.createdAt || '') ||
         Boolean(m1.isEdited) !== Boolean(m2.isEdited) ||
         Boolean(m1.isStarred) !== Boolean(m2.isStarred) ||
         JSON.stringify(m1.reactions || {}) !== JSON.stringify(m2.reactions || {})
@@ -439,9 +493,11 @@ export function ChatPage() {
         replyTo: idx === 0 ? replyPayload : null,
       };
 
+      const nowIso = new Date().toISOString();
       const tempMsg: Message = {
         id: Date.now() + idx,
-        ...payload
+        ...payload,
+        createdAt: nowIso,
       };
 
       setMessages(prev => ({
@@ -449,7 +505,6 @@ export function ChatPage() {
         [targetContactId]: [...(prev[targetContactId] || []), tempMsg]
       }));
 
-      const nowIso = new Date().toISOString();
       setContactSummaries(prev => ({
         ...prev,
         [targetContactId]: {
@@ -718,6 +773,7 @@ export function ChatPage() {
               const contactMsgs = messages[contact.id] || [];
               const lastMsgObj = contactMsgs[contactMsgs.length - 1];
               const displayLastMsg = lastMsgObj ? (lastMsgObj.text || (lastMsgObj.attachment ? `📷 Attachment` : '')) : contact.lastMessage;
+              const sidebarTimeLabel = formatContactSidebarTime(lastMsgObj?.createdAt || contact.createdAt, lastMsgObj?.time || contact.time, lastMsgObj);
               
               return (
                 <button 
@@ -740,9 +796,9 @@ export function ChatPage() {
                     <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${contact.status === 'online' ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
                       <h4 className={`text-sm font-bold truncate ${activeContactId === contact.id ? 'text-primary' : 'text-gray-800'}`}>{contact.name}</h4>
-                      <span className="text-[10px] font-semibold text-gray-400 shrink-0">{contact.time}</span>
+                      <span className="text-[10px] font-semibold text-gray-400 shrink-0" title={contact.time}>{sidebarTimeLabel}</span>
                     </div>
                     {contact.email && (
                       <p className="text-[10px] text-gray-400 truncate -mt-0.5 mb-0.5">{contact.email}</p>
@@ -834,12 +890,29 @@ export function ChatPage() {
           {/* Chat Messages Body */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-white/10 to-white/20">
             {currentMessages.length > 0 ? (
-              currentMessages.map(msg => {
+              currentMessages.map((msg, msgIdx) => {
                 const isMe = msg.sender === "me";
                 const isMenuOpen = activeMenuMsgId === msg.id;
+                const msgDateObj = parseTimestampDate(msg.createdAt, msg.id);
+                const msgDayKey = msgDateObj ? getLocalDayKey(msgDateObj) : null;
+                const prevMsg = msgIdx > 0 ? currentMessages[msgIdx - 1] : null;
+                const prevDateObj = prevMsg ? parseTimestampDate(prevMsg.createdAt, prevMsg.id) : null;
+                const prevDayKey = prevDateObj ? getLocalDayKey(prevDateObj) : null;
+                const showDateDivider = Boolean(msgDateObj && msgDayKey !== prevDayKey);
+                const fullDateTitle = msgDateObj
+                  ? `${msgDateObj.toLocaleDateString('en-US', { weekday: 'short' })}, ${formatDate(msgDayKey!, dateFormat)} • ${msg.time}`
+                  : msg.time;
 
                 return (
-                  <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative animate-in fade-in slide-in-from-bottom-2 duration-200`}>
+                  <Fragment key={msg.id}>
+                    {showDateDivider && msgDateObj && (
+                      <div className="flex justify-center my-3 sticky top-1 z-10 pointer-events-none">
+                        <span className="px-3.5 py-1 rounded-full text-[11px] font-bold text-gray-600 bg-white/85 backdrop-blur-md border border-white shadow-sm">
+                          {formatChatDividerLabel(msgDateObj)}
+                        </span>
+                      </div>
+                    )}
+                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group relative animate-in fade-in slide-in-from-bottom-2 duration-200`}>
                     {/* Message Bubble Container */}
                     <div className="relative flex items-center max-w-[75%] gap-2 msg-menu-container">
                       
@@ -990,7 +1063,12 @@ export function ChatPage() {
                         <div className="flex items-center justify-end gap-1.5 mt-1">
                           {msg.isStarred && <Star className={`w-3 h-3 ${isMe ? 'fill-white text-white' : 'fill-amber-400 text-amber-500'}`} />}
                           {msg.isEdited && <span className="text-[9px] opacity-75 italic">edited</span>}
-                          <span className={`text-[10px] font-semibold ${isMe ? 'text-white/80' : 'text-gray-400'}`}>{msg.time}</span>
+                          <span
+                            className={`text-[10px] font-semibold ${isMe ? 'text-white/80' : 'text-gray-400'}`}
+                            title={fullDateTitle}
+                          >
+                            {msg.time}
+                          </span>
                           {isMe && (
                             <span className="text-white/90">
                               {msg.status === 'read' ? (
@@ -1025,6 +1103,7 @@ export function ChatPage() {
                     )}
 
                   </div>
+                  </Fragment>
                 );
               })
             ) : (

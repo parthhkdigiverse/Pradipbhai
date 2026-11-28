@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.database import get_db
 from app.models.staff import Staff
 from app.schemas.staff import StaffCreate, StaffUpdate, StaffOut
@@ -85,6 +85,15 @@ async def create_staff(
         if not await check_any_permission(current_user, ("Edit Permissions",), db):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Edit Permissions holders can set custom permissions")
 
+    clean_email = (staff_in.email or "").strip().lower()
+    if clean_email:
+        dup_res = await db.execute(select(Staff).where(func.lower(func.trim(Staff.email)) == clean_email))
+        if dup_res.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A staff account with email '{clean_email}' already exists.",
+            )
+
     staff_id = staff_in.id or f"emp-{uuid.uuid4().hex[:8]}"
     start_time_val = staff_in.officeStartTime or staff_in.office_start_time
     end_time_val = staff_in.officeEndTime or staff_in.office_end_time
@@ -95,7 +104,7 @@ async def create_staff(
         id=staff_id,
         name=staff_in.name,
         role=target_role,
-        email=staff_in.email,
+        email=clean_email or None,
         phone=staff_in.phone,
         status=staff_in.status or "Active",
         join_date=staff_in.joinDate,
@@ -135,6 +144,18 @@ async def update_staff(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins or Edit Permissions holders can modify custom permissions")
     
     update_data = staff_in.model_dump(exclude_unset=True)
+    if "email" in update_data:
+        clean_email = (update_data["email"] or "").strip().lower()
+        if clean_email:
+            dup_res = await db.execute(
+                select(Staff).where(Staff.id != staff_id, func.lower(func.trim(Staff.email)) == clean_email)
+            )
+            if dup_res.scalars().first():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Another staff account with email '{clean_email}' already exists.",
+                )
+        update_data["email"] = clean_email or None
     if "password" in update_data:
         new_pw = (update_data.pop("password") or "").strip()
         if new_pw:

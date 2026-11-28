@@ -66,11 +66,11 @@ def _leave_month_weights(
     return weights
 
 
-async def _cleanup_leave_attendance(db: AsyncSession, staff_id: str, from_date: str, to_date: str | None) -> None:
-    """Remove auto-created Leave/Half Day attendance rows that have no punch data."""
+async def _cleanup_leave_attendance(db: AsyncSession, staff_id: str, from_date: str, to_date: str | None) -> bool:
+    """Remove auto-created Leave/Half Day attendance rows that have no punch data. Returns whether any rows were deleted."""
     dates = _expand_leave_dates(from_date, to_date)
     if not dates:
-        return
+        return False
     res = await db.execute(
         select(Attendance).where(
             Attendance.staff_id == staff_id,
@@ -84,8 +84,7 @@ async def _cleanup_leave_attendance(db: AsyncSession, staff_id: str, from_date: 
         if is_leave_status and not has_punches:
             await db.delete(att)
             removed = True
-    if removed:
-        await invalidate_cache(CACHE_KEY_ATT)
+    return removed
 
 
 @router.get("/requests", response_model=List[LeaveRequestOut])
@@ -129,8 +128,6 @@ async def create_leave_request(
         req_weights = _leave_month_weights(
             req_in.from_date, req_in.to_date, req_in.days, req_in.is_half_day, holiday_dates
         )
-        if not req_weights and req_in.from_date:
-            req_weights = {req_in.from_date[:7]: float(req_in.days or 1.0)}
 
         existing_earned = await db.execute(
             select(LeaveRequest).where(
@@ -202,11 +199,14 @@ async def update_leave_request(
     for field, val in updates.items():
         setattr(leave_req, field, val)
 
+    att_cleaned = False
     if prev_status == "Approved" and leave_req.status in ("Rejected", "Pending"):
-        await _cleanup_leave_attendance(db, leave_req.staff_id, leave_req.from_date, leave_req.to_date)
+        att_cleaned = await _cleanup_leave_attendance(db, leave_req.staff_id, leave_req.from_date, leave_req.to_date)
 
     await db.commit()
     await db.refresh(leave_req)
+    if att_cleaned:
+        await invalidate_cache(CACHE_KEY_ATT)
     return leave_req
 
 
@@ -226,11 +226,14 @@ async def delete_leave_request(
         if leave_req.staff_id != current_user.id or leave_req.status != "Pending":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only your own pending leave requests can be cancelled")
 
+    att_cleaned = False
     if leave_req.status == "Approved":
-        await _cleanup_leave_attendance(db, leave_req.staff_id, leave_req.from_date, leave_req.to_date)
+        att_cleaned = await _cleanup_leave_attendance(db, leave_req.staff_id, leave_req.from_date, leave_req.to_date)
 
     await db.delete(leave_req)
     await db.commit()
+    if att_cleaned:
+        await invalidate_cache(CACHE_KEY_ATT)
 
 
 @router.get("/balances", response_model=List[LeaveBalanceOut])
